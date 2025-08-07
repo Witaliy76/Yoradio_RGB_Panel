@@ -110,9 +110,7 @@ void DspCore::initDisplay() {
   
   // Инициализация подсветки
   pinMode(GFX_BL, OUTPUT);
-  ledcSetup(0, 5000, 8);
-  ledcAttachPin(GFX_BL, 0);
-  ledcWrite(0, 255);
+  digitalWrite(GFX_BL, HIGH); // Включаем подсветку на полную яркость
 
   // Проверяем и инициализируем шину
   if (!bus) {

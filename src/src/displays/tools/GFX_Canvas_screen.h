@@ -1,5 +1,5 @@
 #pragma once
-#include "Arduino_Canvas.h"
+#include "canvas/Arduino_Canvas.h"
 #include <stdarg.h>
 #include "utf8RusGFX.h"
 

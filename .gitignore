@@ -8,8 +8,7 @@
 *.txt
 .cursor/
 test/
-*.md
+SPECTRUM*.md
 docs/
-data/
-boards/
 *.7z
+data/

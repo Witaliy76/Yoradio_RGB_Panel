@@ -1,6 +1,8 @@
-# Yoradio для JC3248W535C
+# Yoradio для JC3248W535C on 0.9.434(m) version
+Для русской локализации заменяем файл fonts/glcdfont.h по адресу: pio\libdeps\yoradio-esp32s3\GFX Library for Arduino\src\font
 
 Порт проекта [Yoradio] для модуля JC3248W535C с дисплеем AXS15231B.
+![photo_2025-06-20_19-28-12](https://github.com/user-attachments/assets/9805d905-fc45-4f9a-80c0-085f194a99e8)
 
 ## Описание
 
@@ -10,6 +12,10 @@ JC3248W535C - это модуль на базе ESP32-S3 с 3.5-дюймовым
 - **Процессор**: ESP32-S3-WROOM-1-N16R8 (240MHz, dual-core)
 - **Память**: 520KB RAM + 16MB PSRAM + 8MB Flash
 - **Интерфейс**: QSPI (оптимизированный)
+- Тачскрин - особенность (!)одновременное нажатие двумя пальцами - переключение режима RADIO<->SD карта
+- Виджет баттареи
+- Виджет CPU Load
+- Виджет like spectrum analyzer
 
 ## Особенности
 
@@ -26,20 +32,7 @@ JC3248W535C - это модуль на базе ESP32-S3 с 3.5-дюймовым
 
 ## Установка
 
-1. Клонируйте репозиторий:
-```bash
-git clone https://github.com/Witaliy76/Yoradio_JC3248W535C_3_30.git
-cd Yoradio_JC3248W535C_3_30
-```
-
-2. Откройте проект в PlatformIO IDE или VS Code с расширением PlatformIO
-
-3. Настройте параметры в файле `src/myoptions.h`
-
-4. Скомпилируйте и загрузите:
-```bash
-pio run -t upload
-```
+Для .pioarduino версия ядра 3.3.0
 
 ## Конфигурация
 
@@ -51,7 +44,7 @@ pio run -t upload
 ## Поддерживаемые дисплеи
 
 Проект поддерживает 
-- AXS15231B (основной для JC3248W535C)
+- AXS15231B (основной для JC3248W535C) с встроенным емкостным тачскрином
 
 
 ## Лицензия

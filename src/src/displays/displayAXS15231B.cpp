@@ -22,6 +22,9 @@
 
 #include "Arduino_GFX.h"
 #include "tools/GFX_Canvas_screen.h"
+#if defined(ARDUINO_ARCH_ESP32)
+#include "esp32-hal-ledc.h"
+#endif
 
 #include "esp_timer.h"
 #include "esp_rom_sys.h"
@@ -108,9 +111,10 @@ DspCore::DspCore(): Arduino_AXS15231B(bus, GFX_NOT_DEFINED /* RST */, 0 /* rotat
 void DspCore::initDisplay() {
   Serial.println("[AXS15231B] initDisplay start");
   
-  // Инициализация подсветки
+  // Инициализация подсветки (LEDC PWM)
   pinMode(GFX_BL, OUTPUT);
-  digitalWrite(GFX_BL, HIGH); // Включаем подсветку на полную яркость
+  // Инициализация подсветки: первичная привязка через analogWrite (ядро 3.x само настраивает LEDC)
+  analogWrite(GFX_BL, map(config.store.brightness, 0, 100, 0, 255));
 
   // Проверяем и инициализируем шину
   if (!bus) {
@@ -178,7 +182,8 @@ void DspCore::drawLogo(uint16_t top)
         return;
     }
     
-    digitalWrite(GFX_BL, LOW);
+    // Временно гасим подсветку на время отрисовки логотипа
+    ledcWrite(GFX_BL, 0);
     
     // Очищаем область под логотип
     gfxFillRect(gfx, 0, top, width(), 88, config.theme.background);
@@ -186,7 +191,8 @@ void DspCore::drawLogo(uint16_t top)
     // Рисуем логотип
     gfxDrawBitmap(gfx, (width() - 134) / 2, top, bootlogo2, 134, 88);
     
-    digitalWrite(GFX_BL, HIGH);
+    // Возвращаем яркость согласно настройке
+    ledcWrite(GFX_BL, map(config.store.brightness, 0, 100, 0, 255));
     
     // Уменьшаем задержку
     delay(100);
@@ -519,7 +525,7 @@ void DspCore::sleep(void) {
   Serial.println("DspCore::sleep");
   TAKE_MUTEX();
   displayOff();
-  ledcWrite(0, 0); // Выключаем подсветку через PWM
+  ledcWrite(GFX_BL, 0); // Выключаем подсветку через PWM
   GIVE_MUTEX();
 }
 
@@ -527,13 +533,13 @@ void DspCore::wake(void) {
   Serial.println("DspCore::wake");
   TAKE_MUTEX();
   displayOn();
-  ledcWrite(0, map(config.store.brightness, 0, 100, 0, 255)); // Устанавливаем яркость через PWM
+  ledcWrite(GFX_BL, map(config.store.brightness, 0, 100, 0, 255)); // Устанавливаем яркость через PWM
   GIVE_MUTEX();
 }
 
 void DspCore::setBrightness(uint8_t brightness) {
   TAKE_MUTEX();
-  ledcWrite(0, map(brightness, 0, 100, 0, 255));
+  ledcWrite(GFX_BL, map(brightness, 0, 100, 0, 255));
   GIVE_MUTEX();
 }
 

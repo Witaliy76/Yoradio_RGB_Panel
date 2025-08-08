@@ -108,14 +108,14 @@ void loop() {
     while(current_brightness > brightness_down_level) {
         current_brightness -= 2;
         if(current_brightness < brightness_down_level) current_brightness = brightness_down_level;
-        ledcWrite(0, current_brightness);
+        analogWrite(GFX_BL, current_brightness);
         vTaskDelay(30);					                    }
 						                    }
   }
 
   void brightnessOn()          /* function Backlight ON */
   { backlightTicker.detach();
-    ledcWrite(0, map(config.store.brightness, 0, 100, 0, 255));
+    analogWrite(GFX_BL, map(config.store.brightness, 0, 100, 0, 255));
     backlightTicker.attach(Out_Interval, backlightDown);
   }
 

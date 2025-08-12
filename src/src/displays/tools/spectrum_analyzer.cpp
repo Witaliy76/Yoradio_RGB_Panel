@@ -1,5 +1,5 @@
 #include "spectrum_analyzer.h"
-#include "../core/options.h"
+#include "../../core/options.h"
 #include "esp_heap_caps.h"
 #include <math.h>
 

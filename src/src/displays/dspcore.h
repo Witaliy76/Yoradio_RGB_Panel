@@ -48,6 +48,8 @@
   #include "displayNV3041A.h"
 #elif DSP_MODEL==DSP_AXS15231B
   #include "displayAXS15231B.h"
+#elif DSP_MODEL==DSP_ST7701
+  #include "displayST7701.h"
 #endif
 
 //extern DspCore dsp;

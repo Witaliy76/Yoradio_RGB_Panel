@@ -16,10 +16,8 @@ extern "C" {
 #include <cstdlib>
 #include <cmath>
 
-#if DSP_MODEL==DSP_AXS15231B
 #include "../tools/GFX_Canvas_screen.h"
 extern Arduino_Canvas* gfx;
-#endif
 
 // === НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ДЛЯ ПОДБОРА ===
 //НАСТРОЙКИ ШКАЛА VU-МЕТРА

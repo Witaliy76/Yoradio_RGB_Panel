@@ -31,7 +31,7 @@ Page *pages[] = { new Page(), new Page(), new Page(), new Page() };
 #ifndef DSP_TASK_DELAY
   #define DSP_TASK_DELAY  pdMS_TO_TICKS(10)
 #endif
-#if !((DSP_MODEL==DSP_ST7735 && DTYPE==INITR_BLACKTAB) || DSP_MODEL==DSP_ST7789 || DSP_MODEL==DSP_ST7789_170 || DSP_MODEL==DSP_ST7796 || DSP_MODEL==DSP_ILI9488 || DSP_MODEL==DSP_ILI9486 || DSP_MODEL==DSP_ILI9341 || DSP_MODEL==DSP_ILI9225 || DSP_MODEL==DSP_AXS15231B)
+#if !((DSP_MODEL==DSP_ST7735 && DTYPE==INITR_BLACKTAB) || DSP_MODEL==DSP_ST7789 || DSP_MODEL==DSP_ST7789_170 || DSP_MODEL==DSP_ST7796 || DSP_MODEL==DSP_ILI9488 || DSP_MODEL==DSP_ILI9486 || DSP_MODEL==DSP_ILI9341 || DSP_MODEL==DSP_ILI9225 || DSP_MODEL==DSP_AXS15231B || DSP_MODEL==DSP_ST7701)
   #undef  BITRATE_FULL
   #define BITRATE_FULL     false
 #endif
@@ -166,6 +166,9 @@ void Display::_buildPager(){
     // Инициализация Spectrum Widget вместо VU-метра
     #if DSP_MODEL==DSP_AXS15231B
       #include "../displays/conf/spectrum_axs15231b.h"
+      _spectrumwidget = new SpectrumWidget(spectrumConf);
+    #elif DSP_MODEL==DSP_ST7701
+      #include "../displays/conf/spectrum_st7701.h"
       _spectrumwidget = new SpectrumWidget(spectrumConf);
     #else
       // Для других дисплеев можно добавить другие конфигурации

@@ -88,25 +88,18 @@ void SpectrumWidget::_draw() {
         _drawBar(x, _config.barWidth, barHeight, value, peak);
     }
     
-    // Обновляем экран
-    #if DSP_MODEL==DSP_AXS15231B
-        if (gfx) {
-            gfx->flush();
-        }
-    #endif
+    // Обновляем экран (Canvas путь)
+    if (gfx) {
+        gfx->flush();
+    }
 }
 
 void SpectrumWidget::_clear() {
-    // Очищаем область виджета
-    #if DSP_MODEL==DSP_AXS15231B
-        if (gfx) {
-            gfxFillRect(gfx, _config.widget.left, _config.widget.top, 
-                       _config.width, _config.height, _config.bgColor);
-        }
-    #else
-        // Для других дисплеев используем стандартные функции
-        // TODO: Добавить поддержку других дисплеев
-    #endif
+    // Очищаем область виджета (Canvas путь)
+    if (gfx) {
+        gfxFillRect(gfx, _config.widget.left, _config.widget.top,
+                    _config.width, _config.height, _config.bgColor);
+    }
 }
 
 void SpectrumWidget::_drawBar(uint16_t x, uint16_t width, uint16_t barHeight, float value, float peak) {
@@ -145,57 +138,47 @@ void SpectrumWidget::_drawBar(uint16_t x, uint16_t width, uint16_t barHeight, fl
     }
     // До 50% остается зеленый (_barColor)
     
-    #if DSP_MODEL==DSP_AXS15231B
-        if (gfx) {
-            gfxFillRect(gfx, x, baseY, width, barHeight, barColor);
-            
-            // Рисуем пиковое значение если включено
-            if (_showPeaks && peak > value) {
-                uint16_t peakHeight = (uint16_t)(peak * _config.height);
-                if (peakHeight < 1) peakHeight = 1;
-                if (peakHeight > _config.height) peakHeight = _config.height;
-                
-                uint16_t peakY = _config.widget.top + _config.height - peakHeight;
-                
-                // Рисуем толстую линию пика
-                // Основная горизонтальная линия
-                gfxDrawLine(gfx, x, peakY, x + width, peakY, _peakColor);
-                
-                // Дополнительные линии для толщины
-                if (peakY > 0) {
-                    gfxDrawLine(gfx, x, peakY - 1, x + width, peakY - 1, _peakColor);
-                }
-                if (peakY < _config.height - 1) {
-                    gfxDrawLine(gfx, x, peakY + 1, x + width, peakY + 1, _peakColor);
-                }
-                
-                // Вертикальные линии по краям для лучшей видимости
-                if (width > 2) {
-                    gfxDrawLine(gfx, x, peakY - 1, x, peakY + 1, _peakColor);
-                    gfxDrawLine(gfx, x + width - 1, peakY - 1, x + width - 1, peakY + 1, _peakColor);
-                }
+    if (gfx) {
+        gfxFillRect(gfx, x, baseY, width, barHeight, barColor);
+
+        // Рисуем пиковое значение если включено
+        if (_showPeaks && peak > value) {
+            uint16_t peakHeight = (uint16_t)(peak * _config.height);
+            if (peakHeight < 1) peakHeight = 1;
+            if (peakHeight > _config.height) peakHeight = _config.height;
+
+            uint16_t peakY = _config.widget.top + _config.height - peakHeight;
+
+            // Рисуем толстую линию пика
+            // Основная горизонтальная линия
+            gfxDrawLine(gfx, x, peakY, x + width, peakY, _peakColor);
+
+            // Дополнительные линии для толщины
+            if (peakY > 0) {
+                gfxDrawLine(gfx, x, peakY - 1, x + width, peakY - 1, _peakColor);
+            }
+            if (peakY < _config.height - 1) {
+                gfxDrawLine(gfx, x, peakY + 1, x + width, peakY + 1, _peakColor);
+            }
+
+            // Вертикальные линии по краям для лучшей видимости
+            if (width > 2) {
+                gfxDrawLine(gfx, x, peakY - 1, x, peakY + 1, _peakColor);
+                gfxDrawLine(gfx, x + width - 1, peakY - 1, x + width - 1, peakY + 1, _peakColor);
             }
         }
-    #else
-        // Для других дисплеев используем стандартные функции
-        // TODO: Добавить поддержку других дисплеев
-    #endif
+    }
 }
 
 void SpectrumWidget::_drawGrid() {
     // Рисуем горизонтальную сетку
     uint16_t gridSpacing = _config.height / 4; // 4 линии сетки
     
-    #if DSP_MODEL==DSP_AXS15231B
-        if (gfx) {
-            for (uint8_t i = 1; i < 4; i++) {
-                uint16_t y = _config.widget.top + i * gridSpacing;
-                gfxDrawLine(gfx, _config.widget.left, y, 
-                           _config.widget.left + _config.width, y, _config.gridColor);
-            }
+    if (gfx) {
+        for (uint8_t i = 1; i < 4; i++) {
+            uint16_t y = _config.widget.top + i * gridSpacing;
+            gfxDrawLine(gfx, _config.widget.left, y,
+                        _config.widget.left + _config.width, y, _config.gridColor);
         }
-    #else
-        // Для других дисплеев используем стандартные функции
-        // TODO: Добавить поддержку других дисплеев
-    #endif
+    }
 } 

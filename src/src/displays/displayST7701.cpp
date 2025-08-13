@@ -38,6 +38,11 @@ extern const uint8_t st7701_type1_init_operations[];
 #define TAKE_MUTEX() sdog.takeMutex()
 #define GIVE_MUTEX() sdog.giveMutex()
 
+// Local RGB888 -> RGB565 helper (Arduino_GFX does not export free color565)
+static inline uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
 // === Глобальные объекты для Canvas-режима (RGB Panel) ===
 static Arduino_DataBus *bus = nullptr;
 static Arduino_ESP32RGBPanel *rgbpanel = nullptr;

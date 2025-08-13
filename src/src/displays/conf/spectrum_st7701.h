@@ -8,19 +8,26 @@
 
 #include "../tools/spectrum_widget.h"
 
-// Конфигурация для Spectrum Analyzer на ST7701 (480x480)
-const SpectrumConfig spectrumConf PROGMEM = {
-    TFT_FRAMEWDT,    // left
-    294,             // top (VU position from displayST7701conf.h)
-    472,             // width (MAX_WIDTH)
-    35,              // height
-    15,              // bands
-    2,               // spacing between bands
-    true,            // show peaks
-    500,             // peak hold time (ms)
-    0x07E0,          // color (green)
-    0xF800,          // peak color (red)
-    0x0000           // background color (black)
+// Конфигурация виджета спектра для ST7701 (480x480)
+// Адаптирована под SpectrumWidgetConfig
+static SpectrumWidgetConfig spectrumConf = {
+    .widget = {
+        .left = TFT_FRAMEWDT,
+        .top = 294,
+        .textsize = 1,
+        .align = WA_LEFT
+    },
+    .width = 480,          // ширина области виджета (480 - 2*TFT_FRAMEWDT)
+    .height = 120,         // высота области виджета
+    .barWidth = 30,        // ширина полосы (15*24 + 14*8 = 472)
+    .barGap = 2,           // зазор между полосами
+    .orientation = 0,      // горизонтальный
+    .showPeaks = true,     // отображать пики
+    .showGrid = true,      // сетка
+    .gridColor = 0x39E7,   // серый
+    .barColor = 0x07E0,    // зелёный
+    .peakColor = 0xF800,   // красный
+    .bgColor = 0x0000      // чёрный
 };
 
 #endif

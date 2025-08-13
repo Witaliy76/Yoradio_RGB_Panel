@@ -218,7 +218,11 @@ void Display::_buildPager(){
     pages[PG_PLAYER]->addWidget( _bitrate);
   #endif
   #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-    if(_spectrumwidget) pages[PG_PLAYER]->addWidget( _spectrumwidget);
+    if(_spectrumwidget) {
+      pages[PG_PLAYER]->addWidget(_spectrumwidget);
+      // Force-enable Spectrum on startup (web VU toggle is disabled in SA mode)
+      _spectrumwidget->setActive(true);
+    }
   #elif !defined(HIDE_VU)
   if(_vuwidget) pages[PG_PLAYER]->addWidget( _vuwidget);
   #endif

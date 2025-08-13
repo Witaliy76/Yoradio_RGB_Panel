@@ -147,7 +147,7 @@ void DspCore::initDisplay() {
         /* hsync_polarity */ 1, /* hsync_front_porch */ 10, /* hsync_pulse_width */ 8, /* hsync_back_porch */ 50,
         /* vsync_polarity */ 1, /* vsync_front_porch */ 10, /* vsync_pulse_width */ 8, /* vsync_back_porch */ 20,
         // Параметры тактирования и формата данных
-        /* pclk_active_neg */ 0, /* prefer_speed */ 16000000, /* big endian */ false,
+        /* pclk_active_neg */ 0, /* prefer_speed */ 11000000UL, /* big endian */ false,
         /* de_idle_high */ 0, /* pclk_idle_high */ 0, /* bounce_buffer_size_px */ 0);
     if (!rgbpanel) {
       Serial.println("[ST7701] Failed to initialize RGB panel!");
@@ -170,6 +170,9 @@ void DspCore::initDisplay() {
   }
 
   // 4. Инициализация Canvas
+  // ВАЖНО: не вызывать begin() для output_display вручную,
+  // т.к. gfx->begin() сделает это сам. Двойной begin вызывает
+  // повторное создание RGB панели (panic: no free rgb panel slot).
   if (!gfx) {
     Serial.println("[ST7701] Initializing canvas...");
     gfx = new Arduino_Canvas(480, 480, output_display);
@@ -192,13 +195,23 @@ void DspCore::initDisplay() {
     delay(100);
   }
 
-  // 5. Отправка дополнительных команд для корректной работы
+  // 5. Отправка обязательных команд контроллеру (после begin)
   if (bus) {
-    // Фиксируем формат пикселей на RGB565 (важно для ST7701)
+    // Формат пикселя: RGB565
     bus->sendCommand(0x3A);
     bus->sendData(0x55);
-    delay(10);
-    Serial.println("[ST7701] RGB565 format set (0x3A=0x55)");
+    delay(5);
+    // Инверсия выкл
+    bus->sendCommand(0x20);
+    delay(2);
+    // Страница 0x10: настройка сканирования (C7=0x00 нормаль)
+    bus->beginWrite();
+    bus->writeCommand(0xFF); bus->write(0x77); bus->write(0x01); bus->write(0x00); bus->write(0x00); bus->write(0x10);
+    bus->writeCommand(0xC7); bus->write(0x00);
+    // Возврат на страницу 0x00 и установка MADCTL (0x36) = 0x00 (RGB порядок)
+    bus->writeCommand(0xFF); bus->write(0x77); bus->write(0x01); bus->write(0x00); bus->write(0x00); bus->write(0x00);
+    bus->writeCommand(0x36); bus->write(0x00);
+    bus->endWrite();
   }
   
   // 6. Включение подсветки (PWM совместимо с Arduino Core 3.x)
@@ -596,7 +609,10 @@ void DspCore::flip(){
 
 void DspCore::invert(){
   TAKE_MUTEX();
-  if (output_display) output_display->invertDisplay(config.store.invertdisplay);
+  if (bus) {
+    // Аппаратное управление инверсией контроллера ST7701: 0x21 (INVON), 0x20 (INVOFF)
+    bus->sendCommand(config.store.invertdisplay ? 0x21 : 0x20);
+  }
   GIVE_MUTEX();
 }
 

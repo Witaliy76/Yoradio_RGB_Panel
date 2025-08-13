@@ -6,7 +6,7 @@
 // Новый модуль ESP32-4848S040 (ST7701 RGB 480x480)
 #define DSP_MODEL DSP_ST7701
 
-// Пины дисплея (перенесены из тестового скетча)
+// Пины дисплея 
 // Командная шина ST7701 (SWSPI)
 #define ST7701_CS   39
 #define ST7701_SCK  48
@@ -16,12 +16,12 @@
 #define ST7701_VSYNC  17
 #define ST7701_HSYNC  16
 #define ST7701_PCLK   21
-// R0..R4
-#define ST7701_R0   4
-#define ST7701_R1   5
-#define ST7701_R2   6
-#define ST7701_R3   7
-#define ST7701_R4   15
+// R0..R4 (LSB→MSB) — согласно вендору
+#define ST7701_R0   11
+#define ST7701_R1   12
+#define ST7701_R2   13
+#define ST7701_R3   14
+#define ST7701_R4   0
 // G0..G5
 #define ST7701_G0   8
 #define ST7701_G1   20
@@ -29,12 +29,12 @@
 #define ST7701_G3   46
 #define ST7701_G4   9
 #define ST7701_G5   10
-// B0..B4
-#define ST7701_B0   11
-#define ST7701_B1   12
-#define ST7701_B2   13
-#define ST7701_B3   14
-#define ST7701_B4   0
+// B0..B4 (LSB→MSB) — согласно вендору
+#define ST7701_B0   4
+#define ST7701_B1   5
+#define ST7701_B2   6
+#define ST7701_B3   7
+#define ST7701_B4   15
 // Подсветка
 #define ST7701_BL   38
 

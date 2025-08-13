@@ -71,7 +71,7 @@
 #define SPECTRUM_GAIN          0.06f    // Общее усиление спектра (1.0 = без усиления, 0.05 = -95%)
 
 // Отключение VU-метра (если используем SA) Закомментировать для включения
-#define HIDE_VU              // !!для выключения включить SPECTRUM_ENABLED и SPECTRUM_REPLACE_VU 
+//#define HIDE_VU              // выключить тумблер в веб VU !!для выключения включить SPECTRUM_ENABLED и SPECTRUM_REPLACE_VU 
 #define BOOMBOX_STYLE    /* Разные варианты "показометра" VUmetr. Столбик, если строку закоментировать. */
 //#define WAKE_PIN              255
 #define CPU_LOAD        /* Включить виджет загрузки процессора, комментировать для отключения */

@@ -23,6 +23,12 @@ void SpectrumWidget::init(SpectrumWidgetConfig conf) {
 void SpectrumWidget::loop() {
     if (_active && !_locked) {
         _draw();
+    } else if (!_active) {
+        // При деактивации очищаем экран
+        _clear();
+        if (gfx) {
+            gfx->flush();
+        }
     }
 }
 

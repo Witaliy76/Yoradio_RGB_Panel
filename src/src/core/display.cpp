@@ -218,11 +218,7 @@ void Display::_buildPager(){
     pages[PG_PLAYER]->addWidget( _bitrate);
   #endif
   #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-    if(_spectrumwidget) {
-      pages[PG_PLAYER]->addWidget(_spectrumwidget);
-      // Force-enable Spectrum on startup (web VU toggle is disabled in SA mode)
-      _spectrumwidget->setActive(true);
-    }
+    if(_spectrumwidget) pages[PG_PLAYER]->addWidget(_spectrumwidget);
   #elif !defined(HIDE_VU)
   if(_vuwidget) pages[PG_PLAYER]->addWidget( _vuwidget);
   #endif
@@ -460,7 +456,7 @@ void Display::_layoutChange(bool played){
   if(config.store.vumeter){
     if(played){
       #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-        if(_spectrumwidget) _spectrumwidget->setActive(true);
+        if(_spectrumwidget) _spectrumwidget->setActive(config.store.vumeter);
       #else
         if(_vuwidget) _vuwidget->unlock();
       #endif
@@ -468,8 +464,8 @@ void Display::_layoutChange(bool played){
       if(_weather) _weather->moveTo(weatherMoveVU);
     }else{
       #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-        // Spectrum Widget остается активным даже в режиме стоп для показа тестовых данных
-        if(_spectrumwidget) _spectrumwidget->setActive(true);
+        // Spectrum Widget следует состоянию тумблера VU
+        if(_spectrumwidget) _spectrumwidget->setActive(config.store.vumeter);
       #else
         if(_vuwidget) if(!_vuwidget->locked()) _vuwidget->lock();
       #endif

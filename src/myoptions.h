@@ -39,8 +39,8 @@
 #define ST7701_BL   38
 
 /*  I2S DAC    */
-#define I2S_DOUT      41
-#define I2S_BCLK      42
+#define I2S_DOUT      40
+#define I2S_BCLK      1
 #define I2S_LRC       2
 
 /* Отключаем функции, которые могут мешать */
@@ -63,12 +63,12 @@
 #define SPECTRUM_USE_PSRAM     true    // Использовать PSRAM для FFT буферов
 #define SPECTRUM_BANDS         15      // Количество полос спектра (уменьшено до 15)
 #define SPECTRUM_FFT_SIZE      64      // Размер FFT (уменьшен для простоты)
-#define SPECTRUM_SMOOTHING     0.75f    // Сглаживание (увеличено для более плавных переходов)
+#define SPECTRUM_SMOOTHING     0.90f    // Сглаживание (увеличено для более плавных переходов)
 #define SPECTRUM_PEAK_HOLD_TIME 300.0f // Время удержания пиков (мс, уменьшено)
 #define SPECTRUM_LOGARITHMIC   false   // Логарифмическая шкала частот (отключено)
 #define SPECTRUM_STEREO        true   // Стерео режим (отключено - моно)
 #define SPECTRUM_REPLACE_VU    true   // !!Заменить VU-метр на SA
-#define SPECTRUM_GAIN          0.05f    // Общее усиление спектра (1.0 = без усиления, 0.05 = -95%)
+#define SPECTRUM_GAIN          0.03f    // Общее усиление спектра (1.0 = без усиления, 0.05 = -95%)
 
 // Отключение VU-метра (если используем SA) Закомментировать для включения
 //#define HIDE_VU              // выключить тумблер в веб VU !!для выключения включить SPECTRUM_ENABLED и SPECTRUM_REPLACE_VU 

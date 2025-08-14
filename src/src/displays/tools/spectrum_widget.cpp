@@ -134,21 +134,36 @@ void SpectrumWidget::_drawBar(uint16_t x, uint16_t width, uint16_t barHeight, fl
         barHeight = _config.height;
     }
     
-    // Рисуем столбик с градиентом для RGB Panel
-    uint16_t barColor = _barColor; // Зеленый по умолчанию для RGB Panel
-    
-    // Вычисляем процент высоты столбика от максимальной высоты виджета RGB Panel
-    float heightPercent = (float)barHeight / _config.height;
-    
-    if (heightPercent > 0.90f) { // Верхние 10% - красный для RGB Panel
-        barColor = _peakColor; // Красный для RGB Panel
-    } else if (heightPercent > 0.50f) { // От 50% до 90% - желтый для RGB Panel
-        barColor = 0xFFE0; // Желтый для RGB Panel
-    }
-    // До 50% остается зеленый (_barColor) для RGB Panel
-    
+    // Рисуем столбик с красивым градиентом для RGB Panel
     if (gfx) {
-        gfxFillRect(gfx, x, baseY, width, barHeight, barColor);
+        // Создаем градиент от темного к яркому для каждой полосы
+        for (uint16_t y = 0; y < barHeight; y++) {
+            // Вычисляем прогресс по высоте (0.0 - 1.0)
+            float progress = (float)y / barHeight;
+            
+            // Применяем нелинейную кривую для более естественного градиента
+            float gradientProgress = pow(progress, 0.7f);
+            
+            // Базовый цвет в зависимости от высоты
+            uint16_t baseColor;
+            float heightPercent = (float)barHeight / _config.height;
+            
+            if (heightPercent > 0.85f) { // Верхние 15% - красный
+                baseColor = _peakColor;
+            } else if (heightPercent > 0.60f) { // От 60% до 85% - оранжевый
+                baseColor = 0xFD20; // Красивый оранжевый
+            } else if (heightPercent > 0.35f) { // От 35% до 60% - желтый
+                baseColor = 0xFFE0; // Яркий желтый
+            } else { // До 35% - зеленый
+                baseColor = _barColor;
+            }
+            
+            // Применяем градиент с затемнением внизу и осветлением вверху
+            uint16_t gradientColor = _applyGradient(baseColor, gradientProgress);
+            
+            // Рисуем одну линию градиента
+            gfxDrawLine(gfx, x, baseY + y, x + width - 1, baseY + y, gradientColor);
+        }
 
         // Рисуем пиковое значение если включено для RGB Panel
         if (_showPeaks && peak > value) {
@@ -190,4 +205,60 @@ void SpectrumWidget::_drawGrid() {
                         _config.widget.left + _config.width, y, _config.gridColor);
         }
     }
+} 
+
+// Применяем красивый градиент для RGB Panel
+uint16_t SpectrumWidget::_applyGradient(uint16_t baseColor, float progress) {
+    // Создаем градиент от темного к яркому
+    uint16_t darkColor = _darkenColor(baseColor, 0.6f);
+    uint16_t brightColor = _brightenColor(baseColor, 0.3f);
+    
+    // Смешиваем цвета в зависимости от прогресса
+    return _blendColors(darkColor, brightColor, progress);
+}
+
+// Смешиваем два цвета для RGB Panel
+uint16_t SpectrumWidget::_blendColors(uint16_t color1, uint16_t color2, float ratio) {
+    // Извлекаем RGB компоненты
+    uint8_t r1 = (color1 >> 11) & 0x1F;
+    uint8_t g1 = (color1 >> 5) & 0x3F;
+    uint8_t b1 = color1 & 0x1F;
+    
+    uint8_t r2 = (color2 >> 11) & 0x1F;
+    uint8_t g2 = (color2 >> 5) & 0x3F;
+    uint8_t b2 = color2 & 0x1F;
+    
+    // Смешиваем компоненты
+    uint8_t r = (uint8_t)(r1 * (1.0f - ratio) + r2 * ratio);
+    uint8_t g = (uint8_t)(g1 * (1.0f - ratio) + g2 * ratio);
+    uint8_t b = (uint8_t)(b1 * (1.0f - ratio) + b2 * ratio);
+    
+    // Собираем цвет обратно
+    return (r << 11) | (g << 5) | b;
+}
+
+// Затемняем цвет для RGB Panel
+uint16_t SpectrumWidget::_darkenColor(uint16_t color, float factor) {
+    uint8_t r = (color >> 11) & 0x1F;
+    uint8_t g = (color >> 5) & 0x3F;
+    uint8_t b = color & 0x1F;
+    
+    r = (uint8_t)(r * factor);
+    g = (uint8_t)(g * factor);
+    b = (uint8_t)(b * factor);
+    
+    return (r << 11) | (g << 5) | b;
+}
+
+// Осветляем цвет для RGB Panel
+uint16_t SpectrumWidget::_brightenColor(uint16_t color, float factor) {
+    uint8_t r = (color >> 11) & 0x1F;
+    uint8_t g = (color >> 5) & 0x3F;
+    uint8_t b = color & 0x1F;
+    
+    r = (uint8_t)(r + (31 - r) * factor);
+    g = (uint8_t)(g + (63 - g) * factor);
+    b = (uint8_t)(b + (31 - b) * factor);
+    
+    return (r << 11) | (g << 5) | b;
 } 

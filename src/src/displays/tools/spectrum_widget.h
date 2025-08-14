@@ -48,6 +48,12 @@ protected:
     void _clear();
     void _drawBar(uint16_t x, uint16_t width, uint16_t barHeight, float value, float peak);
     void _drawGrid();
+    
+    // Музыкальные эффекты для RGB Panel
+    uint16_t _applyGradient(uint16_t baseColor, float progress);
+    uint16_t _blendColors(uint16_t color1, uint16_t color2, float ratio);
+    uint16_t _darkenColor(uint16_t color, float factor);
+    uint16_t _brightenColor(uint16_t color, float factor);
 };
 
 #endif 

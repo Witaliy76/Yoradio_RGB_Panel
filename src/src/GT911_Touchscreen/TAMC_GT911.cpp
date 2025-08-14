@@ -1,4 +1,3 @@
-#if TS_MODEL==TS_MODEL_GT911
 #include "Arduino.h"
 #include "TAMC_GT911.h"
 #include <Wire.h>
@@ -165,4 +164,3 @@ bool TP_Point::operator==(TP_Point point) {
 bool TP_Point::operator!=(TP_Point point) {
   return ((point.x != x) || (point.y != y) || (point.size != size));
 }
-#endif

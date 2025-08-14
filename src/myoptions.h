@@ -45,8 +45,9 @@
 
 /* Отключаем функции, которые могут мешать */
 #define VS1053_CS     255    // Отключаем VS1053
-#define SDC_CS        255    // Отключаем SD
+#define SDC_CS        255    // Отключаем SD карту
 #define MUTE_PIN      255    // Отключаем MUTE
+
 #define BRIGHTNESS_PIN 255   // Не используем стандартный пин яркости
 #define ENABLE_BRIGHTNESS_CONTROL  // Активирует управление яркостью в веб-интерфейсе
 //Изначально не было этого параметра, пришлось его добавить вручную 
@@ -81,8 +82,54 @@
 //#define PERFMON_DISABLED        // Отключаем мониторинг производительности
 #define WDT_TIMEOUT 30          // Увеличиваем таймаут WDT
 
-// Отключаем тачскрин для первого теста
-//#define TS_MODEL TS_MODEL_UNDEFINED
+
+/*  SDCARD  */
+//#define USE_SD                              /* Отключаем поддержку SD карты */
+/*  MISO is the same as D0, MOSI is the same as D1 */
+/*  SD VSPI PINS. SD SCK must be connected to pin 18
+                  SD MISO must be connected to pin 19
+                  SD MOSI must be connected to pin 23  */
+/*  SD HSPI PINS. SD SCK must be connected to pin 14
+                  SD MISO must be connected to pin 12 (+20 KOm на GND)
+                  SD MOSI must be connected to pin 13  */
+/*  SD PINS согласно схеме:
+    io42 - TF(D3) - Chip Select
+    io47 - SPICLK_P - MOSI (Master Out Slave In)
+    io48 - SPICLK_N - SCK (Clock)
+    io41 - TF(D1) - MISO (Master In Slave Out)  */
+//#define SDC_CS        42              /* Chip Select */
+//#define SD_SPIPINS    48, 41, 47      /* SCK, MISO, MOSI */
+//#define SD_HSPI       false           /* use VSPI for SD (по умолчанию) */
+/* **************************************** */
+
+/*  TOUCHSCREEN  */
+#define TS_MODEL              TS_MODEL_GT911  /*  GT911 Capacitive I2C touch screen  */
+
+/*  Resistive SPI touch screen  */
+/*  TS VSPI PINS. CLK must be connected to pin 18
+                  DIN must be connected to pin 23
+                  DO  must be connected to pin 19
+                  IRQ - not connected */
+//#define TS_CS                 255           /*  Touch screen CS pin  */
+/*  TS HSPI PINS. CLK must be connected to pin 14
+                  DIN must be connected to pin 13
+                  DO  must be connected to pin 12
+                  IRQ - not connected */
+//#define TS_HSPI               false         /*  Use HSPI for Touch screen  */
+
+/*  Capacitive I2C touch screen GT911  */
+#define TS_SDA                19              /*  Touch screen SDA pin  */
+#define TS_SCL                45              /*  Touch screen SCL pin  */
+#define TS_INT                255             /*  Touch screen INT pin (отключен)  */
+#define TS_RST                255             /*  Touch screen RST pin (отключен)  */
+
+/*  Touch screen mapping для GT911  */
+#define TS_X_MIN              0               /*  Минимальное значение X координаты  */
+#define TS_X_MAX              480             /*  Максимальное значение X координаты  */
+#define TS_Y_MIN              0               /*  Минимальное значение Y координаты  */
+#define TS_Y_MAX              480             /*  Максимальное значение Y координаты  */
+/******************************************/
+
 
 // Включаем отладку дисплея
 //#define DEBUG_DISPLAY

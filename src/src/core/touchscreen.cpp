@@ -49,7 +49,7 @@
   typedef TS_Point TSPoint;
 #elif TS_MODEL==TS_MODEL_GT911
   #include "../GT911_Touchscreen/TAMC_GT911.h"
-  TAMC_GT911 ts = TAMC_GT911(TS_SDA, TS_SCL, TS_INT, TS_RST, 0, 0);
+  TAMC_GT911 ts = TAMC_GT911(TS_SDA, TS_SCL, TS_INT, TS_RST, 480, 480);
   typedef TP_Point TSPoint;
 #elif TS_MODEL==TS_MODEL_AXS15231B
   #include "../AXS15231B_touch/AXS15231B_Touch.h"
@@ -159,8 +159,57 @@ void TouchScreen::loop(){
       touchY = map(p.y, TS_Y_MIN, TS_Y_MAX, 0, _height);
     #elif TS_MODEL==TS_MODEL_GT911
       TSPoint p = ts.points[0];
-      touchX = p.x;
-      touchY = p.y;
+      // Исправляем перестановку осей X и Y для GT911
+      // Согласно рабочему примеру, оси перепутаны местами
+      // Используем правильное маппирование координат для разрешения 480x480
+      touchX = map(p.y, TS_X_MIN, TS_X_MAX, 0, _width);
+      touchY = map(p.x, TS_Y_MIN, TS_Y_MAX, 0, _height);
+      
+      // Обработка мультитача
+      if (ts.touches > 1) {
+                uint32_t currentTime = millis();
+                if (currentTime - lastMultiTouchTime > TOUCH_MULTI_DELAY) {
+                    multiTouchCount++;
+                    
+                    if (multiTouchCount >= 2) {
+        wasTwoFingerTouch = true;
+                        lastMultiTouchTime = currentTime;
+                        multiTouchCount = 0;
+                        
+                        bool pir = player.isRunning();
+                        
+                        if(config.getMode()==PM_SDCARD) {
+                            config.sdResumePos = player.getFilePos();
+                        }
+                        
+                        if (display.mode() == PLAYER && !modeChangeInProgress) {
+                            modeChangeInProgress = true;
+                            display.putRequest(NEWMODE, SDCHANGE);
+                            while(display.mode() != SDCHANGE) {
+                                delay(10);
+                            }
+                            delay(TOUCH_MODE_DELAY/2);
+                            
+#ifdef USE_SD
+        config.changeMode();
+#endif
+                            delay(TOUCH_MODE_DELAY);
+                            
+                            if (pir) {
+                                player.sendCommand({PR_PLAY, config.getMode()==PM_WEB?config.store.lastStation:config.store.lastSdStation});
+                            }
+                            modeChangeInProgress = false;
+                        }
+                        
+        return;
+                    }
+                } else {
+                    if (millis() - lastMultiTouchTime > TOUCH_MULTI_DELAY) {
+                        wasTwoFingerTouch = false;
+                        multiTouchCount = 0;
+                    }
+                }
+      }
     #elif TS_MODEL==TS_MODEL_AXS15231B
       TSPoint p = ts.points[0];
       touchX = p.x;
@@ -191,7 +240,9 @@ void TouchScreen::loop(){
                             }
                             delay(TOUCH_MODE_DELAY/2);
                             
+#ifdef USE_SD
         config.changeMode();
+#endif
                             delay(TOUCH_MODE_DELAY);
                             
                             if (pir) {
@@ -284,7 +335,12 @@ void TouchScreen::loop(){
             touchLongPress = millis();
             if(display.mode()==PLAYER || display.mode()==STATIONS){
                   display.putRequest(NEWMODE, STATIONS);
+#if TS_MODEL==TS_MODEL_GT911
+                                    // Для GT911 инвертируем логику изменения станций
+                                    controlsEvent(totalY > 0);
+#else
                                     controlsEvent(totalY < 0);
+#endif
                                     lastProcessedY = touchY;
                                     lastSwipeTime = currentTime;
             }
@@ -296,7 +352,12 @@ void TouchScreen::loop(){
             touchLongPress = millis();
             if(display.mode()==PLAYER || display.mode()==VOL){
               display.putRequest(NEWMODE, VOL);
+#if TS_MODEL==TS_MODEL_GT911
+                                    // Для GT911 инвертируем логику изменения громкости
+                                    controlsEvent(totalX < 0);
+#else
                                     controlsEvent(totalX > 0);
+#endif
                                     lastProcessedX = touchX;
                 lastSwipeTime = currentTime;
             }
@@ -426,6 +487,9 @@ void TouchScreen::flip() {
         ts.setRotation(config.store.fliptouch?3:1);
     #endif
     #if TS_MODEL==TS_MODEL_GT911
+        ts.setRotation(config.store.fliptouch?0:2);
+    #endif
+    #if TS_MODEL==TS_MODEL_AXS15231B
         ts.setRotation(config.store.fliptouch?0:2);
     #endif
 }

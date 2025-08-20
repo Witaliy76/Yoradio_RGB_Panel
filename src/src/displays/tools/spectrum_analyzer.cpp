@@ -28,10 +28,10 @@ SpectrumAnalyzer::~SpectrumAnalyzer() {
 }
 
 bool SpectrumAnalyzer::init() {
-    // Простая инициализация без FFT
+    // Инициализация для новой библиотеки audioI2S (48кГц, 16-bit, stereo)
     config.numBands = SPECTRUM_BANDS;
     config.fftSize = SPECTRUM_FFT_SIZE;
-    config.sampleRate = 22050; // Примерная частота дискретизации
+    config.sampleRate = 48000; // Новая библиотека ресемплирует до 48кГц
     config.smoothing = SPECTRUM_SMOOTHING;
     config.peakHoldTime = SPECTRUM_PEAK_HOLD_TIME;
     config.logarithmic = SPECTRUM_LOGARITHMIC;
@@ -175,7 +175,7 @@ void SpectrumAnalyzer::clearData() {
     Serial.println("[Spectrum] Data cleared");
 }
 
-void SpectrumAnalyzer::processAudio(const int16_t* samples, uint16_t count) {
+void SpectrumAnalyzer::processAudio(const int16_t* samples, int32_t count) {
     if (!initialized || !spectrum || !dataMutex) {
         return;
     }
@@ -183,6 +183,7 @@ void SpectrumAnalyzer::processAudio(const int16_t* samples, uint16_t count) {
     // Улучшенная реализация с имитацией FFT для RGB Panel
     // Используем RMS (Root Mean Square) с частотным разделением
     // Оптимизировано для 480x480 разрешения и плавной анимации
+    // Новая библиотека audioI2S обеспечивает 48кГц, 16-bit, stereo данные
     
     uint32_t currentTime = millis();
     
@@ -209,7 +210,7 @@ void SpectrumAnalyzer::processAudio(const int16_t* samples, uint16_t count) {
     float highFreq = 0.0f;   // Высокие частоты (2000+ Hz)
     
     // Вычисляем RMS и максимальное значение с частотным разделением
-    for (uint16_t i = 0; i < count; i++) {
+    for (int32_t i = 0; i < count; i++) {
         float sample = samples[i] / 32768.0f; // Нормализация к [-1, 1]
         rms += sample * sample;
         

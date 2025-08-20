@@ -135,8 +135,9 @@ void loop() {
 
 // Функция обработки аудио данных для Spectrum Analyzer
 #if SPECTRUM_ENABLED
-void audio_process_i2s(int16_t* outBuff, uint16_t validSamples, uint8_t bitsPerSample, uint8_t channels, bool *continueI2S) {
+void audio_process_i2s(int16_t* outBuff, int32_t validSamples, bool *continueI2S) {
     // Обрабатываем аудио данные для Spectrum Analyzer
+    // В новой версии библиотеки все данные уже ресемплированы до 48кГц, 16-bit, stereo
     spectrumAnalyzer.processAudio(outBuff, validSamples);
     
     // Продолжаем обычную обработку I2S

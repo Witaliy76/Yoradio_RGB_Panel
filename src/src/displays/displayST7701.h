@@ -65,6 +65,10 @@ public:
     void sleep();
     void wake();
     void setBrightness(uint8_t brightness);
+    
+    // Функция стабилизации RGB Panel
+    void stabilizeRGBPanel();
+    
     void writePixel(int16_t x, int16_t y, uint16_t color);
     void writeFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
     void setClipping(clipArea ca);

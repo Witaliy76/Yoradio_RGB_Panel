@@ -152,7 +152,7 @@ void DspCore::initDisplay() {
         /* hsync_polarity */ 1, /* hsync_front_porch */ 10, /* hsync_pulse_width */ 8, /* hsync_back_porch */ 50,
         /* vsync_polarity */ 1, /* vsync_front_porch */ 10, /* vsync_pulse_width */ 8, /* vsync_back_porch */ 20,
         // Параметры тактирования и формата данных
-        /* pclk_active_neg */ 0, /* prefer_speed */ 11000000UL, /* big endian */ false,
+        /* pclk_active_neg */ 0, /* prefer_speed */ 6000000UL, /* big endian */ false,
         /* de_idle_high */ 0, /* pclk_idle_high */ 0, /* bounce_buffer_size_px */ 0);
     if (!rgbpanel) {
       Serial.println("[ST7701] Failed to initialize RGB panel!");
@@ -248,6 +248,9 @@ void DspCore::initDisplay() {
   plYStart = (height() / 2 - plItemHeight / 2) - plItemHeight * (plTtemsCount - 1) / 2 + playlistConf.widget.textsize*2;
   
   Serial.println("[ST7701] initDisplay completed successfully");
+  
+  // Вызываем стабилизацию RGB Panel
+  stabilizeRGBPanel();
   
   // Простой тест - очистка экрана и базовая отрисовка
   if (gfx) {
@@ -767,10 +770,46 @@ void DspCore::readBattery() {
         }
         else {idx++;}
     }
-    if (ChargeLevel < 0) ChargeLevel = 0;
-    if (ChargeLevel > 100) ChargeLevel = 100;
+         if (ChargeLevel < 0) ChargeLevel = 0;
+     if (ChargeLevel > 100) ChargeLevel = 100;
+ }
+ #endif
+
+// Функция стабилизации RGB Panel
+void DspCore::stabilizeRGBPanel() {
+  Serial.println("[ST7701] stabilizeRGBPanel start");
+  
+  if (bus) {
+    // Команды стабилизации на основе Guition type5
+    bus->beginWrite();
+    
+    // 0xEF команды для стабилизации
+    bus->writeCommand(0xEF);
+    bus->write(0x08);  // Стабилизация
+    
+    // Дополнительные команды для RGB565
+    bus->writeCommand(0xFF);
+    bus->write(0x77); bus->write(0x01); bus->write(0x00); bus->write(0x00); bus->write(0x00);
+    
+    // Установка MADCTL для стабильности
+    bus->writeCommand(0x36);
+    bus->write(0x00);  // RGB порядок
+    
+    // Команда 0xEF с параметрами для финальной стабилизации
+    bus->writeCommand(0xEF);
+    bus->write(0x10); bus->write(0x0D); bus->write(0x04); bus->write(0x08);
+    bus->write(0x3F); bus->write(0x1F);
+    
+    bus->endWrite();
+    
+    // Задержка для стабилизации
+    delay(50);
+    
+    Serial.println("[ST7701] stabilizeRGBPanel completed");
+  } else {
+    Serial.println("[ST7701] stabilizeRGBPanel: bus is nullptr!");
+  }
 }
-#endif
 
 #endif
 

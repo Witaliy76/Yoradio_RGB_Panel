@@ -19,6 +19,9 @@ class TouchScreen {
     bool _checklpdelay(int m, uint32_t &tstamp);
     tsDirection_e _tsDirection(uint16_t x, uint16_t y);
     bool _istouched();
+    #if TS_MODEL==TS_MODEL_GT911
+    bool _filterGT911Coordinates(uint16_t rawX, uint16_t rawY);
+    #endif
 };
 
 extern TouchScreen touchscreen;

@@ -99,6 +99,23 @@
 #define MOVEMENT_THRESHOLD     8     // Порог значимого движения
 #define MOVEMENT_HISTORY_SIZE  5     // Размер истории для сглаживания
 
+// Специальные настройки для GT911 на квадратном экране 480x480
+#if TS_MODEL==TS_MODEL_GT911
+  // Уменьшенные пороги для высокого разрешения
+  #define GT911_SWIPE_THRESHOLD      20    // Было 30, уменьшаем для 480x480
+  #define GT911_SWIPE_MIN_DISTANCE   25    // Было 35, оптимизируем для квадратного экрана
+  #define GT911_MOVEMENT_THRESHOLD   6     // Было 8, более чувствительно для 480x480
+  #define GT911_SWIPE_DEADZONE       2     // Было 3, уменьшаем для точности
+  #define GT911_SWIPE_ANGLE_THRESHOLD 25.0 // Было 22.5, увеличиваем для стабильности
+#else
+  // Стандартные настройки для других тачскринов
+  #define GT911_SWIPE_THRESHOLD      SWIPE_THRESHOLD
+  #define GT911_SWIPE_MIN_DISTANCE   SWIPE_MIN_DISTANCE
+  #define GT911_MOVEMENT_THRESHOLD   MOVEMENT_THRESHOLD
+  #define GT911_SWIPE_DEADZONE       SWIPE_DEADZONE
+  #define GT911_SWIPE_ANGLE_THRESHOLD SWIPE_ANGLE_THRESHOLD
+#endif
+
 #ifndef TOUCH_MULTI_DELAY
   #define TOUCH_MULTI_DELAY       1000  // Задержка между мультитач-событиями
 #endif
@@ -123,6 +140,32 @@ struct TouchPoint {
     bool valid;
     int16_t movement[2];  // [dx, dy]
 };
+
+// Функция фильтрации координат GT911 (как в AXS15231B)
+#if TS_MODEL==TS_MODEL_GT911
+bool TouchScreen::_filterGT911Coordinates(uint16_t rawX, uint16_t rawY) {
+    // Проверяем валидность координат GT911 для экрана 480x480
+    // GT911 выдает координаты в диапазоне 0-480, а не 100-3800
+    if (rawX > 480 || rawY > 480) {
+        // Координаты выходят за пределы экрана - игнорируем
+        return false;
+    }
+    
+    // Проверяем на "мертвые" координаты GT911
+    if (rawX == 0 && rawY == 0) {
+        // Нулевые координаты - игнорируем
+        return false;
+    }
+    
+    // Проверяем на подозрительно одинаковые координаты (только если они не в углах)
+    if (rawX == rawY && rawX > 10 && rawX < 470) {
+        // Возможные некорректные значения в центре экрана - игнорируем
+        return false;
+    }
+    
+    return true;
+}
+#endif
 
 void TouchScreen::loop(){
   uint16_t touchX, touchY;
@@ -159,11 +202,23 @@ void TouchScreen::loop(){
       touchY = map(p.y, TS_Y_MIN, TS_Y_MAX, 0, _height);
     #elif TS_MODEL==TS_MODEL_GT911
       TSPoint p = ts.points[0];
-      // Исправляем перестановку осей X и Y для GT911
-      // Согласно рабочему примеру, оси перепутаны местами
-      // Используем правильное маппирование координат для разрешения 480x480
-      touchX = map(p.y, TS_X_MIN, TS_X_MAX, 0, _width);
-      touchY = map(p.x, TS_Y_MIN, TS_Y_MAX, 0, _height);
+      
+      // Применяем фильтрацию координат GT911
+      if (!_filterGT911Coordinates(p.x, p.y)) {
+          // Координаты не прошли фильтр - игнорируем
+          return;
+      }
+      
+      // Маппирование координат GT911 (координаты уже в диапазоне 0-480)
+      // GT911 выдает координаты напрямую, маппирование не требуется
+      touchX = p.y;  // Оси перепутаны, но координаты уже правильные
+      touchY = p.x;
+      
+      // Дополнительная проверка границ экрана
+      if (touchX >= _width) touchX = _width - 1;
+      if (touchY >= _height) touchY = _height - 1;
+      if (touchX < 0) touchX = 0;
+      if (touchY < 0) touchY = 0;
       
       // Обработка мультитача
       if (ts.touches > 1) {
@@ -269,10 +324,24 @@ void TouchScreen::loop(){
         touchBuffer[bufferIndex].valid = true;
         bufferIndex = (bufferIndex + 1) % 3;
         
-        // Вычисляем среднее значение из буфера
+        // Вычисляем среднее значение из буфера с весами для GT911
         int32_t avgX = 0, avgY = 0;
         uint8_t validCount = 0;
         uint32_t currentTime = millis();
+        
+        #if TS_MODEL==TS_MODEL_GT911
+        // Для GT911 используем весовую обработку (новые данные важнее)
+        for (int i = 0; i < 3; i++) {
+            if (touchBuffer[i].valid && (currentTime - touchBuffer[i].timestamp < TOUCH_BUFFER_TIMEOUT)) {
+                // Новые данные получают больший вес
+                uint8_t weight = (i == ((bufferIndex + 2) % 3)) ? 2 : 1;  // Самые новые данные
+                avgX += touchBuffer[i].x * weight;
+                avgY += touchBuffer[i].y * weight;
+                validCount += weight;
+            }
+        }
+        #else
+        // Стандартная обработка для других тачскринов
         for (int i = 0; i < 3; i++) {
             if (touchBuffer[i].valid && (currentTime - touchBuffer[i].timestamp < TOUCH_BUFFER_TIMEOUT)) {
                 avgX += touchBuffer[i].x;
@@ -280,6 +349,7 @@ void TouchScreen::loop(){
                 validCount++;
             }
         }
+        #endif
         
         if (validCount > 0) {
             touchX = avgX / validCount;
@@ -333,16 +403,13 @@ void TouchScreen::loop(){
         case TSD_RIGHT: {
             wasSwiped = true;
             touchLongPress = millis();
-            if(display.mode()==PLAYER || display.mode()==STATIONS){
-                  display.putRequest(NEWMODE, STATIONS);
-#if TS_MODEL==TS_MODEL_GT911
-                                    // Для GT911 инвертируем логику изменения станций
-                                    controlsEvent(totalY > 0);
-#else
-                                    controlsEvent(totalY < 0);
-#endif
-                                    lastProcessedY = touchY;
-                                    lastSwipeTime = currentTime;
+            if(display.mode()==PLAYER || display.mode()==VOL){
+              display.putRequest(NEWMODE, VOL);
+              // Влево-вправо для изменения громкости
+              bool volumeUp = totalX < 0;  // totalX < 0 = влево (громкость ВВЕРХ), totalX > 0 = вправо (громкость ВНИЗ)
+              controlsEvent(volumeUp);
+              lastProcessedX = touchX;
+              lastSwipeTime = currentTime;
             }
             break;
         }
@@ -350,16 +417,13 @@ void TouchScreen::loop(){
         case TSD_DOWN: {
             wasSwiped = true;
             touchLongPress = millis();
-            if(display.mode()==PLAYER || display.mode()==VOL){
-              display.putRequest(NEWMODE, VOL);
-#if TS_MODEL==TS_MODEL_GT911
-                                    // Для GT911 инвертируем логику изменения громкости
-                                    controlsEvent(totalX < 0);
-#else
-                                    controlsEvent(totalX > 0);
-#endif
-                                    lastProcessedX = touchX;
-                lastSwipeTime = currentTime;
+            if(display.mode()==PLAYER || display.mode()==STATIONS){
+                  display.putRequest(NEWMODE, STATIONS);
+                  // Вверх-вниз для выбора станций
+                  bool nextStation = totalY > 0;  // totalY > 0 = вниз (следующая станция), totalY < 0 = вверх (предыдущая станция)
+                  controlsEvent(nextStation);
+                  lastProcessedY = touchY;
+                  lastSwipeTime = currentTime;
             }
             break;
         }
@@ -418,6 +482,38 @@ tsDirection_e TouchScreen::_tsDirection(uint16_t x, uint16_t y) {
     int16_t dX = x - _oldTouchX;
     int16_t dY = y - _oldTouchY;
     
+    #if TS_MODEL==TS_MODEL_GT911
+    // Специальная логика для GT911 на квадратном экране
+    if (abs(dX) < GT911_SWIPE_DEADZONE && abs(dY) < GT911_SWIPE_DEADZONE) {
+        return TDS_REQUEST;
+    }
+    
+    // Для квадратного экрана используем более точную логику
+    float angle = atan2(dY, dX) * 180.0 / PI;
+    if (angle < 0) angle += 360.0;
+    
+    // Улучшенное определение направления для квадратного экрана
+    if (abs(dX) > GT911_SWIPE_THRESHOLD || abs(dY) > GT911_SWIPE_THRESHOLD) {
+        if (angle >= (360 - GT911_SWIPE_ANGLE_THRESHOLD) || angle < GT911_SWIPE_ANGLE_THRESHOLD) {
+            _oldTouchX = x;
+            _oldTouchY = y;
+            return TSD_RIGHT;  // Вправо (0° ± 25°)
+        } else if (angle >= (90 - GT911_SWIPE_ANGLE_THRESHOLD) && angle < (90 + GT911_SWIPE_ANGLE_THRESHOLD)) {
+            _oldTouchX = x;
+            _oldTouchY = y;
+            return TSD_DOWN;   // Вниз (90° ± 25°)
+        } else if (angle >= (180 - GT911_SWIPE_ANGLE_THRESHOLD) && angle < (180 + GT911_SWIPE_ANGLE_THRESHOLD)) {
+            _oldTouchX = x;
+            _oldTouchY = y;
+            return TSD_LEFT;   // Влево (180° ± 25°)
+        } else if (angle >= (270 - GT911_SWIPE_ANGLE_THRESHOLD) && angle < (270 + GT911_SWIPE_ANGLE_THRESHOLD)) {
+            _oldTouchX = x;
+            _oldTouchY = y;
+            return TSD_UP;     // Вверх (270° ± 25°)
+        }
+    }
+    #else
+    // Стандартная логика для других тачскринов
     // Проверяем мертвую зону
     if (abs(dX) < SWIPE_DEADZONE && abs(dY) < SWIPE_DEADZONE) {
         return TDS_REQUEST;
@@ -447,6 +543,8 @@ tsDirection_e TouchScreen::_tsDirection(uint16_t x, uint16_t y) {
             return TSD_LEFT;  // Вверх
         }
     }
+    #endif
+    
     return TDS_REQUEST;
 }
 
@@ -467,6 +565,13 @@ void TouchScreen::init() {
     #if TS_MODEL==TS_MODEL_GT911
         ts.begin();
         ts.setRotation(config.store.fliptouch?0:2);
+        ts.setResolution(_width, _height);
+        
+        // Автоматическая настройка порогов для квадратного экрана
+        if (_width == _height && _width >= 480) {
+            // Для квадратного экрана 480x480 и больше используем оптимизированные настройки
+            // Эти настройки уже определены в константах выше
+        }
     #endif
     #if TS_MODEL==TS_MODEL_AXS15231B
         ts.begin();

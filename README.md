@@ -4,6 +4,18 @@
 **Версия:** v0.9.434(m)  
 **Статус:** ✅ **Готов!** Тачскрин GT911 полностью функционален
 
+## 📝 Лог изменений
+
+**02.09.2025** - Добавлена интеграция SD карты:
+- ✅ Настроена конфигурация SPI для SD карты (FSPI/SPI2_HOST)
+- ✅ Исправлен deadlock в mutex для функции `_checkNoMedia()`
+- ✅ SD карта успешно инициализируется и индексируется
+- ✅ Плейлист создается и корректно читается
+- ✅ Список композиций отображается и листается
+- ❌ **ПРОБЛЕМА:** Воспроизведение не работает - система зависает в `config.loadStation()`
+
+**См. [ISSUE: SD Card Playback Problem](#-sd-card-playback-issue)**
+
 > **⚠️ ВАЖНО:** Для стабильной работы интернет-радио на больших битрейтах необходимо заменить стандартные библиотеки IDF на перекомпилированные версии. См. раздел [Установка библиотек](#-установка-библиотек).
 ![photo_2025-08-15_00-06-48](https://github.com/user-attachments/assets/2161055d-5e9a-4285-a22a-9387379af)
 
@@ -29,16 +41,8 @@
 
 ## 🔧 Сборка
 
-```bash
-# Сборка для 4848S040
-pio run -e 4848S040
+Для русской локализации заменяем файл fonts/glcdfont.h по адресу: pio\libdeps\yoradio-esp32s3\GFX Library for Arduino\src\font
 
-# Загрузка на устройство
-pio run -e 4848S040 --target upload
-
-# Мониторинг Serial
-pio device monitor
-```
 
 ## 📱 Конфигурация
 
@@ -103,8 +107,51 @@ pio device monitor
 
 ## 🐛 Известные проблемы
 
-- ⚠️ SD карта временно отключена для стабильности
+- ❌ **SD карта: воспроизведение не работает** (см. раздел ниже)
 - ✅ **Тачскрин GT911 полностью исправлен и оптимизирован**
+
+## 🚨 SD Card Playback Issue
+
+### Problem Description
+SD card integration works perfectly for indexing and playlist reading during boot/initialization, but **hangs during audio playback** when user presses Play button.
+
+### Specific Failure Point
+The system hangs in `config.loadStation()` function when attempting to open SD card files:
+```cpp
+File playlist = SDPLFS()->open(REAL_PLAYL, "r");  // ← HANGS HERE
+File index = SDPLFS()->open(REAL_INDEX, "r");     // ← NEVER REACHED
+```
+
+### Working Scenarios
+- ✅ SD card initialization and mounting
+- ✅ SD card indexing (creates playlistsd.csv and indexsd.dat)
+- ✅ Playlist reading during boot sequence
+- ✅ All cardPresent() checks pass
+- ✅ File existence checks pass
+
+### Failing Scenario
+- ❌ Audio playback when user presses Play button
+- ❌ System hangs on SDPLFS()->open() calls in loadStation()
+
+### Technical Details
+- **Board:** ESP32-S3 N16R8
+- **Display:** ST7701 RGB 480x480 (uses VSPI)
+- **SD Card:** FSPI (SPI2_HOST) with custom pins: CS=42, SCK=48, MISO=41, MOSI=47
+- **Audio:** I2S (no SPI conflict)
+- **FreeRTOS:** mutex system implemented for thread safety
+
+### Attempted Solutions
+1. Changed SD card SPI from FSPI to HSPI - no effect
+2. Added mutex timeouts and forced release - no effect
+3. Simplified cardPresent() check (removed readRAW) - no effect
+4. Suspended display task during SD access - no effect
+5. Removed all SD state checks - still hangs on file open
+
+### Root Cause Hypothesis
+The issue appears to be in the SD card file system layer (SDPLFS()->open()) rather than SPI communication or mutex management. The same SD card operations work fine during boot but fail during runtime playback context.
+
+### Developer Request
+If you can identify why SDPLFS()->open() works during boot but hangs during playback, please help resolve this issue. The SD card hardware and basic file operations are confirmed working.
 
 ## 📝 Лицензия
 

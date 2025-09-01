@@ -140,9 +140,11 @@ void Player::_stop(bool alreadyStopped){
 
 void Player::initHeaders(const char *file) {
   if(strlen(file)==0 || true) return; //TODO Read TAGs
+  Serial.printf("🎵 [SD HEADERS] Reading headers from: %s\n", file);
   connecttoFS(sdman,file);
   eofHeader = false;
   while(!eofHeader) Audio::loop();
+  Serial.printf("🎵 [SD HEADERS] Headers read completed\n");
   //netserver.requestOnChange(SDPOS, 0);
   setDefaults();
 }
@@ -160,9 +162,11 @@ void Player::loop() {
     switch (requestP.type){
       case PR_STOP: _stop(); break;
       case PR_PLAY: {
+        Serial.printf("🎵 [PLAYER] Received PR_PLAY command, payload: %d\n", requestP.payload);
         if (requestP.payload>0) {
           config.setLastStation((uint16_t)requestP.payload);
         }
+        Serial.printf("🎵 [PLAYER] Calling _play() with stationId: %d\n", (uint16_t)abs(requestP.payload));
         _play((uint16_t)abs(requestP.payload)); 
         if (player_on_station_change) player_on_station_change(); 
         pm.on_station_change();
@@ -211,11 +215,13 @@ void Player::setOutputPins(bool isPlaying) {
 }
 
 void Player::_play(uint16_t stationId) {
+  Serial.printf("🎵 [PLAY] _play() started, stationId=%d\n", stationId);
   log_i("%s called, stationId=%d", __func__, stationId);
   setError("");
   remoteStationName = false;
   config.setDspOn(1);
   config.vuThreshold = 0;
+  Serial.printf("🎵 [PLAY] Basic setup completed\n");
   //display.putRequest(PSTOP);
   config.screensaverTicks=SCREENSAVERSTARTUPDELAY;
   config.screensaverPlayingTicks=SCREENSAVERSTARTUPDELAY;
@@ -227,8 +233,11 @@ void Player::_play(uint16_t stationId) {
 //  config.setTitle(config.getMode()==PM_WEB?const_PlConnect:"[next track]");
   config.station.bitrate=0;
   config.setBitrateFormat(BF_UNCNOWN);
+  Serial.printf("🎵 [PLAY] About to call config.loadStation(%d)\n", stationId);
   config.loadStation(stationId);
+  Serial.printf("🎵 [PLAY] config.loadStation() completed\n");
   _loadVol(config.store.volume);
+  Serial.printf("🎵 [PLAY] _loadVol() completed\n");
   display.putRequest(DBITRATE);
   display.putRequest(NEWSTATION);
   netserver.requestOnChange(STATION, 0);
@@ -238,7 +247,10 @@ void Player::_play(uint16_t stationId) {
   if (config.store.smartstart < 2) config.setSmartStart(0);			//*******************************
   bool isConnected = false;
   if(config.getMode()==PM_SDCARD && SDC_CS!=255){
+    Serial.printf("🎵 [SD PLAY] Attempting to play: %s\n", config.station.url);
+    Serial.printf("🎵 [SD PLAY] Resume position: %d\n", config.sdResumePos==0?_resumeFilePos:config.sdResumePos-player.sd_min);
     isConnected=connecttoFS(sdman,config.station.url,config.sdResumePos==0?_resumeFilePos:config.sdResumePos-player.sd_min);
+    Serial.printf("🎵 [SD PLAY] connecttoFS result: %s\n", isConnected ? "SUCCESS" : "FAILED");
   }else {
     config.saveValue(&config.store.play_mode, static_cast<uint8_t>(PM_WEB));
   }

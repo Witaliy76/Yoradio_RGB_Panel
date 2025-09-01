@@ -45,8 +45,7 @@
 
 /* Отключаем функции, которые могут мешать */
 #define VS1053_CS     255    // Отключаем VS1053
-#define SDC_CS        255    // Отключаем SD карту
-#define MUTE_PIN      255    // Отключаем MUTE
+//#define MUTE_PIN      255    // Отключаем MUTE
 
 #define BRIGHTNESS_PIN 255   // Не используем стандартный пин яркости
 #define ENABLE_BRIGHTNESS_CONTROL  // Активирует управление яркостью в веб-интерфейсе
@@ -55,7 +54,7 @@
 /* **************************************** *
 
 /* Основные настройки */
-#define PLAYER_FORCE_MONO true
+#define PLAYER_FORCE_MONO false
 #define L10N_LANGUAGE RU
 #define BITRATE_FULL  true
 
@@ -84,7 +83,7 @@
 
 
 /*  SDCARD  */
-//#define USE_SD                              /* Отключаем поддержку SD карты */
+#define USE_SD                              // Включаем поддержку SD карты
 /*  MISO is the same as D0, MOSI is the same as D1 */
 /*  SD VSPI PINS. SD SCK must be connected to pin 18
                   SD MISO must be connected to pin 19
@@ -92,14 +91,18 @@
 /*  SD HSPI PINS. SD SCK must be connected to pin 14
                   SD MISO must be connected to pin 12 (+20 KOm на GND)
                   SD MOSI must be connected to pin 13  */
-/*  SD PINS согласно схеме:
+/*  SD PINS согласно схеме 4848S040:
     io42 - TF(D3) - Chip Select
     io47 - SPICLK_P - MOSI (Master Out Slave In)
     io48 - SPICLK_N - SCK (Clock)
     io41 - TF(D1) - MISO (Master In Slave Out)  */
-//#define SDC_CS        42              /* Chip Select */
-//#define SD_SPIPINS    48, 41, 47      /* SCK, MISO, MOSI */
-//#define SD_HSPI       false           /* use VSPI for SD (по умолчанию) */
+#define SDC_CS        42                    // Chip Select
+#define SD_SCK        48                    // SCK pin
+#define SD_MISO       41                    // MISO pin  
+#define SD_MOSI       47                    // MOSI pin
+#define SD_HSPI       true                  // Используем HSPI для избежания конфликтов
+#define SD_DEBUG_ENABLED true               // Включаем отладку
+#define SDSPISPEED    20000000              // Скорость SPI (20 MHz)
 /* **************************************** */
 
 /*  TOUCHSCREEN  */

@@ -4,17 +4,10 @@
 #include "sdmanager.h"
 #include "display.h"
 #include "player.h"
+#include "sd_spi_config.h"
 
-#if defined(SD_SPIPINS) || SD_HSPI
-SPIClass  SDSPI(HOOPSENb);
-#define SDREALSPI SDSPI
-#else
-  #define SDREALSPI SPI
-#endif
-
-#ifndef SDSPISPEED
-  #define SDSPISPEED 20000000
-#endif
+// Используем новую конфигурацию SPI
+#define SDREALSPI (*SDSPIConfig::getSPI())
 
 SDManager sdman(FSImplPtr(new VFSImpl()));
 
@@ -23,11 +16,49 @@ bool SDManager::start(){
     return false;
   }
   
+  // Инициализация SPI шины для SD карты
+  if (!SDSPIConfig::init()) {
+    Serial.println("❌ Failed to initialize SD SPI bus");
+    xSemaphoreGive(sdMutex);
+    return false;
+  }
+  
+  // Диагностика при включенной отладке
+  #ifdef SD_DEBUG_ENABLED
+    Serial.println("=== SD Card Configuration ===");
+    Serial.printf("  USE_SD: enabled\n");
+    Serial.printf("  SD_DEBUG_ENABLED: enabled\n");
+    Serial.printf("  SD_HSPI: enabled\n");
+    Serial.println();
+    
+    Serial.println("=== SD Card Pin Status ===");
+    Serial.printf("  CS: GPIO%d (Chip Select)\n", SDC_CS);
+    Serial.printf("  SCK: GPIO%d (Clock)\n", SD_SCK);
+    Serial.printf("  MISO: GPIO%d (Data In)\n", SD_MISO);
+    Serial.printf("  MOSI: GPIO%d (Data Out)\n", SD_MOSI);
+    Serial.printf("  SPI Speed: %d Hz\n", SDSPISPEED);
+    Serial.printf("  HSPI: %s\n", SD_HSPI ? "true" : "false");
+    Serial.println();
+  #endif
+  
+  // Попытки инициализации SD карты с повторными попытками
   ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
   vTaskDelay(10);
-  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  if(!ready) {
+    Serial.println("⚠️  First SD init attempt failed, retrying...");
+    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  }
   vTaskDelay(10);
-  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  if(!ready) {
+    Serial.println("⚠️  Second SD init attempt failed, retrying...");
+    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  }
+  
+  if (ready) {
+    Serial.println("✅ SD card initialized successfully");
+  } else {
+    Serial.println("❌ SD card initialization failed");
+  }
   
   xSemaphoreGive(sdMutex);
   return ready;
@@ -40,6 +71,13 @@ void SDManager::stop(){
   
   end();
   ready = false;
+  
+  // Завершение работы SPI шины
+  SDSPIConfig::deinit();
+  
+  #ifdef SD_DEBUG_ENABLED
+    Serial.println("🔄 SD card stopped and SPI bus deinitialized");
+  #endif
   
   xSemaphoreGive(sdMutex);
 }
@@ -68,17 +106,28 @@ bool SDManager::cardPresent() {
   return bread;
 }
 
-bool SDManager::_checkNoMedia(const char* path){
-  if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {
-    return false;
+bool SDManager::_checkNoMedia(const char* path, bool mutexAlreadyTaken){
+  bool mutexTakenHere = false;
+  
+  // Захватываем mutex только если он еще не захвачен
+  if (!mutexAlreadyTaken) {
+    if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {
+      return false;
+    }
+    mutexTakenHere = true;
   }
   
+  // Основная логика проверки .nomedia файла
   char nomedia[BUFLEN]= {0};
   strlcat(nomedia, path, BUFLEN);
   strlcat(nomedia, "/.nomedia", BUFLEN);
   bool nm = exists(nomedia);
   
-  xSemaphoreGive(sdMutex);
+  // Освобождаем mutex только если мы его захватывали
+  if (mutexTakenHere) {
+    xSemaphoreGive(sdMutex);
+  }
+  
   return nm;
 }
 
@@ -98,12 +147,10 @@ void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uin
     
     File root = sdman.open(dirname);
     if (!root) {
-        Serial.println("##[ERROR]#\tFailed to open directory");
         xSemaphoreGive(sdMutex);
         return;
     }
     if (!root.isDirectory()) {
-        Serial.println("##[ERROR]#\tNot a directory");
         xSemaphoreGive(sdMutex);
         return;
     }
@@ -116,15 +163,15 @@ void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uin
         bool isDir;
         String fileName = root.getNextFileName(&isDir);
         if (fileName.isEmpty()) break;
+        
         filePath = (char*)malloc(fileName.length() + 1);
         if (filePath == NULL) {
-            Serial.println("Memory allocation failed");
             break;
         }
         strcpy(filePath, fileName.c_str());
         const char* fn = strrchr(filePath, '/') + 1;
         if (isDir) {
-            if (levels && !_checkNoMedia(filePath)) {
+            if (levels && !_checkNoMedia(filePath, true)) {
                 xSemaphoreGive(sdMutex);  // Освобождаем перед рекурсией
                 listSD(plSDfile, plSDindex, filePath, levels - 1);
                 if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {

@@ -128,11 +128,29 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #endif
 
 /*        SDCARD                  */
+#ifndef USE_SD
+  #define USE_SD         false  // Enable SD card support
+#endif
 #ifndef SDC_CS
   #define SDC_CS        255  // SDCARD CS pin
 #endif
+#ifndef SD_SCK
+  #define SD_SCK        255  // SDCARD SCK pin
+#endif
+#ifndef SD_MISO
+  #define SD_MISO       255  // SDCARD MISO pin
+#endif
+#ifndef SD_MOSI
+  #define SD_MOSI       255  // SDCARD MOSI pin
+#endif
 #ifndef SD_HSPI
   #define SD_HSPI       false  // use HSPI for SD (miso=12, mosi=13, clk=14) instead of VSPI (by default)
+#endif
+#ifndef SD_DEBUG_ENABLED
+  #define SD_DEBUG_ENABLED false  // Enable SD card debugging
+#endif
+#ifndef SDSPISPEED
+  #define SDSPISPEED    20000000  // SD SPI speed in Hz
 #endif
 
 /*        ENCODER                 */

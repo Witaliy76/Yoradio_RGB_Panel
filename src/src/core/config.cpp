@@ -51,13 +51,7 @@ void Config::init() {
 #if IR_PIN!=255
     irindex=-1;
 #endif
-#if defined(SD_SPIPINS) || SD_HSPI
-  #if !defined(SD_SPIPINS)
-    SDSPI.begin();
-  #else
-    SDSPI.begin(SD_SPIPINS); // SCK, MISO, MOSI
-  #endif
-#endif
+// SD SPI инициализация теперь выполняется в sdmanager.cpp
   eepromRead(EEPROM_START, store);
   
   if (store.config_set != 4262) {
@@ -166,17 +160,38 @@ void Config::changeMode(int newmode){
 
 void Config::initSDPlaylist() {
   store.countStation = 0;
-  bool doIndex = !sdman.exists(INDEX_SD_PATH);
-  if(doIndex) sdman.indexSDPlaylist();
+  bool indexExists = sdman.exists(INDEX_SD_PATH);
+  bool doIndex = !indexExists;
+  
+  // Если индекс существует, проверяем его размер
+  if (indexExists) {
+    File testIndex = SDPLFS()->open(INDEX_SD_PATH, "r");
+    if (testIndex) {
+      size_t indexSize = testIndex.size();
+      testIndex.close();
+      if (indexSize == 0) {
+        doIndex = true;
+        sdman.remove(INDEX_SD_PATH);
+        sdman.remove(PLAYLIST_SD_PATH);
+      }
+    }
+  }
+  
+  if(doIndex) {
+    sdman.indexSDPlaylist();
+  }
+  
   if (SDPLFS()->exists(INDEX_SD_PATH)) {
     File index = SDPLFS()->open(INDEX_SD_PATH, "r");
-    store.countStation = index.size() / 4;
-    if(doIndex){
-      lastStation(_randomStation());
-      sdResumePos = 0;
+    if (index) {
+      store.countStation = index.size() / 4;
+      if(doIndex){
+        lastStation(_randomStation());
+        sdResumePos = 0;
+      }
+      index.close();
+      saveValue(&store.countStation, store.countStation, true, true);
     }
-    index.close();
-    saveValue(&store.countStation, store.countStation, true, true);
   }
 }
 

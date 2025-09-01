@@ -57,7 +57,7 @@ const FillConfig  heapbarConf     PROGMEM = {{ TFT_FRAMEWDT, DSP_HEIGHT-4, 0, WA
 const WidgetConfig bootstrConf    PROGMEM = { 0, bootLogoTop+100, 2, WA_CENTER };
 const WidgetConfig bitrateConf    PROGMEM = { 6, 62, 2, WA_RIGHT };
 const WidgetConfig voltxtConf     PROGMEM = { TFT_FRAMEWDT, DSP_HEIGHT-24, 1, WA_LEFT };
-const WidgetConfig  iptxtConf     PROGMEM = { TFT_FRAMEWDT+80, DSP_HEIGHT-29, 2, WA_LEFT };
+const WidgetConfig  iptxtConf     PROGMEM = { TFT_FRAMEWDT+80, DSP_HEIGHT-29, 2, WA_CENTER };
 const WidgetConfig   rssiConf     PROGMEM = { TFT_FRAMEWDT, DSP_HEIGHT-24, 1, WA_RIGHT };
 const WidgetConfig   cpuConf      PROGMEM = { TFT_FRAMEWDT, DSP_HEIGHT-42, 1, WA_RIGHT };//эксперимент. новый
 const WidgetConfig numConf        PROGMEM = { TFT_FRAMEWDT, 250, 1, WA_CENTER };
@@ -68,7 +68,7 @@ const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT, 205, 3, WA_CENTER };
 const WidgetConfig  clockConf     PROGMEM = { 0, 180, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
 const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT, 294, 1, WA_LEFT };
 
-const WidgetConfig bootWdtConf    PROGMEM = { 120, bootLogoTop+130, 2, WA_LEFT }; //отступ, вертикальное положение, размер, выравнивание
+const WidgetConfig bootWdtConf    PROGMEM = { 200, bootLogoTop+130, 2, WA_LEFT }; //отступ, вертикальное положение, размер, выравнивание
 const ProgressConfig bootPrgConf  PROGMEM = { 90, 9, 4 }; //скорость, ширина, ширина движущей части
 const BitrateConfig fullbitrateConf PROGMEM = {{DSP_WIDTH-TFT_FRAMEWDT-34, 44, 2, WA_LEFT}, 42 };
 

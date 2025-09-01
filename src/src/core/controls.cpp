@@ -504,10 +504,12 @@ void onBtnClick(int id) {
           #endif
         }
         if (display.mode() == STATIONS) {
+          Serial.printf("🎮 [UI] Play button clicked in STATIONS mode, currentPlItem: %d\n", display.currentPlItem);
           display.putRequest(NEWMODE, PLAYER);
           #ifdef DSP_LCD
             delay(200);
           #endif
+          Serial.printf("🎮 [UI] Sending PR_PLAY command with station: %d\n", display.currentPlItem);
           player.sendCommand({PR_PLAY, display.currentPlItem});
         }
         if(network.status==SOFT_AP || display.mode()==LOST){

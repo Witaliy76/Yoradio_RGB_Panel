@@ -67,7 +67,7 @@ public:
     bool begin();
     
     // Обработка аудио
-    void processAudio(const int16_t* samples, int32_t count);
+    void processAudio(const int16_t* samples, uint16_t count);
     
     // Сброс данных спектра
     void clearData();

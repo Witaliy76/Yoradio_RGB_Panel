@@ -183,7 +183,7 @@ void Display::_buildPager(){
     _volbar = new SliderWidget(volbarConf, config.theme.volbarin, config.theme.background, 254, config.theme.volbarout);
   #endif
   #ifndef HIDE_HEAPBAR
-    _heapbar = new SliderWidget(heapbarConf, config.theme.buffer, config.theme.background, psramInit()?300000:1600 * 10);
+    _heapbar = new SliderWidget(heapbarConf, config.theme.buffer, config.theme.background, psramInit()?300000:1600 * AUDIOBUFFER_MULTIPLIER2);
   #endif
   #ifndef HIDE_VOL
     _voltxt = new TextWidget(voltxtConf, 10, false, config.theme.vol, config.theme.background);

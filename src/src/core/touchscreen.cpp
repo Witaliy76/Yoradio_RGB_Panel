@@ -420,7 +420,7 @@ void TouchScreen::loop(){
             if(display.mode()==PLAYER || display.mode()==STATIONS){
                   display.putRequest(NEWMODE, STATIONS);
                   // Вверх-вниз для выбора станций
-                  bool nextStation = totalY > 0;  // totalY > 0 = вниз (следующая станция), totalY < 0 = вверх (предыдущая станция)
+                  bool nextStation = totalY < 0;  // totalY < 0 = вверх (следующая станция), totalY > 0 = вниз (предыдущая станция)
                   controlsEvent(nextStation);
                   lastProcessedY = touchY;
                   lastSwipeTime = currentTime;

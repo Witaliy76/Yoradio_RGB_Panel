@@ -212,7 +212,7 @@ uint16_t TextWidget::_realLeft() {
 
 void TextWidget::_draw() {
   if(!_active || !gfx) return;
-  gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize);
+  gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
   strlcpy(_oldtext, _text, _buffsize);
 }
 
@@ -281,10 +281,10 @@ void ScrollWidget::setText(const char* txt) {
     if (_doscroll) {
         gfxFillRect(gfx, _config.left,  _config.top, _width, _textheight, _bgcolor);
         snprintf(_window, _width / _charWidth + 1, "%s", _text); //TODO: прокрутка
-        gfxDrawText(gfx, _config.left, _config.top, _window, _fgcolor, _bgcolor, _config.textsize);
+        gfxDrawText(gfx, _config.left, _config.top, _window, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
     } else {
       gfxFillRect(gfx, _config.left, _config.top, _width, _textheight, _bgcolor);
-      gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize);
+      gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
     }
     strlcpy(_oldtext, _text, _buffsize);
   }
@@ -334,9 +334,9 @@ void ScrollWidget::_draw() {
     }
     int16_t drawX = _fx + hiddenChars * _charWidth;
     if (drawX < _config.left) drawX = _config.left;
-    gfxDrawText(gfx, drawX, _config.top, _window, _fgcolor, _bgcolor, _config.textsize);
+    gfxDrawText(gfx, drawX, _config.top, _window, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
   } else {
-    gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize);
+    gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
   }
 }
 
@@ -666,7 +666,7 @@ void NumWidget::_getBounds() {
 void NumWidget::_draw() {
   if(!_active || !gfx) return;
   _clear();
-  gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize, &DS_DIGI56pt7b);
+  gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize, &DS_DIGI56pt7b, _uppercase);
   strlcpy(_oldtext, _text, _buffsize);
 }
 
@@ -778,7 +778,7 @@ void BitrateWidget::_draw(){
     snprintf(_buf, 6, "%.1f", _br);
   }
 
-  gfxDrawText(gfx, _config.left + _dimension/2 - _charWidth*strlen(_buf)/2 + 1, _config.top + _dimension/4 - _textheight/2 + 2, _buf, _fgcolor, _bgcolor, _config.textsize);
+  gfxDrawText(gfx, _config.left + _dimension/2 - _charWidth*strlen(_buf)/2 + 1, _config.top + _dimension/4 - _textheight/2 + 2, _buf, _fgcolor, _bgcolor, _config.textsize, nullptr, false);
 
   const char* fmt = nullptr;
   switch(_format){
@@ -791,7 +791,7 @@ void BitrateWidget::_draw(){
     case BF_OPU:  fmt = "opu"; break;
     default:     fmt = ""; break;
   }
-  gfxDrawText(gfx, _config.left + _dimension/2 - _charWidth*3/2 + 1, _config.top + _dimension - _dimension/4 - _textheight/2, fmt, _bgcolor, _fgcolor, _config.textsize);
+  gfxDrawText(gfx, _config.left + _dimension/2 - _charWidth*3/2 + 1, _config.top + _dimension - _dimension/4 - _textheight/2, fmt, _bgcolor, _fgcolor, _config.textsize, nullptr, false);
 }
 
 void BitrateWidget::_clear() {

@@ -1,19 +1,19 @@
 #include "GFX_Canvas_screen.h"
 #include <stdio.h>
 
-void gfxDrawText(Arduino_Canvas* gfx, int x, int y, const char* text, uint16_t color, uint16_t bgcolor, uint8_t size, const GFXfont* font) {
+void gfxDrawText(Arduino_Canvas* gfx, int x, int y, const char* text, uint16_t color, uint16_t bgcolor, uint8_t size, const GFXfont* font, bool uppercase) {
     if (font) gfx->setFont(font);
     else gfx->setFont();
     gfx->setTextColor(color, bgcolor);
     gfx->setTextSize(size);
     gfx->setCursor(x, y);
-    gfx->print(utf8Rus(text, true));
+    gfx->print(utf8Rus(text, uppercase));
 }
 
 void gfxDrawNumber(Arduino_Canvas* gfx, int x, int y, int num, uint16_t color, uint16_t bgcolor, uint8_t size, const GFXfont* font) {
     char buf[16];
     snprintf(buf, sizeof(buf), "%d", num);
-    gfxDrawText(gfx, x, y, buf, color, bgcolor, size, font);
+    gfxDrawText(gfx, x, y, buf, color, bgcolor, size, font, false);
 }
 
 void gfxDrawFormatted(Arduino_Canvas* gfx, int x, int y, const char* fmt, uint16_t color, uint16_t bgcolor, uint8_t size, const GFXfont* font, ...) {
@@ -22,7 +22,7 @@ void gfxDrawFormatted(Arduino_Canvas* gfx, int x, int y, const char* fmt, uint16
     va_start(args, font);
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    gfxDrawText(gfx, x, y, buf, color, bgcolor, size, font);
+    gfxDrawText(gfx, x, y, buf, color, bgcolor, size, font, false);
 }
 
 void gfxDrawPixel(Arduino_Canvas* gfx, int x, int y, uint16_t color) {

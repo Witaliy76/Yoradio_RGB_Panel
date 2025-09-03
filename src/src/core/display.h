@@ -46,7 +46,7 @@ class Display {
     bool deepsleep();
     void wakeup();
     void setContrast();
-    void printPLitem(uint8_t pos, const char* item);
+    void printPLitem(uint8_t pos, const char* item, bool uppercase);
   private:
     ScrollWidget _meta, _title1, _plcurrent;
     ScrollWidget *_weather;
@@ -108,7 +108,7 @@ class Display {
     void setContrast(){}
     bool deepsleep(){return true;}
     void wakeup(){}
-    void printPLitem(uint8_t pos, const char* item){}
+    void printPLitem(uint8_t pos, const char* item, bool uppercase){}
 };
 
 #endif

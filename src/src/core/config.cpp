@@ -551,7 +551,7 @@ uint8_t Config::fillPlMenu(int from, uint8_t count, bool fromNextion) {
   while (true) {
     if (ls < 1) {
       ls++;
-      if(!fromNextion) display.printPLitem(c, "");
+      if(!fromNextion) display.printPLitem(c, "", playlistConf.uppercase);
   #ifdef USE_NEXTION
     if(fromNextion) nextion.printPLitem(c, "");
   #endif
@@ -572,7 +572,7 @@ uint8_t Config::fillPlMenu(int from, uint8_t count, bool fromNextion) {
       String stationName = playlist.readStringUntil('\n');
       stationName = stationName.substring(0, stationName.indexOf('\t'));
       if(config.store.numplaylist && stationName.length()>0) stationName = String(from+c)+" "+stationName;
-      if(!fromNextion) display.printPLitem(c, stationName.c_str());
+      if(!fromNextion) display.printPLitem(c, stationName.c_str(), playlistConf.uppercase);
       #ifdef USE_NEXTION
         if(fromNextion) nextion.printPLitem(c, stationName.c_str());
       #endif

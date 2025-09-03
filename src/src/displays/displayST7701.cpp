@@ -303,7 +303,7 @@ uint16_t DspCore::textWidthGFX(const char *txt, uint8_t textsize) {
   return strlen(txt) * CHARWIDTH * textsize;
 }
 
-void DspCore::printPLitem(uint8_t pos, const char* item, ScrollWidget& current){
+void DspCore::printPLitem(uint8_t pos, const char* item, ScrollWidget& current, bool uppercase){
   if (!gfx) { Serial.println("[ST7701] gfx is nullptr! (printPLitem)"); return; }
   if (pos == plCurrentPos) {
     current.setText(item);
@@ -311,7 +311,7 @@ void DspCore::printPLitem(uint8_t pos, const char* item, ScrollWidget& current){
     uint8_t plColor = (abs(pos - plCurrentPos)-1)>4?4:abs(pos - plCurrentPos)-1;
     gfxFillRect(gfx, 0, plYStart + pos * plItemHeight - 1, width(), plItemHeight - 2, config.theme.background);
     // Обрезка строки по ширине без троеточия
-    const char* rus = utf8Rus(item, true);
+    const char* rus = utf8Rus(item, uppercase);
     int len = strlen(rus);
     char buf[128];
     int maxWidth = playlistConf.width;
@@ -338,7 +338,9 @@ void DspCore::printPLitem(uint8_t pos, const char* item, ScrollWidget& current){
       buf,
       config.theme.playlist[plColor],
       config.theme.background,
-      textsize
+      textsize,
+      nullptr,
+      uppercase
     );
   }
 }
@@ -390,7 +392,9 @@ void DspCore::_clockSeconds(){
     secbuf,
     config.theme.seconds,
     config.theme.background,
-    4
+    4,
+    nullptr,
+    false
   );
   
   // Очищаем область под двоеточием (только область самого двоеточия) - для старого шрифта
@@ -405,7 +409,8 @@ void DspCore::_clockSeconds(){
     (network.timeinfo.tm_sec % 2 == 0) ? config.theme.clock : (CLOCKFONT_MONO?config.theme.clockbg:config.theme.background),
     (network.timeinfo.tm_sec % 2 == 0) ? config.theme.clock : (CLOCKFONT_MONO?config.theme.clockbg:config.theme.background),
     1,
-    &DS_DIGI56pt7b
+    &DS_DIGI56pt7b,
+    false
   );
 #ifndef BATTERY_OFF
   if(!config.isScreensaver) {
@@ -434,15 +439,15 @@ void DspCore::_clockSeconds(){
       else if (Volt >= 3.20) { batcolor = color565(255, 255, 0);   strcpy(batbuf, "\x9D\x9E\x9E\xA3"); }
       else if (Volt >= 2.8)  { batcolor = color565(255, 0, 0);     strcpy(batbuf, "\x9D\x9E\x9E\x9F"); }
     }
-    gfxDrawText(gfx, BatX, BatY, batbuf, batcolor, config.theme.background, BatFS);
+    gfxDrawText(gfx, BatX, BatY, batbuf, batcolor, config.theme.background, BatFS, nullptr, false);
 #ifndef HIDE_VOLT
     char voltbuf[16];
     snprintf(voltbuf, sizeof(voltbuf), "%.3fv", Volt);
-    gfxDrawText(gfx, VoltX, VoltY, voltbuf, batcolor, config.theme.background, VoltFS);
+    gfxDrawText(gfx, VoltX, VoltY, voltbuf, batcolor, config.theme.background, VoltFS, nullptr, false);
 #endif
     char procbuf[8];
     snprintf(procbuf, sizeof(procbuf), "%3i%%", ChargeLevel);
-    gfxDrawText(gfx, ProcX, ProcY, procbuf, batcolor, config.theme.background, ProcFS);
+    gfxDrawText(gfx, ProcX, ProcY, procbuf, batcolor, config.theme.background, ProcFS, nullptr, false);
   }
 #endif
 }
@@ -451,7 +456,7 @@ void DspCore::_clockDate(){
   if (!gfx) { Serial.println("[ST7701] gfx is nullptr! (_clockDate)"); return; }
   if(_olddateleft>0)
     gfxFillRect(gfx, _olddateleft,  clockTop+78, _olddatewidth, CHARHEIGHT*2, config.theme.background); //очистка надписи даты
-  gfxDrawText(gfx, _dateleft, clockTop+78, _dateBuf, config.theme.date, config.theme.background, 2);
+  gfxDrawText(gfx, _dateleft, clockTop+78, _dateBuf, config.theme.date, config.theme.background, 2, nullptr, true);
   strlcpy(_oldDateBuf, _dateBuf, sizeof(_dateBuf));
   _olddatewidth = _datewidth;
   _olddateleft = _dateleft;
@@ -460,10 +465,12 @@ void DspCore::_clockDate(){
     gfx,
     width() - clockRightSpace - CHARWIDTH*4*2+13-20,
     clockTop-CHARHEIGHT+44,
-    utf8Rus(dow[network.timeinfo.tm_wday], false),
+    utf8Rus(dow[network.timeinfo.tm_wday], true),
     config.theme.dow,
     config.theme.background,
-    3
+    3,
+    nullptr,
+    true
   );
 }
 
@@ -481,7 +488,8 @@ void DspCore::_clockTime(){
     config.theme.clock,
     config.theme.background,
     1,
-    &DS_DIGI56pt7b
+    &DS_DIGI56pt7b,
+    false
   );
   strlcpy(_oldTimeBuf, _timeBuf, sizeof(_timeBuf));
   _oldtimewidth = _timewidth;

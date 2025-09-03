@@ -430,8 +430,8 @@ void Display::_drawNextStationNum(uint16_t num) {
   _nums.setText(num, "%d");
 }
 
-void Display::printPLitem(uint8_t pos, const char* item){
-  dsp.printPLitem(pos, item, _plcurrent);
+void Display::printPLitem(uint8_t pos, const char* item, bool uppercase){
+  dsp.printPLitem(pos, item, _plcurrent, uppercase);
 }
 
 void Display::putRequest(displayRequestType_e type, int payload){

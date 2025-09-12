@@ -10,10 +10,8 @@
 #include "core/mqtt.h"
 #include "core/optionschecker.h"
 
-// Включение Spectrum Analyzer
-#if SPECTRUM_ENABLED
+// Spectrum Analyzer
 #include "displays/tools/spectrum_analyzer.h"
-#endif
 
 #if DSP_HSPI || TS_HSPI || VS_HSPI
 SPIClass  SPI2(HOOPSENb);
@@ -29,14 +27,12 @@ void setup() {
   config.init();
   display.init();
   
-  // Инициализация Spectrum Analyzer
-  #if SPECTRUM_ENABLED
+  // Инициализация Spectrum Analyzer (всегда)
   if (!spectrumAnalyzer.init()) {
     Serial.println("[Main] Failed to initialize Spectrum Analyzer!");
   } else {
     Serial.println("[Main] Spectrum Analyzer initialized successfully");
   }
-  #endif
   
   player.init();
   network.begin();
@@ -134,7 +130,6 @@ void loop() {
 #endif  /*  #if defined(AUTOBACKLIGHT) */
 
 // Функция обработки аудио данных для Spectrum Analyzer
-#if SPECTRUM_ENABLED
 void audio_process_i2s(int16_t* outBuff, int32_t validSamples, bool *continueI2S) {
     // Обрабатываем аудио данные для Spectrum Analyzer
     // В новой версии библиотеки все данные уже ресемплированы до 48кГц, 16-bit, stereo
@@ -143,4 +138,3 @@ void audio_process_i2s(int16_t* outBuff, int32_t validSamples, bool *continueI2S
     // Продолжаем обычную обработку I2S
     *continueI2S = true;
 }
-#endif

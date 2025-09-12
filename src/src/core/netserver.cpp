@@ -302,7 +302,7 @@ void NetServer::processQueue(){
                                   config.vuThreshold,
                                   config.store.mdnsname); 
                                   break;
-      case GETSCREEN:     sprintf (wsbuf, "{\"flip\":%d,\"inv\":%d,\"nump\":%d,\"tsf\":%d,\"tsd\":%d,\"dspon\":%d,\"br\":%d,\"con\":%d,\"scre\":%d,\"scrt\":%d,\"scrb\":%d,\"scrpe\":%d,\"scrpt\":%d,\"scrpb\":%d}", 
+      case GETSCREEN:     sprintf (wsbuf, "{\"flip\":%d,\"inv\":%d,\"nump\":%d,\"tsf\":%d,\"tsd\":%d,\"dspon\":%d,\"br\":%d,\"con\":%d,\"scre\":%d,\"scrt\":%d,\"scrb\":%d,\"scrpe\":%d,\"scrpt\":%d,\"scrpb\":%d,\"sa\":%d}", 
                                   config.store.flipscreen, 
                                   config.store.invertdisplay, 
                                   config.store.numplaylist, 
@@ -316,7 +316,8 @@ void NetServer::processQueue(){
                                   config.store.screensaverBlank,
                                   config.store.screensaverPlayingEnabled,
                                   config.store.screensaverPlayingTimeout,
-                                  config.store.screensaverPlayingBlank);
+                                  config.store.screensaverPlayingBlank,
+                                  config.store.usespectrum);
                                   break;
       case GETTIMEZONE:   sprintf (wsbuf, "{\"tzh\":%d,\"tzm\":%d,\"sntp1\":\"%s\",\"sntp2\":\"%s\"}", 
                                   config.store.tzHour, 
@@ -434,6 +435,13 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
       if (strcmp(cmd, "vumeter") == 0) {
         bool valb = static_cast<bool>(atoi(val));
         config.saveValue(&config.store.vumeter, valb);
+        display.putRequest(SHOWVUMETER);
+        return;
+      }
+      if (strcmp(cmd, "usespectrum") == 0) {
+        bool valb = static_cast<bool>(atoi(val));
+        config.saveValue(&config.store.usespectrum, valb);
+        // Пересчитать текущее отображение SA/VU без смены режима
         display.putRequest(SHOWVUMETER);
         return;
       }

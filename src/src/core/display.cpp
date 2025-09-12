@@ -68,18 +68,19 @@ void Display::init() {
 #endif
 
   _bootStep = 0;
+  _suspendFlush = true; // блокируем flush до полной сборки страниц
   
   // Инициализация дисплея
   dsp.initDisplay();
+  // Жёстко отключим любые метры до создания страниц (во избежание стартовых артефактов)
+  _deactivateAllMeters();
   
-  // Инициализация Spectrum Analyzer
-  #if SPECTRUM_ENABLED
+  // Инициализация Spectrum Analyzer (всегда)
   if (!spectrumAnalyzer.init()) {
     Serial.println("[Display] Failed to initialize Spectrum Analyzer!");
   } else {
     Serial.println("[Display] Spectrum Analyzer initialized successfully");
   }
-  #endif
   
   // Проверяем, что gfx инициализирован
   if (!gfx) {
@@ -107,6 +108,15 @@ void Display::init() {
   
   Serial.println("done");
 }
+void Display::_deactivateAllMeters(){
+  sdog.takeMutex();
+  if(_spectrumwidget) _spectrumwidget->setActive(false, true);
+  if(_vuwidget) _vuwidget->lock(true);
+  // Очистим обе области на всякий случай
+  #if defined(spectrumConf)
+  #endif
+  sdog.giveMutex();
+}
 
 void Display::_bootScreen(){
   if (!gfx) {
@@ -126,10 +136,8 @@ void Display::_bootScreen(){
 
 void Display::_buildPager(){
   Serial.println("[DEBUG] _buildPager() called");
-  Serial.print("[DEBUG] SPECTRUM_ENABLED: ");
-  Serial.println(SPECTRUM_ENABLED);
-  Serial.print("[DEBUG] SPECTRUM_REPLACE_VU: ");
-  Serial.println(SPECTRUM_REPLACE_VU);
+  Serial.print("[DEBUG] usespectrum: ");
+  Serial.println(config.store.usespectrum);
 #ifdef HIDE_VU
   Serial.println("[DEBUG] HIDE_VU is defined");
 #else
@@ -162,23 +170,23 @@ void Display::_buildPager(){
     _plbackground = new FillWidget(playlBGConf, 1);
     //_metabackground = new FillWidget(metaBGConf, 1);
   #endif
-  #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-    // Инициализация Spectrum Widget вместо VU-метра
-    #if DSP_MODEL==DSP_AXS15231B
-      #include "../displays/conf/spectrum_axs15231b.h"
-      _spectrumwidget = new SpectrumWidget(spectrumConf);
-    #elif DSP_MODEL==DSP_ST7701
-      #include "../displays/conf/spectrum_st7701.h"
-      _spectrumwidget = new SpectrumWidget(spectrumConf);
-    #else
-      // Для других дисплеев можно добавить другие конфигурации
-      _spectrumwidget = new SpectrumWidget();
-    #endif
-  #elif !defined(HIDE_VU)
-    Serial.println("[Display] Creating VU Widget...");
-    _vuwidget = new VuWidget(vuConf, bandsConf, config.theme.vumax, config.theme.vumin, config.theme.background);
-    Serial.println("[Display] VU Widget created successfully");
+  // Создаём оба виджета; их активность управляется в рантайме
+  #if DSP_MODEL==DSP_AXS15231B
+    #include "../displays/conf/spectrum_axs15231b.h"
+    _spectrumwidget = new SpectrumWidget(spectrumConf);
+  #elif DSP_MODEL==DSP_ST7701
+    #include "../displays/conf/spectrum_st7701.h"
+    _spectrumwidget = new SpectrumWidget(spectrumConf);
+  #else
+    _spectrumwidget = new SpectrumWidget();
   #endif
+  #if !defined(HIDE_VU)
+    _vuwidget = new VuWidget(vuConf, bandsConf, config.theme.vumax, config.theme.vumin, config.theme.background);
+  #endif
+  _usingSpectrum = config.store.usespectrum;
+  // Сразу отключим оба, чтобы до первичной инициализации они не мигали
+  if(_spectrumwidget) _spectrumwidget->setActive(false, true);
+  if(_vuwidget) _vuwidget->lock(true);
   #ifndef HIDE_VOLBAR
     _volbar = new SliderWidget(volbarConf, config.theme.volbarin, config.theme.background, 254, config.theme.volbarout);
   #endif
@@ -217,11 +225,10 @@ void Display::_buildPager(){
     _bitrate = new TextWidget(bitrateConf, 30, false, config.theme.bitrate, config.theme.background);
     pages[PG_PLAYER]->addWidget( _bitrate);
   #endif
-  #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-    if(_spectrumwidget) pages[PG_PLAYER]->addWidget(_spectrumwidget);
-  #elif !defined(HIDE_VU)
-  if(_vuwidget) pages[PG_PLAYER]->addWidget( _vuwidget);
-  #endif
+  if(_vuwidget) pages[PG_PLAYER]->addWidget(_vuwidget);
+  if(_spectrumwidget) pages[PG_PLAYER]->addWidget(_spectrumwidget);
+  // И после добавления в страницу ещё раз гарантированно выключим оба
+  _deactivateAllMeters();
   pages[PG_PLAYER]->addWidget(&_clock);
   pages[PG_SCREENSAVER]->addWidget(&_clock);
   pages[PG_PLAYER]->addPage(&_footer);
@@ -301,26 +308,30 @@ void Display::_start() {
   _buildPager();
   _mode = PLAYER;
   config.setTitle(const_PlReady);
+  // Перед первой отрисовкой гарантированно погасим оба виджета
+  _deactivateAllMeters();
+  // Перед первой отрисовкой гарантированно погасим оба виджета
+  _deactivateAllMeters();
   
   if(_heapbar)  _heapbar->lock(!config.store.audioinfo);
   
   if(_weather)  _weather->lock(!config.store.showweather);
   if(_weather && config.store.showweather)  _weather->setText(const_getWeather);
 
-  #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-    if(_spectrumwidget) _spectrumwidget->setActive(config.store.vumeter);
-  #else
-    if(_vuwidget) _vuwidget->lock();
-  #endif
   if(_rssi)     _setRSSI(WiFi.RSSI());
   #ifndef HIDE_IP
     if(_volip) _volip->setText(WiFi.localIP().toString().c_str(), iptxtFmt);
   #endif
   _pager.setPage( pages[PG_PLAYER]);
+  // Применяем состояние метров ТОЛЬКО после установки страницы, чтобы Pager не переактивировал виджеты
+  _deactivateAllMeters();
+  // На старте активируем/деактивируем метры строго по состоянию плеера
+  _layoutChange(player.isRunning());
   _volume();
   _station();
   _time(false);
   _bootStep = 2;
+  _suspendFlush = false; // разрешаем flush после полной подготовки
   pm.on_display_player();
 }
 
@@ -454,21 +465,21 @@ void Display::putRequest(displayRequestType_e type, int payload){
 
 void Display::_layoutChange(bool played){
   if(config.store.vumeter){
+    // Очистим состояние: отключим оба перед переключением
+    if(_spectrumwidget) _spectrumwidget->setActive(false, true);
+    if(_vuwidget) _vuwidget->lock(true);
     if(played){
-      #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-        if(_spectrumwidget) _spectrumwidget->setActive(config.store.vumeter);
-      #else
+      if(config.store.usespectrum){
+        if(_spectrumwidget) _spectrumwidget->setActive(true);
+      }else{
         if(_vuwidget) _vuwidget->unlock();
-      #endif
+      }
       _clock.moveTo(clockMove);
       if(_weather) _weather->moveTo(weatherMoveVU);
     }else{
-      #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-        // Spectrum Widget следует состоянию тумблера VU
-        if(_spectrumwidget) _spectrumwidget->setActive(config.store.vumeter);
-      #else
-        if(_vuwidget) if(!_vuwidget->locked()) _vuwidget->lock();
-      #endif
+      // В режиме Stop отключаем оба визуальных метра
+      if(_spectrumwidget) _spectrumwidget->setActive(false, true);
+      if(_vuwidget) if(!_vuwidget->locked()) _vuwidget->lock();
       _clock.moveBack();
       if(_weather) _weather->moveBack();
     }
@@ -493,9 +504,11 @@ void Display::loop() {
   }
   if(displayQueue==NULL) return;
   _pager.loop();
-  sdog.takeMutex();
-  gfxFlushScreen(gfx);
-  sdog.giveMutex();
+  if(!_suspendFlush){
+    sdog.takeMutex();
+    gfxFlushScreen(gfx);
+    sdog.giveMutex();
+  }
 #ifdef USE_NEXTION
   nextion.loop();
 #endif
@@ -530,17 +543,17 @@ void Display::loop() {
           break;
         case AUDIOINFO: if(_heapbar)  { _heapbar->lock(!config.store.audioinfo); _heapbar->setValue(player.inBufferFilled()); } break;
         case SHOWVUMETER: {
-          #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
-            if(_spectrumwidget){
-              _spectrumwidget->setActive(config.store.vumeter); 
-              _layoutChange(player.isRunning());
+          // Сначала деактивируем оба, затем активируем нужный
+          if(_spectrumwidget) _spectrumwidget->setActive(false, true);
+          if(_vuwidget) _vuwidget->lock(true);
+          if(config.store.vumeter){
+            if(config.store.usespectrum){
+              if(_spectrumwidget) _spectrumwidget->setActive(true);
+            }else{
+              if(_vuwidget) _vuwidget->unlock();
             }
-          #else
-            if(_vuwidget){
-              _vuwidget->lock(!config.store.vumeter); 
-              _layoutChange(player.isRunning());
-            }
-          #endif
+          }
+          _layoutChange(player.isRunning());
           break;
         }
         case SHOWWEATHER: {

@@ -65,15 +65,15 @@ const WidgetConfig apNameConf     PROGMEM = { TFT_FRAMEWDT, 88, 3, WA_CENTER };
 const WidgetConfig apName2Conf    PROGMEM = { TFT_FRAMEWDT, 120, 3, WA_CENTER };
 const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT, 173, 3, WA_CENTER };
 const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT, 205, 3, WA_CENTER };
-const WidgetConfig  clockConf     PROGMEM = { 0, 180, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
-const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT, 294, 1, WA_LEFT };
+const WidgetConfig  clockConf     PROGMEM = { 70, 180, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
+const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT, 310, 2, WA_LEFT };//294
 
 const WidgetConfig bootWdtConf    PROGMEM = { 200, bootLogoTop+130, 2, WA_LEFT }; //отступ, вертикальное положение, размер, выравнивание
 const ProgressConfig bootPrgConf  PROGMEM = { 90, 9, 4 }; //скорость, ширина, ширина движущей части
 const BitrateConfig fullbitrateConf PROGMEM = {{DSP_WIDTH-TFT_FRAMEWDT-34, 44, 2, WA_LEFT}, 42 };
 
 /* BANDS  */                             /* { onebandwidth, onebandheight, bandsHspace, bandsVspace, numofbands, fadespeed } */
-const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH, 35, 4, 5, 45, 30};
+const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH, 25, 4, 5, 47, 30};//35,30
 
 /* STRINGS  */
 const char         numtxtFmt[]    PROGMEM = "%d";
@@ -87,7 +87,7 @@ const char         voltxtFmt[]    PROGMEM = "\023\025%d";
 const char        bitrateFmt[]    PROGMEM = "%d kBs";
 
 /* MOVES  */                             /* { left, top, width } */
-const MoveConfig    clockMove     PROGMEM = { 0, 180, MAX_WIDTH /* MAX_WIDTH */ }; // -1 disables move
+const MoveConfig    clockMove     PROGMEM = { 70, 180, MAX_WIDTH /* MAX_WIDTH */ }; // -1 disables move
 const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
 const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
 

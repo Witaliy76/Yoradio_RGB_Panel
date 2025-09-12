@@ -369,10 +369,7 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
   #define SD_MAX_LEVELS      3      //  search depth for files on the SD card
 #endif
 
-/*        SPECTRUM ANALYZER                    */
-#ifndef SPECTRUM_ENABLED
-  #define SPECTRUM_ENABLED       false   // Включить Spectrum Analyzer вместо VU-метра
-#endif
+/*        SPECTRUM ANALYZER (always compiled; runtime switch in config.store.usespectrum) */
 #ifndef SPECTRUM_USE_PSRAM
   #define SPECTRUM_USE_PSRAM     true    // Использовать PSRAM для FFT буферов
 #endif
@@ -394,9 +391,7 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef SPECTRUM_STEREO
   #define SPECTRUM_STEREO        true    // Стерео режим (иначе моно)
 #endif
-#ifndef SPECTRUM_REPLACE_VU
-  #define SPECTRUM_REPLACE_VU    true    // Заменить VU-метр на SA
-#endif
+/* No SPECTRUM_REPLACE_VU: runtime decides */
 // Дополнительный коэффициент усиления спектра (если не задан в myoptions)
 #ifndef SPECTRUM_GAIN
   #define SPECTRUM_GAIN          1.0f

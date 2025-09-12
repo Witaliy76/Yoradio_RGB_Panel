@@ -21,19 +21,23 @@ extern Arduino_Canvas* gfx;
 
 // === НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ДЛЯ ПОДБОРА ===
 //НАСТРОЙКИ ШКАЛА VU-МЕТРА
-const float redZonePos = 0.80f; // Доля шкалы, где начинается красная зона и деление 0 (подбирай от того что VU метр показывает!)
+const float redZonePos = 0.78f; // Доля шкалы, где начинается красная зона и деление 0 (подбирай от того что VU метр показывает!)
 const int scaleHeightLong = 8; // длинные деления шкалы пикс
 const int scaleHeightShort = 4; // короткие деления шкалы пикс
-const int scaleThickness = 1; // толщина линии пикс
+const int scaleThickness = 2; // толщина линии пикс
 const int fontSize = 1; // минимальный шрифт
 const int labelOffsetTop = -11;    // отступ верхней подписи от шкалы (отрицательное — вверх)
 const int labelOffsetBottom = 4;   // отступ нижней подписи от шкалы (положительное — вниз)
 const int labelLeftmostOffset = 9; // сдвиг самой левой подписи ('-30')
 //VU-МЕТР EXPERIMENTAL
-const int vuChannelGap = 48; // расстояние между каналами VU-метра в пикселях
+const int vuChannelGap = 44; // расстояние между каналами VU-метра в пикселях
 static uint32_t holdTimeL = 1500; // время удержания пика для левого канала (мс, шаг 500 мс)
 static uint32_t holdTimeR = 1500; // время удержания пика для правого канала (мс, шаг 500 мс)
 // === КОНЕЦ НАСТРАИВАЕМЫХ ПАРАМЕТРОВ ===
+
+// Дополнительные настраиваемые константы для VU/Peak Hold (всё в одном месте)
+const bool  vuInvertInput = true;   // инверсия уровня ПОСЛЕ сглаживания, после замены библиотеки уровень начал передаваться на Vu метр инверсивно, поэтому надо инвертировать еще раз
+const float vuPeakMinFade = 0.20f;  // минимальная яркость затухающего пика (0..1)
 
 /************************
       FILL WIDGET
@@ -413,6 +417,11 @@ void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor
   _vumaxcolor = vumaxcolor;
   _vumincolor = vumincolor;
   _bands = bands;
+  // Сброс состояния дельта-отрисовки и очистка области
+  _prevL = 0xFF;
+  _prevR = 0xFF;
+  _needsFullRedraw = true;
+  _clear();
 }
 
 void VuWidget::_draw() {
@@ -421,100 +430,159 @@ void VuWidget::_draw() {
   static uint8_t peakHoldL = 0, peakHoldR = 0;
   static uint32_t peakHoldTimeL = 0, peakHoldTimeR = 0;
   uint8_t numBands = _bands.perheight;
+  // Peak hold включен
   uint16_t vulevel = player.get_VUlevel(numBands);
   uint8_t activeL = (vulevel >> 8) & 0xFF;
   uint8_t activeR = vulevel & 0xFF;
+  if (activeL > numBands) activeL = numBands;
+  if (activeR > numBands) activeR = numBands;
 
-  // --- Peak Hold ---
-  // Усиленная логика: если fading peakHold > 0 и сигнал доходит до этого или выше сегмента, сбрасываем холд и таймер
-  if (peakHoldL > 0 && activeL >= peakHoldL) {
-    peakHoldL = activeL;
-    peakHoldTimeL = millis();
-  } else if (activeL > 0 && activeL > peakHoldL) {
-    peakHoldL = activeL;
-    peakHoldTimeL = millis();
-  } else if (millis() - peakHoldTimeL > holdTimeL && peakHoldL > 0) {
-    peakHoldL = 0;
-  }
-  if (peakHoldR > 0 && activeR >= peakHoldR) {
-    peakHoldR = activeR;
-    peakHoldTimeR = millis();
-  } else if (activeR > 0 && activeR > peakHoldR) {
-    peakHoldR = activeR;
-    peakHoldTimeR = millis();
-  } else if (millis() - peakHoldTimeR > holdTimeR && peakHoldR > 0) {
-    peakHoldR = 0;
-  }
-  // --- конец Peak Hold ---
-  // Если основной VU-метр догнал fading peak hold — сбросить fading
-  if (measL >= peakHoldL) peakHoldL = measL;
-  if (measR >= peakHoldR) peakHoldR = measR;
+  // Инверсию переносим на этап после сглаживания (настраивается константой выше)
+  const bool invertInput = vuInvertInput;
+  uint8_t levelL = activeL;
+  uint8_t levelR = activeR;
 
-  // Левый канал
-  if (activeL == 0) {
+  // Peak Hold обновляется после расчёта currL/currR ниже
+
+  // Левый канал (сглаживание до инверсии)
+  if (levelL == 0) {
     measL = 0;
-  } else if (activeL >= measL) {
-    measL = activeL;
+  } else if (levelL >= measL) {
+    measL = levelL;
   } else {
     if (measL > _bands.fadespeed) measL -= _bands.fadespeed;
     else measL = 0;
-    if (measL < activeL) measL = activeL;
+    if (measL < levelL) measL = levelL;
   }
-  // Правый канал
-  if (activeR == 0) {
+  // Правый канал (сглаживание до инверсии)
+  if (levelR == 0) {
     measR = 0;
-  } else if (activeR >= measR) {
-    measR = activeR;
+  } else if (levelR >= measR) {
+    measR = levelR;
   } else {
     if (measR > _bands.fadespeed) measR -= _bands.fadespeed;
     else measR = 0;
-    if (measR < activeR) measR = activeR;
+    if (measR < levelR) measR = levelR;
   }
 
-  // Очистка области
-  gfxFillRect(gfx, _config.left, _config.top, _bands.width, _bands.height*2 + _bands.vspace + vuChannelGap, _bgcolor);
+  // Дельта-отрисовка без полной очистки, чтобы исключить мерцание
+  // Используем поля класса `_prevL/_prevR` и флаг `_needsFullRedraw`
+  uint8_t currL = (uint8_t)std::round(measL);
+  uint8_t currR = (uint8_t)std::round(measR);
 
-  // Левая и правая полосы (сегменты)
+  // Применяем инверсию ПОСЛЕ сглаживания
+  if (invertInput) {
+    currL = (currL > numBands) ? 0 : (uint8_t)(numBands - currL);
+    currR = (currR > numBands) ? 0 : (uint8_t)(numBands - currR);
+  }
+
+  if (currL > numBands) currL = numBands;
+  if (currR > numBands) currR = numBands;
+
+  auto bandWidth = (_bands.width - (numBands-1)*_bands.space) / numBands;
   uint8_t redBands = std::max(3, numBands / 4);
-  for (uint8_t i = 0; i < numBands; ++i) {
-    uint16_t colorL = (i >= numBands - redBands) ? _vumaxcolor : _vumincolor;
-    uint16_t colorR = colorL;
-    int x = _config.left + i * (_bands.width - (numBands-1)*_bands.space) / numBands + i * _bands.space;
-    int yL = _config.top;
-    int yR = _config.top + _bands.height + vuChannelGap; // расстояние между каналами регулируется константой
-    gfxFillRect(gfx, x, yL, (_bands.width - (numBands-1)*_bands.space) / numBands, _bands.height, i < measL ? colorL : _bgcolor);
-    gfxFillRect(gfx, x, yR, (_bands.width - (numBands-1)*_bands.space) / numBands, _bands.height, i < measR ? colorR : _bgcolor);
+
+  // Полная инициализационная отрисовка (первый кадр/после очистки)
+  if (_needsFullRedraw || _prevL == 0xFF || _prevR == 0xFF) {
+    for (uint8_t i = 0; i < numBands; ++i) {
+      int x = _config.left + i * bandWidth + i * _bands.space;
+      uint16_t color = (i >= numBands - redBands) ? _vumaxcolor : _vumincolor;
+      // Левый
+      gfxFillRect(gfx, x, _config.top, bandWidth, _bands.height, (i < currL) ? color : _bgcolor);
+      // Правый
+      int yR = _config.top + _bands.height + vuChannelGap;
+      gfxFillRect(gfx, x, yR, bandWidth, _bands.height, (i < currR) ? color : _bgcolor);
+    }
+    _prevL = currL;
+    _prevR = currR;
+    _needsFullRedraw = false;
   }
-  // --- Peak Hold визуализация ---
-  uint16_t peakColorL = (peakHoldL >= numBands - redBands + 1) ? _vumaxcolor : _vumincolor;
-  uint16_t peakColorR = (peakHoldR >= numBands - redBands + 1) ? _vumaxcolor : _vumincolor;
 
-  // Fading (затухание)
-  float fadeL = 1.0f - float(millis() - peakHoldTimeL) / holdTimeL;
-  if (fadeL < 0.2f) fadeL = 0.2f;
-  float fadeR = 1.0f - float(millis() - peakHoldTimeR) / holdTimeR;
-  if (fadeR < 0.2f) fadeR = 0.2f;
-
-  auto fadeColor = [](uint16_t color, float fade) -> uint16_t {
-    uint8_t r = ((color >> 11) & 0x1F) * fade;
-    uint8_t g = ((color >> 5) & 0x3F) * fade;
-    uint8_t b = (color & 0x1F) * fade;
-    return ((r & 0x1F) << 11) | ((g & 0x3F) << 5) | (b & 0x1F);
-  };
-
-  uint16_t fadedPeakColorL = fadeColor(peakColorL, fadeL);
-  uint16_t fadedPeakColorR = fadeColor(peakColorR, fadeR);
-
-  if (peakHoldL > 0 && peakHoldL <= numBands) {
-    int x = _config.left + (peakHoldL-1) * ((_bands.width - (numBands-1)*_bands.space) / numBands + _bands.space);
-    int yL = _config.top;
-    gfxFillRect(gfx, x, yL, (_bands.width - (numBands-1)*_bands.space) / numBands, _bands.height, fadedPeakColorL);
+  // Левая шкала: дорисовать новые сегменты или стереть лишние
+  if (currL != _prevL) {
+    uint8_t from = std::min(currL, _prevL);
+    uint8_t to   = std::max(currL, _prevL);
+    bool grow = currL > _prevL;
+    for (uint8_t i = from; i < to; ++i) {
+      int x = _config.left + i * bandWidth + i * _bands.space;
+      int yL = _config.top;
+      uint16_t color = (i >= numBands - redBands) ? _vumaxcolor : _vumincolor;
+      gfxFillRect(gfx, x, yL, bandWidth, _bands.height, grow ? color : _bgcolor);
+    }
+    _prevL = currL;
   }
-  if (peakHoldR > 0 && peakHoldR <= numBands) {
-    int x = _config.left + (peakHoldR-1) * ((_bands.width - (numBands-1)*_bands.space) / numBands + _bands.space);
-    int yR = _config.top + _bands.height + vuChannelGap;
-    gfxFillRect(gfx, x, yR, (_bands.width - (numBands-1)*_bands.space) / numBands, _bands.height, fadedPeakColorR);
+  // Правая шкала
+  if (currR != _prevR) {
+    uint8_t from = std::min(currR, _prevR);
+    uint8_t to   = std::max(currR, _prevR);
+    bool grow = currR > _prevR;
+    for (uint8_t i = from; i < to; ++i) {
+      int x = _config.left + i * bandWidth + i * _bands.space;
+      int yR = _config.top + _bands.height + vuChannelGap;
+      uint16_t color = (i >= numBands - redBands) ? _vumaxcolor : _vumincolor;
+      gfxFillRect(gfx, x, yR, bandWidth, _bands.height, grow ? color : _bgcolor);
+    }
+    _prevR = currR;
   }
+  // --- Peak Hold: обновление и отрисовка ---
+    static uint8_t prevPeakPosL = 0;
+    static uint8_t prevPeakPosR = 0;
+
+    if (_needsFullRedraw || _prevL == 0xFF || _prevR == 0xFF) {
+      prevPeakPosL = 0;
+      prevPeakPosR = 0;
+      peakHoldL = 0;
+      peakHoldR = 0;
+    }
+
+    // Обновление позиций пиков в "экранном" пространстве (после инверсии)
+    if (currL > 0 && currL >= peakHoldL) { peakHoldL = currL; peakHoldTimeL = millis(); }
+    else if (millis() - peakHoldTimeL > holdTimeL && peakHoldL > 0) { peakHoldL = 0; }
+
+    if (currR > 0 && currR >= peakHoldR) { peakHoldR = currR; peakHoldTimeR = millis(); }
+    else if (millis() - peakHoldTimeR > holdTimeR && peakHoldR > 0) { peakHoldR = 0; }
+
+    // Стираем предыдущие маркеры, если позиция изменилась или маркер исчез
+    auto erasePeakAt = [&](bool isRight, uint8_t pos){
+      if (pos == 0 || pos > numBands) return;
+      int x = _config.left + (pos-1) * (bandWidth + _bands.space);
+      int y = isRight ? (_config.top + _bands.height + vuChannelGap) : _config.top;
+      bool coveredByBar = (pos <= (isRight ? currR : currL));
+      uint16_t color = coveredByBar ? ((pos-1 >= numBands - redBands) ? _vumaxcolor : _vumincolor) : _bgcolor;
+      gfxFillRect(gfx, x, y, bandWidth, _bands.height, color);
+    };
+
+    if (prevPeakPosL != 0 && prevPeakPosL != peakHoldL) erasePeakAt(false, prevPeakPosL);
+    if (prevPeakPosR != 0 && prevPeakPosR != peakHoldR) erasePeakAt(true, prevPeakPosR);
+
+    // Цвет пиков с учётом зоны и затухания за время удержания
+    auto fadeColor = [](uint16_t color, float fade) -> uint16_t {
+      uint8_t r = ((color >> 11) & 0x1F) * fade;
+      uint8_t g = ((color >> 5) & 0x3F) * fade;
+      uint8_t b = (color & 0x1F) * fade;
+      return ((r & 0x1F) << 11) | ((g & 0x3F) << 5) | (b & 0x1F);
+    };
+
+    if (peakHoldL > 0 && peakHoldL <= numBands) {
+      float fadeL = 1.0f - float(millis() - peakHoldTimeL) / holdTimeL; if (fadeL < vuPeakMinFade) fadeL = vuPeakMinFade;
+      uint16_t base = (peakHoldL >= numBands - redBands + 1) ? _vumaxcolor : _vumincolor;
+      uint16_t col = fadeColor(base, fadeL);
+      int x = _config.left + (peakHoldL-1) * (bandWidth + _bands.space);
+      int y = _config.top;
+      gfxFillRect(gfx, x, y, bandWidth, _bands.height, col);
+    }
+    if (peakHoldR > 0 && peakHoldR <= numBands) {
+      float fadeR = 1.0f - float(millis() - peakHoldTimeR) / holdTimeR; if (fadeR < vuPeakMinFade) fadeR = vuPeakMinFade;
+      uint16_t base = (peakHoldR >= numBands - redBands + 1) ? _vumaxcolor : _vumincolor;
+      uint16_t col = fadeColor(base, fadeR);
+      int x = _config.left + (peakHoldR-1) * (bandWidth + _bands.space);
+      int y = _config.top + _bands.height + vuChannelGap;
+      gfxFillRect(gfx, x, y, bandWidth, _bands.height, col);
+    }
+
+    prevPeakPosL = peakHoldL;
+    prevPeakPosR = peakHoldR;
+
 
   // === НАСТРОЙКА ПАРАМЕТРОВ VU-МЕТРА ===
   const int scaleLength = _bands.width -10;    // Общая длина ШКАЛЫ в пикселях (максимальная длина виджета + 1)
@@ -618,13 +686,17 @@ void VuWidget::_draw() {
 }
 
 void VuWidget::loop(){
-  if(_active || !_locked) _draw();
+  if(_active && !_locked) _draw();
 }
 
 void VuWidget::_clear(){
   if (!gfx) return;
   const int vuChannelGap = 48;
   gfxFillRect(gfx, _config.left, _config.top, _bands.width, _bands.height*2 + _bands.vspace + vuChannelGap, _bgcolor);
+  // После очистки требуется полная отрисовка
+  _prevL = 0xFF;
+  _prevR = 0xFF;
+  _needsFullRedraw = true;
 }
 /************************
       NUM WIDGET

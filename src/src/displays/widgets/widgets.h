@@ -231,6 +231,10 @@ class VuWidget: public Widget {
     uint8_t numBands;
     uint8_t measL[8], measR[8];
     uint8_t peakL[8], peakR[8];
+    // Для дельта-отрисовки
+    uint8_t _prevL = 0xFF;
+    uint8_t _prevR = 0xFF;
+    bool _needsFullRedraw = true;
     void _draw();
     void _clear();
 };

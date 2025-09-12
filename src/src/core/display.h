@@ -8,11 +8,9 @@
 #include "common.h"
 #include "../displays/dspcore.h"
 
-// Включение Spectrum Analyzer
-#if SPECTRUM_ENABLED
+// Spectrum Analyzer (always available, runtime switch in config)
 #include "../displays/tools/spectrum_analyzer.h"
 #include "../displays/tools/spectrum_widget.h"
-#endif
 
 #if NEXTION_RX!=255 && NEXTION_TX!=255
   #define USE_NEXTION
@@ -57,9 +55,8 @@ class Display {
     Pager _pager;
     Page _footer;
     VuWidget *_vuwidget;
-    #if SPECTRUM_ENABLED && SPECTRUM_REPLACE_VU
     SpectrumWidget *_spectrumwidget;
-    #endif
+    bool _usingSpectrum;
     NumWidget _nums;
     ProgressWidget _testprogress;
     ClockWidget _clock;
@@ -67,6 +64,7 @@ class Display {
     TextWidget *_bootstring, *_volip, *_voltxt, *_rssi, *_bitrate;
     Ticker _returnTicker;
     uint8_t _bootStep;
+    bool _suspendFlush;
     void _time(bool redraw = false);
     void _apScreen();
     void _swichMode(displayMode_e newmode);
@@ -82,6 +80,7 @@ class Display {
     void _setReturnTicker(uint8_t time_s);
     void _layoutChange(bool played);
     void _setRSSI(int rssi);
+    void _deactivateAllMeters();
 };
 
 #else

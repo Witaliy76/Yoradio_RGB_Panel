@@ -21,18 +21,13 @@ void SpectrumWidget::init(SpectrumWidgetConfig conf) {
     
     // Инициализация базового виджета для RGB Panel
     Widget::init(conf.widget, conf.barColor, conf.bgColor);
+    // Очистим область сразу, чтобы при старте не было артефактов
+    _clear();
 }
 
 void SpectrumWidget::loop() {
-    if (_active && !_locked) {
-        _draw(); // Отрисовка спектра для RGB Panel
-    } else if (!_active) {
-        // При деактивации очищаем экран для RGB Panel
-        _clear();
-        if (gfx) {
-            gfx->flush(); // Обновление RGB Panel
-        }
-    }
+    if (!(_active && !_locked)) return;
+    _draw(); // Отрисовка спектра для RGB Panel
 }
 
 void SpectrumWidget::_draw() {
@@ -106,8 +101,11 @@ void SpectrumWidget::_draw() {
 void SpectrumWidget::_clear() {
     // Очищаем область виджета для RGB Panel (Canvas путь)
     if (gfx) {
+        // При деактивации расширяем очистку вниз на пару пикселей,
+        // чтобы убрать возможные остатки при переключении SA -> VU
+        uint16_t extra = 10;
         gfxFillRect(gfx, _config.widget.left, _config.widget.top,
-                    _config.width, _config.height, _config.bgColor);
+                    _config.width, (uint16_t)(_config.height + extra), _config.bgColor);//_config.bgColor
     }
 }
 

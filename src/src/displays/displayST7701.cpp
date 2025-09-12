@@ -257,9 +257,7 @@ void DspCore::initDisplay() {
     gfx->fillScreen(BLACK);
     Serial.println("[ST7701] Screen cleared to BLACK");
     
-    // Тестовая отрисовка - красный прямоугольник
-    gfx->fillRect(100, 200, 280, 80, RED);
-    Serial.println("[ST7701] Test RED rectangle drawn");
+   
   }
   
   Serial.println("[ST7701] Display ready for normal operation");

@@ -58,8 +58,7 @@
 #define L10N_LANGUAGE RU
 #define BITRATE_FULL  true
 
-// Включение Spectrum Analyzer
-#define SPECTRUM_ENABLED       true    // !!Включить Spectrum Analyzer
+// Spectrum Analyzer всегда собран; выбор вида выполняется по usespectrum в настройках
 #define SPECTRUM_USE_PSRAM     true    // Использовать PSRAM для FFT буферов
 #define SPECTRUM_BANDS         15      // Количество полос спектра (уменьшено до 15)
 #define SPECTRUM_FFT_SIZE      64      // Размер FFT (уменьшен для простоты)
@@ -67,11 +66,12 @@
 #define SPECTRUM_PEAK_HOLD_TIME 300.0f // Время удержания пиков (мс, уменьшено)
 #define SPECTRUM_LOGARITHMIC   false   // Логарифмическая шкала частот (отключено)
 #define SPECTRUM_STEREO        true   // Стерео режим (отключено - моно)
-#define SPECTRUM_REPLACE_VU    true   // !!Заменить VU-метр на SA
+// #define SPECTRUM_REPLACE_VU    // удалено, выбор вида в рантайме
 #define SPECTRUM_GAIN          0.03f    // Общее усиление спектра (1.0 = без усиления, 0.05 = -95%)
 
 // Отключение VU-метра (если используем SA) Закомментировать для включения
 //#define HIDE_VU              // выключить тумблер в веб VU !!для выключения включить SPECTRUM_ENABLED и SPECTRUM_REPLACE_VU 
+
 #define BOOMBOX_STYLE    /* Разные варианты "показометра" VUmetr. Столбик, если строку закоментировать. */
 //#define WAKE_PIN              255
 #define CPU_LOAD        /* Включить виджет загрузки процессора, комментировать для отключения */

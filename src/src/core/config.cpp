@@ -99,6 +99,10 @@ void Config::_setupVersion(){
       saveValue(&store.screensaverPlayingTimeout, (uint16_t)20);
       saveValue(&store.screensaverPlayingBlank, false);
       break;
+    case 4:
+      // introduce usespectrum with default false
+      saveValue(&store.usespectrum, false);
+      break;
     default:
       break;
   }
@@ -382,6 +386,7 @@ void Config::setDefaults() {
   store.skipPlaylistUpDown = false;
   store.screensaverPlayingEnabled = false;
   store.screensaverPlayingTimeout = 5;
+  store.usespectrum = false;
   eepromWrite(EEPROM_START, store);
 }
 void Config::setTimezone(int8_t tzh, int8_t tzm) {

@@ -8,9 +8,7 @@
 #include "sdmanager.h"
 #include "netserver.h"
 
-#if SPECTRUM_ENABLED
 #include "../displays/tools/spectrum_analyzer.h"
-#endif
 
 Player player;
 QueueHandle_t playerQueue;
@@ -127,9 +125,7 @@ void Player::_stop(bool alreadyStopped){
   display.putRequest(PSTOP);
   
   // Сбрасываем данные Spectrum Analyzer при остановке
-  #if SPECTRUM_ENABLED
   spectrumAnalyzer.clearData();
-  #endif
   
   setDefaults();
   if(!alreadyStopped) stopSong();

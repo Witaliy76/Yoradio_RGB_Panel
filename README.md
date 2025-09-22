@@ -3,9 +3,12 @@
 **Ветка:** `4848S040`  
 **Версия:** v0.9.434(m)  
 **Статус:** ✅ В работе!
-![photo_2025-08-15_00-06-22](https://github.com/user-attachments/assets/bb047124-7e1a-4d0a-8f70-b78dccf4fd36)
 
-![photo_2025-09-22_20-27-50](https://github.com/user-attachments/assets/0ba93926-70e1-464b-bbe4-f6ea45e23e9d)
+![photo_2025-08-15_00-06-22](https://github.com/user-attachments/assets/bb047124-7e1a-4d0a-8f70-b78dccf4fd36)
+SA Mode
+
+![photo_2025-09-22_20-27-50](https://github.com/user-attachments/assets/b5d05ff3-b0bf-4b8a-866a-7c32e659e3fa)
+VU meter mode 
 
 ## 📝 Лог изменений
 

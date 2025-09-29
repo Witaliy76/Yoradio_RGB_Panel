@@ -175,7 +175,7 @@ void Display::_buildPager(){
     #include "../displays/conf/spectrum_axs15231b.h"
     _spectrumwidget = new SpectrumWidget(spectrumConf);
   #elif DSP_MODEL==DSP_ST7701
-    #include "../displays/conf/spectrum_st7701.h"
+    // spectrumConf теперь определена в displayST7701conf.h
     _spectrumwidget = new SpectrumWidget(spectrumConf);
   #else
     _spectrumwidget = new SpectrumWidget();

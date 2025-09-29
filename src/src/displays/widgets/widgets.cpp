@@ -843,14 +843,29 @@ void BitrateWidget::_draw(){
   gfxDrawRect(gfx, _config.left, _config.top, _dimension, _dimension, _fgcolor);
   gfxFillRect(gfx, _config.left, _config.top + _dimension/2+1, _dimension, _dimension/2-1, _fgcolor);
 
+  // Форматируем битрейт
   if(_bitrate < 1000) {
     snprintf(_buf, 6, "%d", (int)_bitrate);
   } else {
     float _br = (float)_bitrate / 1000;
     snprintf(_buf, 6, "%.1f", _br);
+    
+    // Проверяем, помещается ли текст с дробной частью
+    int16_t testX = _config.left + _dimension/2 - _charWidth*strlen(_buf)/2 + 1;
+    if (testX < _config.left || testX + _charWidth*strlen(_buf) > _config.left + _dimension) {
+      // Если не помещается, показываем только целую часть
+      snprintf(_buf, 6, "%d", (int)_br);
+    }
   }
 
-  gfxDrawText(gfx, _config.left + _dimension/2 - _charWidth*strlen(_buf)/2 + 1, _config.top + _dimension/4 - _textheight/2 + 2, _buf, _fgcolor, _bgcolor, _config.textsize, nullptr, false);
+  // Отображаем битрейт с проверкой границ
+  int16_t textX = _config.left + _dimension/2 - _charWidth*strlen(_buf)/2 + 1;
+  if (textX < _config.left) textX = _config.left;
+  if (textX + _charWidth*strlen(_buf) > _config.left + _dimension) {
+    textX = _config.left + _dimension - _charWidth*strlen(_buf);
+  }
+  gfxDrawText(gfx, textX, _config.top + _dimension/4 - _textheight/2 + 2, _buf, 
+             _fgcolor, _bgcolor, _config.textsize, nullptr, false);
 
   const char* fmt = nullptr;
   switch(_format){
@@ -863,7 +878,15 @@ void BitrateWidget::_draw(){
     case BF_OPU:  fmt = "opu"; break;
     default:     fmt = ""; break;
   }
-  gfxDrawText(gfx, _config.left + _dimension/2 - _charWidth*3/2 + 1, _config.top + _dimension - _dimension/4 - _textheight/2, fmt, _bgcolor, _fgcolor, _config.textsize, nullptr, false);
+  
+  // Отображаем формат файла с проверкой границ
+  int16_t fmtX = _config.left + _dimension/2 - _charWidth*3/2 + 1;
+  if (fmtX < _config.left) fmtX = _config.left;
+  if (fmtX + _charWidth*3 > _config.left + _dimension) {
+    fmtX = _config.left + _dimension - _charWidth*3;
+  }
+  gfxDrawText(gfx, fmtX, _config.top + _dimension - _dimension/4 - _textheight/2, fmt, 
+             _bgcolor, _fgcolor, _config.textsize, nullptr, false);
 }
 
 void BitrateWidget::_clear() {

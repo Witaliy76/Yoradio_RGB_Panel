@@ -53,7 +53,8 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #define DSP_ST7789_170  25    // 320x170  1.9'  https://aliexpress.ru/item/1005006158153608.html
 #define DSP_NV3041A     26    // 480x272  4.3'  https://aliexpress.com/item/1005006729657546.html
 #define DSP_AXS15231B   27    // 320x480  3.5'  https://spotpear.com/ESP32-S3-3.5-inch-LCD-Captive-TouchScreen-Display-480x320-Tablet-MP3-Video-Weather-Clock/forum-answer/317.html
-#define DSP_ST7701      28    // 480x480  4.0'  ESP32-4848S040 RGB Panel https://aliexpress.com/item/1005006014191977.html
+#define DSP_ST7701      28    // 480x480  4.0'  ESP32-4848S040 RGB Panel https://aliexpress.ru/item/1005008214872438.html
+#define DSP_UEDX48480021 29    // 480x480  2.1'  UEDX48480021-MD80ET ST7701S RGB Panel https://aliexpress.ru/item/1005007576008287.html
 #define DSP_CUSTOM      101   // your display
 
 #ifndef DSP_MODEL

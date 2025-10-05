@@ -31,7 +31,7 @@ Page *pages[] = { new Page(), new Page(), new Page(), new Page() };
 #ifndef DSP_TASK_DELAY
   #define DSP_TASK_DELAY  pdMS_TO_TICKS(10)
 #endif
-#if !((DSP_MODEL==DSP_ST7735 && DTYPE==INITR_BLACKTAB) || DSP_MODEL==DSP_ST7789 || DSP_MODEL==DSP_ST7789_170 || DSP_MODEL==DSP_ST7796 || DSP_MODEL==DSP_ILI9488 || DSP_MODEL==DSP_ILI9486 || DSP_MODEL==DSP_ILI9341 || DSP_MODEL==DSP_ILI9225 || DSP_MODEL==DSP_AXS15231B || DSP_MODEL==DSP_ST7701)
+#if !((DSP_MODEL==DSP_ST7735 && DTYPE==INITR_BLACKTAB) || DSP_MODEL==DSP_ST7789 || DSP_MODEL==DSP_ST7789_170 || DSP_MODEL==DSP_ST7796 || DSP_MODEL==DSP_ILI9488 || DSP_MODEL==DSP_ILI9486 || DSP_MODEL==DSP_ILI9341 || DSP_MODEL==DSP_ILI9225 || DSP_MODEL==DSP_AXS15231B || DSP_MODEL==DSP_ST7701 || DSP_MODEL==DSP_UEDX48480021)
   #undef  BITRATE_FULL
   #define BITRATE_FULL     false
 #endif
@@ -176,6 +176,9 @@ void Display::_buildPager(){
     _spectrumwidget = new SpectrumWidget(spectrumConf);
   #elif DSP_MODEL==DSP_ST7701
     // spectrumConf теперь определена в displayST7701conf.h
+    _spectrumwidget = new SpectrumWidget(spectrumConf);
+  #elif DSP_MODEL==DSP_UEDX48480021
+    // spectrumConf определена в displayUEDX48480021conf.h
     _spectrumwidget = new SpectrumWidget(spectrumConf);
   #else
     _spectrumwidget = new SpectrumWidget();
@@ -504,7 +507,9 @@ void Display::loop() {
   }
   if(displayQueue==NULL) return;
   _pager.loop();
-  if(!_suspendFlush){
+  // Во время экрана загрузки (bootStep==1) разрешаем принудительный flush,
+  // чтобы прогресс-бар и логотип корректно обновлялись на панели RGB.
+  if(!_suspendFlush || _bootStep==1){
     sdog.takeMutex();
     gfxFlushScreen(gfx);
     sdog.giveMutex();

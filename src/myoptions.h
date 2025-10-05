@@ -137,8 +137,15 @@
 //#define TS_INT                255             /* Touch screen INT pin (отключен) */
 //#define TS_RST                255             /* Touch screen RST pin (отключен) */
 
-// Специальные настройки для квадратного экрана 480x480
-//#define SQUARE_SCREEN_OPTIMIZATION true
+/* Touchscreen Configuration для UEDX48480021-MD80ET (CST826) */
+#define TS_MODEL              TS_MODEL_CST826  /* CST826 Capacitive I2C touch screen */
+#define TS_SDA                16              /* Touch screen SDA pin (GPIO16) */
+#define TS_SCL                15              /* Touch screen SCL pin (GPIO15) */
+#define TS_INT                255             /* Touch screen INT pin (отключен) */
+#define TS_RST                255             /* Touch screen RST pin (отключен) */
+
+
+//#define DEBUG_TOUCH            false            /* Отладка тачскрина CST826 */
 
 /*  Resistive SPI touch screen  */
 /*  TS VSPI PINS. CLK must be connected to pin 18

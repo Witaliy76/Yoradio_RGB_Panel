@@ -1,18 +1,29 @@
 /**
  * @file touchscreen.cpp
  * @brief Драйвер для работы с сенсорным экраном
- * @author W76W
- * @version 1.0
- * @date 2024
+ * @author W76W, 4pda.to
+ * @version 2.0
+ * @date октябрь 2025
  * 
  * Реализация обработки касаний и свайпов для сенсорного экрана
- * Поддерживает:
+ * 
+ * Поддерживаемые модели тачскринов:
+ * - XPT2046 - резистивный тачскрин (SPI)
+ * - GT911 - емкостный тачскрин (I2C) - оптимизирован для 480x480
+ * - AXS15231B - емкостный тачскрин (I2C)
+ * - CST826 - емкостный тачскрин (I2C) - высокое разрешение 4095
+ * 
+ * Функциональность:
  * - Одиночные касания (короткое/долгое)
  * - Свайпы влево/вправо для управления громкостью
  * - Свайпы вверх/вниз для управления списком станций
  * - Мультитач (два пальца) для переключения режимов
  * - Защиту от случайных касаний
  * - Улучшенную обработку последовательных свайпов
+ * - Адаптивные пороги для разных типов тачскринов
+ * - Условную компиляцию для каждой модели
+ * 
+ * Обновлено: октябрь 2025 - добавлена поддержка CST826
  */
 
 #include "options.h"
@@ -55,6 +66,10 @@
   #include "../AXS15231B_touch/AXS15231B_Touch.h"
   AXS15231B_Touch ts = AXS15231B_Touch(TS_SDA, TS_SCL, TS_INT, TS_RST, 0, 0);
   typedef TP_Point TSPoint;
+#elif TS_MODEL==TS_MODEL_CST826
+  #include "../Adafruit_CST8XX_Library/Adafruit_CST8XX.h"
+  Adafruit_CST8XX ts;
+  typedef CST_TS_Point TSPoint;
 #endif
 
 /*
@@ -107,6 +122,13 @@
   #define GT911_MOVEMENT_THRESHOLD   6     // Было 8, более чувствительно для 480x480
   #define GT911_SWIPE_DEADZONE       2     // Было 3, уменьшаем для точности
   #define GT911_SWIPE_ANGLE_THRESHOLD 25.0 // Было 22.5, увеличиваем для стабильности
+#elif TS_MODEL==TS_MODEL_CST826
+  // Специальные настройки для CST826 (высокое разрешение 4095)
+  #define GT911_SWIPE_THRESHOLD      15    // Еще меньше для высокого разрешения CST826
+  #define GT911_SWIPE_MIN_DISTANCE   20    // Уменьшаем минимальное расстояние
+  #define GT911_MOVEMENT_THRESHOLD   5     // Более чувствительный порог
+  #define GT911_SWIPE_DEADZONE       2     // Маленькая мертвая зона
+  #define GT911_SWIPE_ANGLE_THRESHOLD 25.0 // Увеличенный угол для стабильности
 #else
   // Стандартные настройки для других тачскринов
   #define GT911_SWIPE_THRESHOLD      SWIPE_THRESHOLD
@@ -193,6 +215,9 @@ void TouchScreen::loop(){
 #if TS_MODEL==TS_MODEL_AXS15231B
   ts.read();
 #endif
+#if TS_MODEL==TS_MODEL_CST826
+  // CST826 не требует явного вызова read(), данные читаются автоматически
+#endif
     
   bool istouched = _istouched();
   if(istouched){
@@ -219,9 +244,36 @@ void TouchScreen::loop(){
       if (touchY >= _height) touchY = _height - 1;
       if (touchX < 0) touchX = 0;
       if (touchY < 0) touchY = 0;
+    #elif TS_MODEL==TS_MODEL_CST826
+      TSPoint p = ts.getPoint(0);
       
-      // Обработка мультитача
-      if (ts.touches > 1) {
+      #ifdef DEBUG_TOUCH
+      Serial.printf("[CST826] Raw touch: x=%d, y=%d, event=%d\n", p.x, p.y, p.event);
+      #endif
+      
+      // Проверяем событие касания (PRESS или TOUCHING)
+      if (p.event != PRESS && p.event != TOUCHING) {
+          return;
+      }
+      
+      // Маппирование координат CST826 (координаты в диапазоне 0-4095)
+      // Прямое маппирование осей для правильного управления
+      touchX = map(p.x, 0, 4095, 0, _width);    // X сенсора -> X экрана (громкость, слева-направо)
+      touchY = map(p.y, 0, 4095, 0, _height);   // Y сенсора -> Y экрана (станции, сверху-вниз)
+      
+      // Дополнительная проверка границ экрана
+      if (touchX >= _width) touchX = _width - 1;
+      if (touchY >= _height) touchY = _height - 1;
+      if (touchX < 0) touchX = 0;
+      if (touchY < 0) touchY = 0;
+      
+      #ifdef DEBUG_TOUCH
+      Serial.printf("[CST826] Mapped touch: x=%d, y=%d\n", touchX, touchY);
+      #endif
+      
+      // Обработка мультитача для CST826 (поддержка до 5 касаний)
+      uint8_t touches = ts.touched();
+      if (touches > 1) {
                 uint32_t currentTime = millis();
                 if (currentTime - lastMultiTouchTime > TOUCH_MULTI_DELAY) {
                     multiTouchCount++;
@@ -406,7 +458,11 @@ void TouchScreen::loop(){
             if(display.mode()==PLAYER || display.mode()==VOL){
               display.putRequest(NEWMODE, VOL);
               // Влево-вправо для изменения громкости
-              bool volumeUp = totalX < 0;  // totalX < 0 = влево (громкость ВВЕРХ), totalX > 0 = вправо (громкость ВНИЗ)
+              #if TS_MODEL==TS_MODEL_CST826
+              bool volumeUp = totalX > 0;  // CST826: totalX > 0 = вправо (громкость ВВЕРХ), totalX < 0 = влево (громкость ВНИЗ)
+              #else
+              bool volumeUp = totalX < 0;  // Другие модели: totalX < 0 = влево (громкость ВВЕРХ), totalX > 0 = вправо (громкость ВНИЗ)
+              #endif
               controlsEvent(volumeUp);
               lastProcessedX = touchX;
               lastSwipeTime = currentTime;
@@ -469,13 +525,15 @@ bool TouchScreen::_checklpdelay(int m, uint32_t &tstamp) {
 }
 
 bool TouchScreen::_istouched(){
-#if TS_MODEL==TS_MODEL_XPT2046
-  return ts.touched();
-#elif TS_MODEL==TS_MODEL_GT911
-  return ts.isTouched;
-#elif TS_MODEL==TS_MODEL_AXS15231B
-  return ts.isTouched;
-#endif
+  #if TS_MODEL==TS_MODEL_XPT2046
+    return ts.touched();
+  #elif TS_MODEL==TS_MODEL_GT911
+    return ts.isTouched;
+  #elif TS_MODEL==TS_MODEL_AXS15231B
+    return ts.isTouched;
+  #elif TS_MODEL==TS_MODEL_CST826
+    return ts.touched() > 0;
+  #endif
 }
 
 tsDirection_e TouchScreen::_tsDirection(uint16_t x, uint16_t y) {
@@ -484,6 +542,36 @@ tsDirection_e TouchScreen::_tsDirection(uint16_t x, uint16_t y) {
     
     #if TS_MODEL==TS_MODEL_GT911
     // Специальная логика для GT911 на квадратном экране
+    if (abs(dX) < GT911_SWIPE_DEADZONE && abs(dY) < GT911_SWIPE_DEADZONE) {
+        return TDS_REQUEST;
+    }
+    
+    // Для квадратного экрана используем более точную логику
+    float angle = atan2(dY, dX) * 180.0 / PI;
+    if (angle < 0) angle += 360.0;
+    
+    // Улучшенное определение направления для квадратного экрана
+    if (abs(dX) > GT911_SWIPE_THRESHOLD || abs(dY) > GT911_SWIPE_THRESHOLD) {
+        if (angle >= (360 - GT911_SWIPE_ANGLE_THRESHOLD) || angle < GT911_SWIPE_ANGLE_THRESHOLD) {
+            _oldTouchX = x;
+            _oldTouchY = y;
+            return TSD_RIGHT;  // Вправо (0° ± 25°)
+        } else if (angle >= (90 - GT911_SWIPE_ANGLE_THRESHOLD) && angle < (90 + GT911_SWIPE_ANGLE_THRESHOLD)) {
+            _oldTouchX = x;
+            _oldTouchY = y;
+            return TSD_DOWN;   // Вниз (90° ± 25°)
+        } else if (angle >= (180 - GT911_SWIPE_ANGLE_THRESHOLD) && angle < (180 + GT911_SWIPE_ANGLE_THRESHOLD)) {
+            _oldTouchX = x;
+            _oldTouchY = y;
+            return TSD_LEFT;   // Влево (180° ± 25°)
+        } else if (angle >= (270 - GT911_SWIPE_ANGLE_THRESHOLD) && angle < (270 + GT911_SWIPE_ANGLE_THRESHOLD)) {
+            _oldTouchX = x;
+            _oldTouchY = y;
+            return TSD_UP;     // Вверх (270° ± 25°)
+        }
+    }
+    #elif TS_MODEL==TS_MODEL_CST826
+    // Специальная логика для CST826 на квадратном экране (использует ту же логику что и GT911)
     if (abs(dX) < GT911_SWIPE_DEADZONE && abs(dY) < GT911_SWIPE_DEADZONE) {
         return TDS_REQUEST;
     }
@@ -577,6 +665,20 @@ void TouchScreen::init() {
         ts.begin();
         ts.setRotation(config.store.fliptouch?0:2);
     #endif
+    #if TS_MODEL==TS_MODEL_CST826
+        Wire.begin(TS_SDA, TS_SCL);
+        if (!ts.begin(&Wire, 0x15)) {
+            #ifdef DEBUG_TOUCH
+            Serial.println("[CST826] Touchscreen not found!");
+            #else
+            Serial.println("Touchscreen not found!");
+            #endif
+        } else {
+            #ifdef DEBUG_TOUCH
+            Serial.println("[CST826] Touchscreen initialized successfully");
+            #endif
+        }
+    #endif
     _width  = dsp.width();
     _height = dsp.height();
     #if TS_MODEL==TS_MODEL_GT911
@@ -596,6 +698,13 @@ void TouchScreen::flip() {
     #endif
     #if TS_MODEL==TS_MODEL_AXS15231B
         ts.setRotation(config.store.fliptouch?0:2);
+    #endif
+    #if TS_MODEL==TS_MODEL_CST826
+        // CST826 не поддерживает программный поворот через API
+        // Поворот обрабатывается на уровне координат в loop()
+        #ifdef DEBUG_TOUCH
+        Serial.println("[CST826] Flip requested - handled in coordinate processing");
+        #endif
     #endif
 }
 

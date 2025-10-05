@@ -1,0 +1,10 @@
+idf_component_register(SRC_DIRS
+                    "." 
+                    "ui/components"
+                    "ui/fonts"
+                    "ui/images"
+                    "ui/screens"
+                    "ui"
+                    "ui/fonts"
+                    INCLUDE_DIRS
+                    ".")

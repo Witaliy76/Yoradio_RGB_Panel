@@ -521,6 +521,9 @@ void Display::_layoutChange(bool played){
       if(_weather) _weather->moveBack();
     }
   }else{
+    // При выключенном vumeter принудительно отключаем оба виджета
+    if(_spectrumwidget) _spectrumwidget->setActive(false, true);
+    if(_vuwidget) _vuwidget->lock(true);
     if(played){
       if(_weather) _weather->moveTo(weatherMove);
       _clock.moveBack();

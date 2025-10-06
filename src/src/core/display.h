@@ -36,13 +36,7 @@ class Display {
     void init();
     void loop();
     void _start();
-    bool ready() { 
-      bool result = _bootStep==2;
-      if(!result) {
-        Serial.printf("[Display] ready() called, _bootStep=%d\n", _bootStep);
-      }
-      return result; 
-    }
+    bool ready() { return _bootStep==2; }
     void resetQueue();
     void putRequest(displayRequestType_e type, int payload=0);
     void flip();

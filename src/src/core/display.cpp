@@ -542,10 +542,6 @@ void Display::loop() {
     // Уже инициализированы, не нужно повторно вызывать _bootScreen
   }
   if(displayQueue==NULL) return;
-  static int loopCount = 0;
-  if(loopCount++ < 5) {
-    Serial.printf("[Display] loop() count=%d, _bootStep=%d\n", loopCount, _bootStep);
-  }
   _pager.loop();
   // Во время экрана загрузки (bootStep==1) разрешаем принудительный flush,
   // чтобы прогресс-бар и логотип корректно обновлялись на панели RGB.

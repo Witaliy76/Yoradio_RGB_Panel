@@ -415,6 +415,8 @@ void Display::_swichMode(displayMode_e newmode) {
     _pager.setPage( pages[PG_PLAYER]);
     config.setDspOn(config.store.dspon, false);
     pm.on_display_player();
+    // Восстанавливаем правильное состояние виджетов при возврате на страницу плейера
+    _layoutChange(player.isRunning());
   }
   if (newmode == SCREENSAVER || newmode == SCREENBLANK) {
     config.isScreensaver = true;
@@ -584,16 +586,7 @@ void Display::loop() {
           break;
         case AUDIOINFO: if(_heapbar)  { _heapbar->lock(!config.store.audioinfo); _heapbar->setValue(player.inBufferFilled()); } break;
         case SHOWVUMETER: {
-          // Сначала деактивируем оба, затем активируем нужный
-          if(_spectrumwidget) _spectrumwidget->setActive(false, true);
-          if(_vuwidget) _vuwidget->lock(true);
-          if(config.store.vumeter){
-            if(config.store.usespectrum){
-              if(_spectrumwidget) _spectrumwidget->setActive(true);
-            }else{
-              if(_vuwidget) _vuwidget->unlock();
-            }
-          }
+          // Переключение виджетов выполняется в _layoutChange()
           _layoutChange(player.isRunning());
           break;
         }

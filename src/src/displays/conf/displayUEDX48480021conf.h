@@ -14,6 +14,9 @@
 // Определение для скрытия VU-метра (если нужно)
 // #define HIDE_VU
 
+// Определение для скрытия второго заголовка (title2)
+#define HIDE_TITLE2
+
 #define DSP_WIDTH       480
 #define DSP_HEIGHT      480
 #define TFT_FRAMEWDT    8
@@ -39,26 +42,26 @@
 #endif
 
 /* SROLLS  */                            /* {{ left, top, fontsize, align }, buffsize, uppercase, width, scrolldelay, scrolldelta, scrolltime } */
-const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 3, WA_LEFT }, 140, true, MAX_WIDTH, 5000, 30, 12 }; //5,12
-const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT, 48, 2, WA_LEFT }, 140, true, MAX_WIDTH-TITLE_FIX, 5000, 30, 12 };
-const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT, 69, 2, WA_LEFT }, 140, false, MAX_WIDTH-TITLE_FIX, 5000, 30, 12 };
+const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT+30, 107, 5, WA_CENTER }, 140, true, MAX_WIDTH-40, 5000, 50, 12 }; //5,12
+const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT+10, 158, 4, WA_CENTER }, 140, true, MAX_WIDTH-15, 5000, 30, 12 };
+const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT+15, 155, 3, WA_CENTER }, 140, false, MAX_WIDTH-20, 5000, 30, 12 };
 const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 4, WA_LEFT }, 140, false, MAX_WIDTH, 1000, 30, 12 };
 const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 4, WA_CENTER }, 140, true, MAX_WIDTH, 0, 30, 8 };
 const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT, 420-TFT_FRAMEWDT-16, 2, WA_LEFT }, 140, false, MAX_WIDTH, 0, 30, 8 };
 const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT, 102, 2, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 30, 4 }; //10,4
 
 /* BACKGROUNDS  */                       /* {{ left, top, fontsize, align }, width, height, outlined } */
-const FillConfig   metaBGConf     PROGMEM = {{ 0, 0, 0, WA_LEFT }, DSP_WIDTH, 40, false };
-const FillConfig   metaBGConfInv  PROGMEM = {{ 0, 40, 0, WA_LEFT }, DSP_WIDTH, 2, false };
+const FillConfig   metaBGConf     PROGMEM = {{ TFT_FRAMEWDT+10, 105, 0, WA_LEFT }, MAX_WIDTH, 45, false };
+const FillConfig   metaBGConfInv  PROGMEM = {{ TFT_FRAMEWDT, 147, 0, WA_LEFT }, MAX_WIDTH, 3, false };
 const FillConfig   volbarConf     PROGMEM = {{ TFT_FRAMEWDT, DSP_HEIGHT-TFT_FRAMEWDT-4, 0, WA_LEFT }, MAX_WIDTH, 8, true };
 const FillConfig  playlBGConf     PROGMEM = {{ 0, 138, 0, WA_LEFT }, DSP_WIDTH, 36, false };
-const FillConfig  heapbarConf     PROGMEM = {{ TFT_FRAMEWDT, DSP_HEIGHT-4, 0, WA_LEFT }, MAX_WIDTH, 4, false };
+const FillConfig  heapbarConf     PROGMEM = {{ TFT_FRAMEWDT+10, 147, 0, WA_LEFT }, 200, 3, false };
 
 /* WIDGETS  */                           /* { left, top, fontsize, align } */
 const WidgetConfig bootstrConf    PROGMEM = { 0, bootLogoTop+100, 2, WA_CENTER };
 const WidgetConfig bitrateConf    PROGMEM = { 6, 62, 2, WA_RIGHT };
 const WidgetConfig voltxtConf     PROGMEM = { TFT_FRAMEWDT, DSP_HEIGHT-24, 1, WA_LEFT };
-const WidgetConfig  iptxtConf     PROGMEM = { TFT_FRAMEWDT+80, DSP_HEIGHT-29, 2, WA_CENTER };
+const WidgetConfig  iptxtConf     PROGMEM = { 0, 25, 2, WA_CENTER };
 const WidgetConfig   rssiConf     PROGMEM = { TFT_FRAMEWDT, DSP_HEIGHT-24, 1, WA_RIGHT };
 const WidgetConfig   cpuConf      PROGMEM = { TFT_FRAMEWDT, DSP_HEIGHT-42, 1, WA_RIGHT };//эксперимент. новый
 const WidgetConfig numConf        PROGMEM = { TFT_FRAMEWDT, 250, 1, WA_CENTER };
@@ -66,7 +69,7 @@ const WidgetConfig apNameConf     PROGMEM = { TFT_FRAMEWDT, 88, 3, WA_CENTER };
 const WidgetConfig apName2Conf    PROGMEM = { TFT_FRAMEWDT, 120, 3, WA_CENTER };
 const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT, 173, 3, WA_CENTER };
 const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT, 205, 3, WA_CENTER };
-const WidgetConfig  clockConf     PROGMEM = { 70, 180, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
+const WidgetConfig  clockConf     PROGMEM = { 70, 220, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
 const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT, 310, 2, WA_LEFT };//294
 
 const WidgetConfig bootWdtConf    PROGMEM = { 200, bootLogoTop+130, 2, WA_LEFT }; //отступ, вертикальное положение, размер, выравнивание
@@ -88,7 +91,7 @@ const char         voltxtFmt[]    PROGMEM = "\023\025%d";
 const char        bitrateFmt[]    PROGMEM = "%d kBs";
 
 /* MOVES  */                             /* { left, top, width } */
-const MoveConfig    clockMove     PROGMEM = { 70, 180, MAX_WIDTH /* MAX_WIDTH */ }; // -1 disables move
+const MoveConfig    clockMove     PROGMEM = { 70, 205, MAX_WIDTH /* MAX_WIDTH */ }; // -1 disables move
 const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
 const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
 

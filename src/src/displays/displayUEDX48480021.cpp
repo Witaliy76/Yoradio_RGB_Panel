@@ -548,7 +548,7 @@ void DspCore::clearClock(){
   
   // Если есть старое положение часов (при перемещении), очищаем и его
   if(_oldtimeleft > 0) {
-    gfxFillRect(gfx, _oldtimeleft, clockTop-clockTimeHeight, _oldtimewidth+CHARWIDTH*3*2+80, clockTimeHeight+CHARHEIGHT+100, config.theme.background);
+    gfxFillRect(gfx, _oldtimeleft, clockTop-10, _oldtimewidth+CHARWIDTH*3*2+80, clockTimeHeight+CHARHEIGHT+48, config.theme.background); //+48 для затирания даты под часами
   }
 }
 

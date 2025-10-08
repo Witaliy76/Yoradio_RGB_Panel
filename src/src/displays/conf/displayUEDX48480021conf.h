@@ -31,53 +31,53 @@
 
 #ifndef BATTERY_OFF
   #define BatX      200				// X coordinate for batt. ( X  )
-  #define BatY      420		// Y cordinate for batt. ( Y  )
+  #define BatY      423		// Y cordinate for batt. ( Y  )
   #define BatFS     3		// FontSize for batt. (   )
-  #define ProcX     120				// X coordinate for percent ( X   )
-  #define ProcY     425		// Y coordinate for percent ( Y   )
+  #define ProcX     140				// X coordinate for percent ( X   )
+  #define ProcY     428		// Y coordinate for percent ( Y   )
   #define ProcFS    2		// FontSize for percent (    )
-  #define VoltX      320				// X coordinate for voltage ( X  )
-  #define VoltY      425		// Y coordinate for voltage ( Y  )
+  #define VoltX      280				// X coordinate for voltage ( X  )
+  #define VoltY      428		// Y coordinate for voltage ( Y  )
   #define VoltFS     2		// FontSize for voltage (   )
 #endif
 
 /* SROLLS  */                            /* {{ left, top, fontsize, align }, buffsize, uppercase, width, scrolldelay, scrolldelta, scrolltime } */
-const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT+30, 107, 5, WA_CENTER }, 140, true, MAX_WIDTH-40, 5000, 50, 12 }; //5,12
-const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT+10, 158, 4, WA_CENTER }, 140, true, MAX_WIDTH-15, 5000, 30, 12 };
+const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT+30, 107, 5, WA_CENTER }, 140, true, MAX_WIDTH-55, 5000, 50, 12 }; //5,12
+const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT+10, 158, 3, WA_CENTER }, 140, true, MAX_WIDTH-15, 5000, 30, 12 };
 const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT+15, 155, 3, WA_CENTER }, 140, false, MAX_WIDTH-20, 5000, 30, 12 };
 const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 4, WA_LEFT }, 140, false, MAX_WIDTH, 1000, 30, 12 };
 const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 4, WA_CENTER }, 140, true, MAX_WIDTH, 0, 30, 8 };
 const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT, 420-TFT_FRAMEWDT-16, 2, WA_LEFT }, 140, false, MAX_WIDTH, 0, 30, 8 };
-const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT, 102, 2, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 30, 4 }; //10,4
+const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT, 65, 3, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 30, 4 }; //10,4
 
 /* BACKGROUNDS  */                       /* {{ left, top, fontsize, align }, width, height, outlined } */
 const FillConfig   metaBGConf     PROGMEM = {{ TFT_FRAMEWDT+10, 105, 0, WA_LEFT }, MAX_WIDTH, 45, false };
 const FillConfig   metaBGConfInv  PROGMEM = {{ TFT_FRAMEWDT, 147, 0, WA_LEFT }, MAX_WIDTH, 3, false };
-const FillConfig   volbarConf     PROGMEM = {{ TFT_FRAMEWDT, DSP_HEIGHT-TFT_FRAMEWDT-4, 0, WA_LEFT }, MAX_WIDTH, 8, true };
+const FillConfig   volbarConf     PROGMEM = {{ TFT_FRAMEWDT+130, DSP_HEIGHT-25, 0, WA_LEFT }, MAX_WIDTH-265, 30, true };
 const FillConfig  playlBGConf     PROGMEM = {{ 0, 138, 0, WA_LEFT }, DSP_WIDTH, 36, false };
-const FillConfig  heapbarConf     PROGMEM = {{ TFT_FRAMEWDT+10, 147, 0, WA_LEFT }, 200, 3, false };
+const FillConfig  heapbarConf     PROGMEM = {{ TFT_FRAMEWDT+10, 147, 0, WA_LEFT }, MAX_WIDTH-27, 3, false };
 
 /* WIDGETS  */                           /* { left, top, fontsize, align } */
 const WidgetConfig bootstrConf    PROGMEM = { 0, bootLogoTop+100, 2, WA_CENTER };
-const WidgetConfig bitrateConf    PROGMEM = { 6, 62, 2, WA_RIGHT };
-const WidgetConfig voltxtConf     PROGMEM = { TFT_FRAMEWDT, DSP_HEIGHT-24, 1, WA_LEFT };
-const WidgetConfig  iptxtConf     PROGMEM = { 0, 25, 2, WA_CENTER };
-const WidgetConfig   rssiConf     PROGMEM = { TFT_FRAMEWDT, DSP_HEIGHT-24, 1, WA_RIGHT };
-const WidgetConfig   cpuConf      PROGMEM = { TFT_FRAMEWDT, DSP_HEIGHT-42, 1, WA_RIGHT };//эксперимент. новый
+const WidgetConfig bitrateConf    PROGMEM = { 0, 45, 1, WA_LEFT };
+const WidgetConfig voltxtConf     PROGMEM = { 0, 45, 1, WA_CENTER };
+const WidgetConfig  iptxtConf     PROGMEM = { 0, 20, 2, WA_CENTER };
+const WidgetConfig   rssiConf     PROGMEM = { 5, 265, 1, WA_RIGHT };
+const WidgetConfig   cpuConf      PROGMEM = { 2, 265, 1, WA_LEFT };
 const WidgetConfig numConf        PROGMEM = { TFT_FRAMEWDT, 250, 1, WA_CENTER };
 const WidgetConfig apNameConf     PROGMEM = { TFT_FRAMEWDT, 88, 3, WA_CENTER };
 const WidgetConfig apName2Conf    PROGMEM = { TFT_FRAMEWDT, 120, 3, WA_CENTER };
 const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT, 173, 3, WA_CENTER };
 const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT, 205, 3, WA_CENTER };
-const WidgetConfig  clockConf     PROGMEM = { 70, 220, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
-const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT, 310, 2, WA_LEFT };//294
+const WidgetConfig  clockConf     PROGMEM = { 70, 250, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
+const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT+73, 310, 2, WA_LEFT };//294
 
 const WidgetConfig bootWdtConf    PROGMEM = { 200, bootLogoTop+130, 2, WA_LEFT }; //отступ, вертикальное положение, размер, выравнивание
 const ProgressConfig bootPrgConf  PROGMEM = { 90, 9, 4 }; //скорость, ширина, ширина движущейся части
-const BitrateConfig fullbitrateConf PROGMEM = {{DSP_WIDTH-TFT_FRAMEWDT-34, 44, 2, WA_LEFT}, 42 };
+const BitrateConfig fullbitrateConf PROGMEM = {{5, 212, 2, WA_LEFT}, 42 };
 
 /* BANDS  */                             /* { onebandwidth, onebandheight, bandsHspace, bandsVspace, numofbands, fadespeed } */
-const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH, 25, 4, 5, 47, 15};//35,30 чем меньше тем медленнее
+const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH-140, 25, 4, 5, 30, 15};//35,30 чем меньше тем медленнее
 
 /* STRINGS  */
 const char         numtxtFmt[]    PROGMEM = "%d";
@@ -85,27 +85,27 @@ const char         numtxtFmt[]    PROGMEM = "%d";
 const char           rssiFmt[]    PROGMEM = "WiFi %d";
 
 const char          iptxtFmt[]    PROGMEM = "%s";
-const char         voltxtFmt[]    PROGMEM = "\023\025%d";
-//const char         voltxtFmt[]    PROGMEM = "VOL %d";
+//const char         voltxtFmt[]    PROGMEM = "\023\025%d";
+const char         voltxtFmt[]    PROGMEM = "VOL %d";
 
 const char        bitrateFmt[]    PROGMEM = "%d kBs";
 
 /* MOVES  */                             /* { left, top, width } */
 const MoveConfig    clockMove     PROGMEM = { 70, 205, MAX_WIDTH /* MAX_WIDTH */ }; // -1 disables move
-const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
-const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
+const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT, 65, MAX_WIDTH};
+const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT, 65, MAX_WIDTH};
 
 /* SPECTRUM ANALYZER  */                 /* Конфигурация спектроанализатора для UEDX48480021 (480x480) */
 const SpectrumWidgetConfig spectrumConf PROGMEM = {
     .widget = {
-        .left = TFT_FRAMEWDT,
-        .top = 294,
+        .left = TFT_FRAMEWDT+74,
+        .top = 300,
         .textsize = 1,
-        .align = WA_LEFT
+        .align = WA_CENTER
     },
-    .width = 480,          // ширина области виджета для RGB Panel (480 - 2*TFT_FRAMEWDT)
-    .height = 120,         // высота области виджета для RGB Panel
-    .barWidth = 30,        // ширина полосы для RGB Panel (15*30 + 14*2 = 478)
+    .width = 320,          // ширина области виджета для RGB Panel (480 - 2*TFT_FRAMEWDT)
+    .height = 110,         // высота области виджета для RGB Panel (уменьшена для круглого дисплея)
+    .barWidth = 30,        // ширина полосы для RGB Panel (15*30 + 14*2)
     .barGap = 2,           // зазор между полосами для RGB Panel
     .orientation = 0,      // горизонтальный
     .showPeaks = true,     // отображать пики для RGB Panel

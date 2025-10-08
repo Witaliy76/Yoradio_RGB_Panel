@@ -22,7 +22,10 @@ void SpectrumWidget::init(SpectrumWidgetConfig conf) {
     // Инициализация базового виджета для RGB Panel
     Widget::init(conf.widget, conf.barColor, conf.bgColor);
     // Очистим область сразу, чтобы при старте не было артефактов
-    _clear();
+    // Но не для UEDX48480021, чтобы не затирать дату и другие виджеты
+    #if DSP_MODEL != DSP_UEDX48480021
+        _clear();
+    #endif
 }
 
 void SpectrumWidget::loop() {

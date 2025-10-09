@@ -74,7 +74,7 @@ const ProgressConfig bootPrgConf  PROGMEM = { 90, 9, 4 }; //скорость, ш
 const BitrateConfig fullbitrateConf PROGMEM = {{DSP_WIDTH-TFT_FRAMEWDT-34, 44, 2, WA_LEFT}, 42 };
 
 /* BANDS  */                             /* { onebandwidth, onebandheight, bandsHspace, bandsVspace, numofbands, fadespeed } */
-const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH, 25, 4, 5, 47, 30};//35,30
+const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH, 25, 4, 5, 47, 15};//35,30 чем меньше тем медленнее
 
 /* STRINGS  */
 const char         numtxtFmt[]    PROGMEM = "%d";

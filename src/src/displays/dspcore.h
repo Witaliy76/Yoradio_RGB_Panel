@@ -50,6 +50,8 @@
   #include "displayAXS15231B.h"
 #elif DSP_MODEL==DSP_ST7701
   #include "displayST7701.h"
+#elif DSP_MODEL==DSP_UEDX48480021
+  #include "displayUEDX48480021.h"
 #endif
 
 //extern DspCore dsp;

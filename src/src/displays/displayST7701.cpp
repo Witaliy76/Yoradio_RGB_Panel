@@ -166,7 +166,7 @@ void DspCore::initDisplay() {
     
     // Используем правильную init-последовательность ST7701 из Arduino_GFX
     output_display = new Arduino_RGB_Display(
-        480 /* width */, 480 /* height */, rgbpanel, 0 /* rotation */, true /* auto flush */,
+        480 /* width */, 480 /* height */, rgbpanel, 0 /* rotation */, false /* auto flush */,
         bus, GFX_NOT_DEFINED /* RST */, st7701_type1_init_operations, sizeof(st7701_type1_init_operations));
     if (!output_display) {
       Serial.println("[ST7701] Failed to initialize RGB display!");

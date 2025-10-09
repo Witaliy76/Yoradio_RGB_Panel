@@ -39,8 +39,18 @@ void setup() {
   if (network.status != CONNECTED && network.status!=SDREADY) {
     netserver.begin();
     initControls();
+    Serial.println("[Main] Sending DSP_START request");
     display.putRequest(DSP_START);
-    while(!display.ready()) delay(10);
+    Serial.println("[Main] Waiting for display.ready()");
+    int waitCount = 0;
+    while(!display.ready()) {
+      delay(10);
+      waitCount++;
+      if(waitCount % 100 == 0) {
+        Serial.printf("[Main] Still waiting for display.ready(), count=%d\n", waitCount);
+      }
+    }
+    Serial.println("[Main] Display is ready, returning");
     return;
   }
   if(SDC_CS!=255) {

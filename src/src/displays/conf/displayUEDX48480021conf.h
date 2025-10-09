@@ -27,7 +27,7 @@
 #else
   #define TITLE_FIX 0
 #endif
-#define bootLogoTop     220
+#define bootLogoTop     180
 
 #ifndef BATTERY_OFF
   #define BatX      200				// X coordinate for batt. ( X  )
@@ -46,9 +46,9 @@ const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT+30, 107, 5, WA_CENTE
 const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT+10, 158, 3, WA_CENTER }, 140, true, MAX_WIDTH-15, 5000, 30, 12 };
 const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT+15, 155, 3, WA_CENTER }, 140, false, MAX_WIDTH-20, 5000, 30, 12 };
 const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 4, WA_LEFT }, 140, false, MAX_WIDTH, 1000, 30, 12 };
-const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 4, WA_CENTER }, 140, true, MAX_WIDTH, 0, 30, 8 };
-const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT, 420-TFT_FRAMEWDT-16, 2, WA_LEFT }, 140, false, MAX_WIDTH, 0, 30, 8 };
-const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT, 65, 3, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 30, 4 }; //10,4
+const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT+10, 107, 4, WA_CENTER }, 140, true, MAX_WIDTH-20, 0, 30, 8 };
+const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT+10, 350, 2, WA_CENTER }, 140, false, MAX_WIDTH-20, 0, 30, 8 };
+const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT+65, 65, 3, WA_LEFT }, 140, true, MAX_WIDTH-140, 1000, 30, 4 }; //10,4
 
 /* BACKGROUNDS  */                       /* {{ left, top, fontsize, align }, width, height, outlined } */
 const FillConfig   metaBGConf     PROGMEM = {{ TFT_FRAMEWDT+10, 105, 0, WA_LEFT }, MAX_WIDTH, 45, false };
@@ -65,10 +65,10 @@ const WidgetConfig  iptxtConf     PROGMEM = { 0, 20, 2, WA_CENTER };
 const WidgetConfig   rssiConf     PROGMEM = { 5, 265, 1, WA_RIGHT };
 const WidgetConfig   cpuConf      PROGMEM = { 2, 265, 1, WA_LEFT };
 const WidgetConfig numConf        PROGMEM = { TFT_FRAMEWDT, 250, 1, WA_CENTER };
-const WidgetConfig apNameConf     PROGMEM = { TFT_FRAMEWDT, 88, 3, WA_CENTER };
-const WidgetConfig apName2Conf    PROGMEM = { TFT_FRAMEWDT, 120, 3, WA_CENTER };
-const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT, 173, 3, WA_CENTER };
-const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT, 205, 3, WA_CENTER };
+const WidgetConfig apNameConf     PROGMEM = { TFT_FRAMEWDT+10, 160, 3, WA_CENTER };
+const WidgetConfig apName2Conf    PROGMEM = { TFT_FRAMEWDT+10, 195, 3, WA_CENTER };
+const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT+10, 240, 3, WA_CENTER };
+const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT+10, 265, 3, WA_CENTER };
 const WidgetConfig  clockConf     PROGMEM = { 70, 250, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
 const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT+73, 310, 2, WA_LEFT };//294
 
@@ -92,8 +92,8 @@ const char        bitrateFmt[]    PROGMEM = "%d kBs";
 
 /* MOVES  */                             /* { left, top, width } */
 const MoveConfig    clockMove     PROGMEM = { 70, 205, MAX_WIDTH /* MAX_WIDTH */ }; // -1 disables move
-const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT, 65, MAX_WIDTH};
-const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT, 65, MAX_WIDTH};
+const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT+65, 65, MAX_WIDTH-140};
+const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT+65, 65, MAX_WIDTH-140};
 
 /* SPECTRUM ANALYZER  */                 /* Конфигурация спектроанализатора для UEDX48480021 (480x480) */
 const SpectrumWidgetConfig spectrumConf PROGMEM = {

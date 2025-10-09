@@ -1,13 +1,13 @@
-// Конфиг для UEDX48480021-MD80ET (ST7701S RGB 480x480 2.1")\// ===============================================
+// ===============================================
 // КОНФИГУРАЦИЯ ДЛЯ UEDX48480021-MD80ET
 // ===============================================
+// Конфиг для UEDX48480021-MD80ET (ST7701S RGB 480x480 2.1")
 // Дисплей: 2.1" IPS LCD 480x480 ST7701S
 // Особенности:
 // - ST7701S Type4 preset (BGR mode)
 // - RGB→BGR pin swap в Arduino_ESP32RGBPanel
 // - Active LOW backlight (GPIO7)
-// - GPIO4 задействован под I2S DOUT
-// - I2S пины: DOUT=4, BCLK=43, LRC=44
+// - I2S пины: DOUT=43, BCLK=44, LRC=4 (GPIO4 требует удаления конденсатора C9)
 //   by W76W, 4pda.to
 #ifndef myoptions_h
 #define myoptions_h
@@ -51,124 +51,104 @@
 #define ST7701_BL   7
 
 
-/*  ENCODER  */
-#define ENC_BTNL              5           /*  Left rotation */
-#define ENC_BTNB              0           /*  Encoder button */
-#define ENC_BTNR              6           /*  Right rotation */
-#define ENC_INTERNALPULLUP    false          /*  Enable the weak pull up resistors */
-#define ENC_HALFQUARD         true          /*  Experiment  with it */
-/******************************************/
+/* ===============================================
+   ENCODER (Энкодер)
+   =============================================== */
+#define ENC_BTNL              6           // Левое вращение (Left rotation)
+#define ENC_BTNB              0           // Кнопка энкодера (Encoder button)
+#define ENC_BTNR              5           // Правое вращение (Right rotation)
+#define ENC_INTERNALPULLUP    false       // Внутренние подтягивающие резисторы
+#define ENC_HALFQUARD         true        // Половинный режим (экспериментально)
 
-/*  I2S DAC    */
-// Используем пины без конфликтов: DOUT=4 (выведен), BCLK=43, LRC=44 (бывш. UART0)
-// Для использования GPIO4 удалить с платы конденсатор C9!!!!
-#define I2S_DOUT     43      // GPIO4 (I2S DOUT) uart TX1 на плате
-#define I2S_BCLK      44   // GPIO44 (I2S BCLK) uart RX1 на плате
-#define I2S_LRC       4   // GPIO43 (I2S LRCK/WS) gpio 4
+/* ===============================================
+   DISPLAY OPTIONS (Опции дисплея)
+   =============================================== */
+#define RSSI_DIGIT            true        // Отображать RSSI цифрами вместо иконки
 
-
-/* Отключаем функции, которые могут мешать */
-#define VS1053_CS     255    // Отключаем VS1053
-//#define MUTE_PIN      255    // Отключаем MUTE
-
-#define BRIGHTNESS_PIN 255   // Не используем стандартный пин яркости
-#define ENABLE_BRIGHTNESS_CONTROL  // Активирует управление яркостью в веб-интерфейсе
-//Изначально не было этого параметра, пришлось его добавить вручную 
-//так как управление подсветкой тут отличается 
-/* **************************************** *
-
-/* Основные настройки */
-#define PLAYER_FORCE_MONO false
-#define L10N_LANGUAGE RU
-#define BITRATE_FULL  true
-
-// Spectrum Analyzer всегда собран; выбор вида выполняется по usespectrum в настройках
-#define SPECTRUM_USE_PSRAM     true    // Использовать PSRAM для FFT буферов
-#define SPECTRUM_BANDS         15      // Количество полос спектра (уменьшено до 15)
-#define SPECTRUM_FFT_SIZE      64      // Размер FFT (уменьшен для простоты)
-#define SPECTRUM_SMOOTHING     0.90f    // Сглаживание (увеличено для более плавных переходов)
-#define SPECTRUM_PEAK_HOLD_TIME 300.0f // Время удержания пиков (мс, уменьшено)
-#define SPECTRUM_LOGARITHMIC   false   // Логарифмическая шкала частот (отключено)
-#define SPECTRUM_STEREO        true   // Стерео режим (отключено - моно)
-// #define SPECTRUM_REPLACE_VU    // удалено, выбор вида в рантайме
-#define SPECTRUM_GAIN          0.03f    // Общее усиление спектра (1.0 = без усиления, 0.05 = -95%)
-
-// Отключение VU-метра (если используем SA) Закомментировать для включения
-//#define HIDE_VU              // выключить тумблер в веб VU !!для выключения включить SPECTRUM_ENABLED и SPECTRUM_REPLACE_VU 
-
-#define BOOMBOX_STYLE    /* Разные варианты "показометра" VUmetr. Столбик, если строку закоментировать. */
-//#define WAKE_PIN              255
-#define CPU_LOAD        /* Включить виджет загрузки процессора, комментировать для отключения */
-
-/* Отладка - отключаем лишнее */
-#define BATTERY_OFF             // Отключаем батарею
-//#define PERFMON_DISABLED        // Отключаем мониторинг производительности
-#define WDT_TIMEOUT 30          // Увеличиваем таймаут WDT
+/* ===============================================
+   I2S DAC (Аудио выход)
+   =============================================== */
+// ВАЖНО: Для использования GPIO4 (LRC) необходимо удалить конденсатор C9 с платы!
+#define I2S_DOUT     43      // I2S Data Out (GPIO43, UART TX1 на плате)
+#define I2S_BCLK     44      // I2S Bit Clock (GPIO44, UART RX1 на плате)
+#define I2S_LRC      4       // I2S Left/Right Clock (GPIO4, требует удаления C9)
 
 
-/*  SDCARD  */
-//#define USE_SD                              // Включаем поддержку SD карты
-/*  MISO is the same as D0, MOSI is the same as D1 */
-/*  SD VSPI PINS. SD SCK must be connected to pin 18
-                  SD MISO must be connected to pin 19
-                  SD MOSI must be connected to pin 23  */
-/*  SD HSPI PINS. SD SCK must be connected to pin 14
-                  SD MISO must be connected to pin 12 (+20 KOm на GND)
-                  SD MOSI must be connected to pin 13  */
-/*  SD PINS согласно схеме 4848S040:
-    io42 - TF(D3) - Chip Select
-    io47 - SPICLK_P - MOSI (Master Out Slave In)
-    io48 - SPICLK_N - SCK (Clock)
-    io41 - TF(D1) - MISO (Master In Slave Out)  */
-//#define SDC_CS        42                    // Chip Select
-//#define SD_SCK        48                    // SCK pin
-//#define SD_MISO       41                    // MISO pin  
-//#define SD_MOSI       47                    // MOSI pin
-//#define SD_HSPI       true                  // Используем HSPI для избежания конфликтов
-//#define SD_DEBUG_ENABLED true               // Включаем отладку
-//#define SDSPISPEED    20000000              // Скорость SPI (20 MHz)
-/* **************************************** */
+/* ===============================================
+   DISABLED FEATURES (Отключенные функции)
+   =============================================== */
+#define VS1053_CS     255                 // Отключаем VS1053 (не используется)
+//#define MUTE_PIN    255                 // Отключаем MUTE (не используется)
 
-/*  TOUCHSCREEN  */
-/* Touchscreen Configuration для 4848S040 */
-//#define TS_MODEL              TS_MODEL_GT911  /* GT911 Capacitive I2C touch screen */
-//#define TS_SDA                19              /* Touch screen SDA pin */
-//#define TS_SCL                45              /* Touch screen SCL pin */
-//#define TS_INT                255             /* Touch screen INT pin (отключен) */
-//#define TS_RST                255             /* Touch screen RST pin (отключен) */
+/* ===============================================
+   BRIGHTNESS CONTROL (Управление яркостью)
+   =============================================== */
+// ВАЖНО: Подсветка UEDX48480021 управляется через Active LOW на GPIO7
+#define BRIGHTNESS_PIN 255                // Не используем стандартный пин яркости
+#define ENABLE_BRIGHTNESS_CONTROL         // Активирует управление яркостью в веб-интерфейсе
 
-/* Touchscreen Configuration для UEDX48480021-MD80ET (CST826) */
-#define TS_MODEL              TS_MODEL_CST826  /* CST826 Capacitive I2C touch screen */
-#define TS_SDA                16              /* Touch screen SDA pin (GPIO16) */
-#define TS_SCL                15              /* Touch screen SCL pin (GPIO15) */
-#define TS_INT                255             /* Touch screen INT pin (отключен) */
-#define TS_RST                255             /* Touch screen RST pin (отключен) */
+/* ===============================================
+   GENERAL SETTINGS (Основные настройки)
+   =============================================== */
+#define PLAYER_FORCE_MONO false           // Моно режим (отключен)
+#define L10N_LANGUAGE RU                  // Язык интерфейса (русский)
+#define BITRATE_FULL  true                // Полный виджет битрейта
 
+/* ===============================================
+   SPECTRUM ANALYZER (Спектроанализатор)
+   =============================================== */
+// Выбор между VU-метром и спектроанализатором в настройках (usespectrum)
+#define SPECTRUM_USE_PSRAM     true       // Использовать PSRAM для FFT буферов
+#define SPECTRUM_BANDS         10         // Количество полос спектра (оптимизировано для круглого дисплея)
+#define SPECTRUM_FFT_SIZE      64         // Размер FFT
+#define SPECTRUM_SMOOTHING     0.90f      // Сглаживание (0.0-1.0, больше = плавнее)
+#define SPECTRUM_PEAK_HOLD_TIME 300.0f    // Время удержания пиков (мс)
+#define SPECTRUM_LOGARITHMIC   false      // Логарифмическая шкала частот
+#define SPECTRUM_STEREO        false      // Стерео режим (отключено - моно)
+#define SPECTRUM_GAIN          0.03f      // Общее усиление спектра (1.0 = без усиления)
 
-//#define DEBUG_TOUCH            false            /* Отладка тачскрина CST826 */
+/* ===============================================
+   VU METER & DISPLAY WIDGETS (VU-метр и виджеты)
+   =============================================== */
+//#define HIDE_VU                         // Скрыть VU-метр (закомментировать для включения)
+#define BOOMBOX_STYLE                     // Стиль VU-метра (столбики вместо полос)
+#define CPU_LOAD                          // Виджет загрузки процессора
+//#define WAKE_PIN              255       // Пин пробуждения (не используется)
 
-/*  Resistive SPI touch screen  */
-/*  TS VSPI PINS. CLK must be connected to pin 18
-                  DIN must be connected to pin 23
-                  DO  must be connected to pin 19
-                  IRQ - not connected */
-//#define TS_CS                 255           /*  Touch screen CS pin  */
-/*  TS HSPI PINS. CLK must be connected to pin 14
-                  DIN must be connected to pin 13
-                  DO  must be connected to pin 12
-                  IRQ - not connected */
-//#define TS_HSPI               false         /*  Use HSPI for Touch screen  */
-
-/*  Capacitive I2C touch screen GT911  */
-#define TS_X_MIN              0               /*  Минимальное значение X координаты  */
-#define TS_X_MAX              480             /*  Максимальное значение X координаты  */
-#define TS_Y_MIN              0               /*  Минимальное значение Y координаты  */
-#define TS_Y_MAX              480             /*  Максимальное значение Y координаты  */
-/******************************************/
+/* ===============================================
+   SYSTEM & DEBUG (Система и отладка)
+   =============================================== */
+#define BATTERY_OFF                     // Отключить отображение батареи
+//#define PERFMON_DISABLED                // Отключить мониторинг производительности
+#define WDT_TIMEOUT 30                    // Таймаут сторожевого таймера (секунды)
 
 
-// Включаем отладку дисплея
-//#define DEBUG_DISPLAY
+/* ===============================================
+   TOUCHSCREEN (Тачскрин)
+   =============================================== */
+// UEDX48480021-MD80ET использует CST826 
+
+
+// CST826 для UEDX48480021-MD80ET:
+#define TS_MODEL              TS_MODEL_CST826  // CST826 Capacitive I2C
+#define TS_SDA                16               // GPIO16
+#define TS_SCL                15               // GPIO15
+#define TS_INT                255              // Не используется
+#define TS_RST                255              // Не используется
+
+
+
+// Калибровка тачскрина (координаты):
+#define TS_X_MIN              0                  // Минимум X
+#define TS_X_MAX              480                // Максимум X
+#define TS_Y_MIN              0                  // Минимум Y
+#define TS_Y_MAX              480                // Максимум Y
+
+/* ===============================================
+   DEBUG (Отладка)
+   =============================================== */
+//#define DEBUG_TOUCH                            // Отладка тачскрина
+//#define DEBUG_DISPLAY                          // Отладка дисплея
 
 
 

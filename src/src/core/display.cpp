@@ -141,6 +141,10 @@ void Display::_bootScreen(){
   _pager.setPage(_boot, true);
   dsp.drawLogo(bootLogoTop);
   _bootStep = 1;
+  
+  // Разрешаем flush для анимации bootScreen / Enable flush for bootScreen animation
+  _suspendFlush = false;
+  Serial.println("[Display] Boot screen created, flush enabled for animation");
 }
 
 void Display::_buildPager(){
@@ -271,6 +275,7 @@ void Display::_buildPager(){
 }
 
 void Display::_apScreen() {
+  _suspendFlush = false;  // Разрешаем обновления экрана в AP режиме / Enable screen updates in AP mode
   Serial.println("[Display] _apScreen() called");
   Serial.printf("[Display] _suspendFlush = %s\n", _suspendFlush ? "true" : "false");
   if(_boot) _pager.removePage(_boot);
@@ -318,13 +323,13 @@ void Display::_start() {
     nextion.wake();
   #endif
   if (network.status != CONNECTED && network.status != SDREADY) {
+    _suspendFlush = false; // разрешаем flush в AP режиме / enable flush in AP mode
     Serial.println("[Display] Going to AP mode");
     _apScreen();
     #ifdef USE_NEXTION
       nextion.apScreen();
     #endif
     _bootStep = 2;
-    _suspendFlush = false; // разрешаем flush в AP режиме
     Serial.println("[Display] _bootStep set to 2 in AP mode");
     return;
   }
@@ -540,17 +545,14 @@ void Display::loop() {
   if(_bootStep==0) {
     _pager.begin();
     _bootScreen();
-    return;
+    // Не выходим сразу - нужно вызвать _pager.loop() для рендеринга виджетов
+    // Don't return immediately - need to call _pager.loop() for widget rendering
   }
-  // Не сбрасываем _bootStep если мы уже в AP режиме или нормальном режиме
-  if(_bootStep >= 2) {
-    // Уже инициализированы, не нужно повторно вызывать _bootScreen
-  }
-  if(displayQueue==NULL) return;
+  // Разрешаем loop при bootStep==1 для анимации / Allow loop at bootStep==1 for animation
+  if(displayQueue==NULL && _bootStep!=1) return;
   _pager.loop();
-  // Во время экрана загрузки (bootStep==1) разрешаем принудительный flush,
-  // чтобы прогресс-бар и логотип корректно обновлялись на панели RGB.
-  if(!_suspendFlush || _bootStep==1){
+  // Упрощенное условие - без хака _bootStep==1 / Simplified condition without _bootStep==1 hack
+  if(!_suspendFlush){
     sdog.takeMutex();
     gfxFlushScreen(gfx);
     sdog.giveMutex();

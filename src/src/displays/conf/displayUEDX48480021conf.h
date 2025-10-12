@@ -11,15 +11,15 @@
 #include "../widgets/widgets.h"
 #include "../tools/spectrum_widget.h"
 
-// Определение для скрытия VU-метра (если нужно)
+// Hide VU-meter (if needed)
 // #define HIDE_VU
 
-// Определение для скрытия второго заголовка (title2)
+// Hide second title (title2) - saves space on round display
 #define HIDE_TITLE2
 
 #define DSP_WIDTH       480
 #define DSP_HEIGHT      480
-#define TFT_FRAMEWDT    8
+#define TFT_FRAMEWDT    8     // Frame width (border offset)
 #define MAX_WIDTH       DSP_WIDTH-TFT_FRAMEWDT
 
 #if BITRATE_FULL
@@ -72,12 +72,12 @@ const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT+10, 265, 3, WA_CENTER
 const WidgetConfig  clockConf     PROGMEM = { 70, 250, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
 const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT+73, 310, 2, WA_LEFT };//294
 
-const WidgetConfig bootWdtConf    PROGMEM = { 200, bootLogoTop+130, 2, WA_LEFT }; //отступ, вертикальное положение, размер, выравнивание
-const ProgressConfig bootPrgConf  PROGMEM = { 90, 9, 4 }; //скорость, ширина, ширина движущейся части
+const WidgetConfig bootWdtConf    PROGMEM = { 200, bootLogoTop+130, 2, WA_LEFT }; // left, top, size, align
+const ProgressConfig bootPrgConf  PROGMEM = { 90, 9, 4 }; // speed, width, moving part width
 const BitrateConfig fullbitrateConf PROGMEM = {{5, 212, 2, WA_LEFT}, 42 };
 
 /* BANDS  */                             /* { onebandwidth, onebandheight, bandsHspace, bandsVspace, numofbands, fadespeed } */
-const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH-140, 25, 4, 5, 30, 15};//35,30 чем меньше тем медленнее
+const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH-140, 25, 4, 5, 30, 15}; // lower fadespeed = slower fade
 
 /* STRINGS  */
 const char         numtxtFmt[]    PROGMEM = "%d";
@@ -95,7 +95,7 @@ const MoveConfig    clockMove     PROGMEM = { 70, 205, MAX_WIDTH /* MAX_WIDTH */
 const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT+65, 65, MAX_WIDTH-140};
 const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT+65, 65, MAX_WIDTH-140};
 
-/* SPECTRUM ANALYZER  */                 /* Конфигурация спектроанализатора для UEDX48480021 (480x480) */
+/* SPECTRUM ANALYZER  */                 /* Spectrum analyzer config for UEDX48480021 (480x480 round) */
 const SpectrumWidgetConfig spectrumConf PROGMEM = {
     .widget = {
         .left = TFT_FRAMEWDT+74,
@@ -103,17 +103,17 @@ const SpectrumWidgetConfig spectrumConf PROGMEM = {
         .textsize = 1,
         .align = WA_CENTER
     },
-    .width = 320,          // ширина области виджета для RGB Panel (480 - 2*TFT_FRAMEWDT)
-    .height = 110,         // высота области виджета для RGB Panel (уменьшена для круглого дисплея)
-    .barWidth = 30,        // ширина полосы для RGB Panel (15*30 + 14*2)
-    .barGap = 2,           // зазор между полосами для RGB Panel
-    .orientation = 0,      // горизонтальный
-    .showPeaks = true,     // отображать пики для RGB Panel
-    .showGrid = true,      // сетка для RGB Panel
-    .gridColor = 0x39E7,   // серый (оптимизирован для RGB Panel)
-    .barColor = 0x07E0,    // зелёный (оптимизирован для RGB Panel)
-    .peakColor = 0xF800,   // красный (оптимизирован для RGB Panel)
-    .bgColor = 0x0000      // чёрный (оптимизирован для RGB Panel)
+    .width = 320,          // widget area width for RGB Panel (480 - 2*TFT_FRAMEWDT)
+    .height = 110,         // widget area height for RGB Panel (reduced for round display)
+    .barWidth = 30,        // bar width for RGB Panel (15*30 + 14*2)
+    .barGap = 2,           // gap between bars for RGB Panel
+    .orientation = 0,      // horizontal
+    .showPeaks = true,     // show peaks for RGB Panel
+    .showGrid = true,      // grid for RGB Panel
+    .gridColor = 0x39E7,   // gray (optimized for RGB Panel)
+    .barColor = 0x07E0,    // green (optimized for RGB Panel)
+    .peakColor = 0xF800,   // red (optimized for RGB Panel)
+    .bgColor = 0x0000      // black (optimized for RGB Panel)
 };
 
 #endif

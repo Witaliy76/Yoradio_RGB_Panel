@@ -16,6 +16,21 @@
 - [How to connect this board to the project →](README_UEDX48480021_english.md)
 - ![photo](https://github.com/user-attachments/assets/360799e8-da95-4c77-8ad9-c10b85be3855)
 
+### Project Features
+
+Differences from original Yoradio:
+
+1. **Refactored to Arduino_GFX** — using modern Arduino_GFX library with RGB Panel support and latest ESP-IDF 5.4/5.5.
+2. **U8g2 fonts support** — Arduino_GFX library supports U8g2 fonts, you can use them in the project.
+3. **Spectrum Analyzer** — added spectrum analyzer with VU ↔ SA switching directly from web interface (Settings). VU-meter now has scale (adjustable in `widgets.cpp`).
+4. **SD ↔ Radio switching** — added ability to switch via touchscreen (simultaneous two-finger tap).
+5. **CPU Load widget** — shows load of both processor cores.
+6. **Format support** — OGG, OPUS, VORBIS, FLAC streams.
+7. **Auto-dimming** — widget in `main.cpp` (AUTOBACKLIGHT settings in `myoptions.h`).
+8. **Battery** — code built into display files, activated by uncommenting `#define BATTERY_OFF` (for UEDX48480021 requires free pins).
+9. **Updated libraries** — AudioI2S from Wolle (schreibfaul1) & Maleksm, Version 3.3.2r.
+10. **Many bugfixes** — stability and performance improvements.
+
 ### Changelog
 
 - 12.10.2025 — Project created. Added boards 4848S040 and UEDX48480021‑MD80ET.
@@ -33,6 +48,14 @@
 - First boot / after erase flash: screen can stay black for ~60 seconds (FS init). This is normal — just wait.
 
 - How to work with the project: follow the original `e2002/yoradio` docs and examples.
+
+### Acknowledgments
+
+Special thanks to:
+- **e2002** — author of the original Yoradio project
+- **Wolle (schreibfaul1)** — for the excellent AudioI2S library
+- **Maleksm** (4pda.to) — for AudioI2S improvements and enhancements
+- **moononournation** — for the Arduino_GFX library
 
 ### License
 

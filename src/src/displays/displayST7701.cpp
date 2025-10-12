@@ -1,7 +1,8 @@
 /************************************************************************************************
-   Файл для дисплея ST7701 (480x480) RGB Panel ESP32-4848S040
+   Display driver for ST7701 (480x480) RGB Panel ESP32-4848S040
    Based on AXS15231B implementation
-   Adapted for RGB Panel interface
+   Adapted for RGB Panel interface with Arduino_GFX library
+   Features: 16-bit RGB565, parallel interface, GT911 touch
 ************************************************************************************************/
 
 #include "../core/options.h"
@@ -23,7 +24,7 @@
 #include "Arduino_GFX_Library.h"
 #include "tools/GFX_Canvas_screen.h"
 
-// Объявление init-последовательности ST7701 из Arduino_GFX
+// ST7701 init sequence declaration from Arduino_GFX
 extern const uint8_t st7701_type1_init_operations[];
 #if defined(ARDUINO_ARCH_ESP32)
 #include "esp32-hal-ledc.h"
@@ -43,7 +44,7 @@ static inline uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
   return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
-// === Глобальные объекты для Canvas-режима (RGB Panel) ===
+// === Global objects for Canvas mode (RGB Panel) ===
 static Arduino_DataBus *bus = nullptr;
 static Arduino_ESP32RGBPanel *rgbpanel = nullptr;
 static Arduino_RGB_Display *output_display = nullptr;
@@ -59,55 +60,55 @@ Arduino_Canvas *gfx = nullptr;
   #endif
 
   #ifndef R1
-    #define R1 33		// Номинал резистора на плюс (+)
+    #define R1 33		// Resistor value on + side
   #endif
   #ifndef R2
-    #define R2 100		// Номинал резистора на плюс (-)
+    #define R2 100		// Resistor value on - side
   #endif
   #ifndef DELTA_BAT
-    #define DELTA_BAT 0	// Величина коррекции напряжения батареи
+    #define DELTA_BAT 0	// Battery voltage correction value
   #endif
 
-  // Константы для оптимизации
-  #define BATTERY_SAMPLES 100       // Количество замеров для точности
-  #define BATTERY_CHECK_INTERVAL 5000  // Проверка каждые 5 секунд
-  #define BATTERY_VOLTAGE_THRESHOLD 0.01f  // Порог изменения напряжения для определения зарядки
-  #define BATTERY_SMOOTH_COUNT 10  // Количество измерений для сглаживания
-  #define BATTERY_CHARGE_MIN_VOLTAGE 3.5f  // Минимальное напряжение для определения зарядки
-  #define BATTERY_STABLE_THRESHOLD 0.002f  // Порог для определения стабильного напряжения
+  // Battery monitoring constants
+  #define BATTERY_SAMPLES 100       // Number of samples for accuracy
+  #define BATTERY_CHECK_INTERVAL 5000  // Check every 5 seconds
+  #define BATTERY_VOLTAGE_THRESHOLD 0.01f  // Voltage change threshold for charging detection
+  #define BATTERY_SMOOTH_COUNT 10  // Number of measurements for smoothing
+  #define BATTERY_CHARGE_MIN_VOLTAGE 3.5f  // Minimum voltage for charging detection
+  #define BATTERY_STABLE_THRESHOLD 0.002f  // Threshold for stable voltage detection
 
-  float ADC_R1 = R1;        // Номинал резистора на плюс (+)
-  float ADC_R2 = R2;        // Номинал резистора на минус (-)
-  float DELTA = DELTA_BAT;  // Величина коррекции напряжения батареи
+  float ADC_R1 = R1;        // Resistor value on + side
+  float ADC_R2 = R2;        // Resistor value on - side
+  float DELTA = DELTA_BAT;  // Battery voltage correction value
 
-  uint8_t g, t = 1;         // Счётчики для мигалок и осреднений
-  bool Charging = false;    // Признак, что подключено зарядное устройство
+  uint8_t g, t = 1;         // Counters for blink and averaging
+  bool Charging = false;    // Flag: charger connected
 
-  float Volt = 0;           // Напряжение на батарее
-  float Volt1 = 0, Volt2 = 0, Volt3 = 0, Volt4 = 0, Volt5 = 0;  // Предыдущие замеры напряжения
+  float Volt = 0;           // Battery voltage
+  float Volt1 = 0, Volt2 = 0, Volt3 = 0, Volt4 = 0, Volt5 = 0;  // Previous voltage readings
   float smoothBuffer[BATTERY_SMOOTH_COUNT] = {0};
   uint8_t smoothIndex = 0;
-  float lastVolt = 0;       // Предыдущее напряжение для расчета изменений
+  float lastVolt = 0;       // Previous voltage for change calculation
   static esp_adc_cal_characteristics_t adc1_chars;
 
   uint8_t ChargeLevel;
-  // Массив напряжений на батарее, соответствующий проценту оставшегося заряда: 
+  // Battery voltage array corresponding to remaining charge percentage
   float vs[22] = {2.60, 3.10, 3.20, 3.26, 3.29, 3.33, 3.37, 3.41, 3.46, 3.51, 3.56, 3.61, 3.65, 3.69, 3.72, 3.75, 3.78, 3.82, 3.88, 3.95, 4.03, 4.25};
 
-  // Структура для хранения состояния зарядки
+  // Charging state structure
   struct {
     float lastVoltage = 0;
     uint32_t lastCheck = 0;
-    uint8_t chargeCount = 0;    // Счетчик последовательных увеличений напряжения
-    uint8_t dischargeCount = 0; // Счетчик последовательных падений напряжения
-    uint8_t stableCount = 0;    // Счетчик стабильных измерений
+    uint8_t chargeCount = 0;    // Counter for consecutive voltage increases
+    uint8_t dischargeCount = 0; // Counter for consecutive voltage drops
+    uint8_t stableCount = 0;    // Counter for stable measurements
   } chargingState;
 
 #endif
 
 DspCore::DspCore() {
 #ifndef BATTERY_OFF
-  // Инициализация ADC для батареи
+  // Initialize ADC for battery monitoring
   adc1_config_width(ADC_WIDTH_BIT_12);
   adc1_config_channel_atten(USER_ADC_CHAN, ADC_ATTEN_DB_12);
   esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, 0, &adc1_chars);
@@ -117,15 +118,15 @@ DspCore::DspCore() {
 #include "tools/utf8RusGFX.h"
 ///////////////////////////////////////////////////////////////
 
-// Используем стандартную последовательность инициализации из Arduino_GFX
+// Use standard init sequence from Arduino_GFX
 extern const uint8_t st7701_type1_init_operations[];
 
 void DspCore::initDisplay() {
   Serial.println("[ST7701] initDisplay start");
   
-  // --- НАЧАЛО БЛОКА ИНИЦИАЛИЗАЦИИ RGB PANEL ---
+  // --- RGB PANEL INITIALIZATION BLOCK START ---
   
-  // 1. Создание шины SPI (требуется для Arduino_GFX, даже если используется только для CS/RESET)
+  // 1. Create SPI bus (required for Arduino_GFX, even if only used for CS/RESET)
   if (!bus) {
     Serial.println("[ST7701] Initializing bus...");
     bus = new Arduino_SWSPI(
@@ -137,21 +138,21 @@ void DspCore::initDisplay() {
     }
   }
 
-  // 2. Создание объекта RGB-панели с указанием всех пинов и таймингов
+  // 2. Create RGB panel object with all pins and timings
   if (!rgbpanel) {
     Serial.println("[ST7701] Initializing RGB panel...");
     rgbpanel = new Arduino_ESP32RGBPanel(
         ST7701_DE /* DE */, ST7701_VSYNC /* VSYNC */, ST7701_HSYNC /* HSYNC */, ST7701_PCLK /* PCLK */,
-        // Пины КРАСНОГО канала (R0-R4)
+        // RED channel pins (R0-R4)
         ST7701_R0, ST7701_R1, ST7701_R2, ST7701_R3, ST7701_R4,
-        // Пины ЗЕЛЕНОГО канала (G0-G5)
+        // GREEN channel pins (G0-G5)
         ST7701_G0, ST7701_G1, ST7701_G2, ST7701_G3, ST7701_G4, ST7701_G5,
-        // Пины СИНЕГО канала (B0-B4)
+        // BLUE channel pins (B0-B4)
         ST7701_B0, ST7701_B1, ST7701_B2, ST7701_B3, ST7701_B4,
-        // Параметры таймингов (горизонтальные и вертикальные)
+        // Timing parameters (horizontal and vertical)
         /* hsync_polarity */ 1, /* hsync_front_porch */ 10, /* hsync_pulse_width */ 8, /* hsync_back_porch */ 50,
         /* vsync_polarity */ 1, /* vsync_front_porch */ 10, /* vsync_pulse_width */ 8, /* vsync_back_porch */ 20,
-        // Параметры тактирования и формата данных
+        // Clock and data format parameters
         /* pclk_active_neg */ 0, /* prefer_speed */ 6000000UL, /* big endian */ false,
         /* de_idle_high */ 0, /* pclk_idle_high */ 0, /* bounce_buffer_size_px */ 0);
     if (!rgbpanel) {
@@ -160,11 +161,11 @@ void DspCore::initDisplay() {
     }
   }
 
-  // 3. Создание финального объекта дисплея
+  // 3. Create final display object
   if (!output_display) {
     Serial.println("[ST7701] Initializing RGB display...");
     
-    // Используем правильную init-последовательность ST7701 из Arduino_GFX
+    // Use proper ST7701 init sequence from Arduino_GFX
     output_display = new Arduino_RGB_Display(
         480 /* width */, 480 /* height */, rgbpanel, 0 /* rotation */, false /* auto flush */,
         bus, GFX_NOT_DEFINED /* RST */, st7701_type1_init_operations, sizeof(st7701_type1_init_operations));
@@ -174,10 +175,9 @@ void DspCore::initDisplay() {
     }
   }
 
-  // 4. Инициализация Canvas
-  // ВАЖНО: не вызывать begin() для output_display вручную,
-  // т.к. gfx->begin() сделает это сам. Двойной begin вызывает
-  // повторное создание RGB панели (panic: no free rgb panel slot).
+  // 4. Initialize Canvas
+  // IMPORTANT: don't call begin() on output_display manually,
+  // gfx->begin() will do it. Double begin causes RGB panel slot panic.
   if (!gfx) {
     Serial.println("[ST7701] Initializing canvas...");
     gfx = new Arduino_Canvas(480, 480, output_display);
@@ -196,46 +196,46 @@ void DspCore::initDisplay() {
     }
     Serial.println("[ST7701] Canvas initialized successfully");
     
-    // Добавляем задержку для стабилизации дисплея
+    // Delay for display stabilization
     delay(100);
   }
 
-  // 5. Отправка обязательных команд контроллеру (после begin)
+  // 5. Send required commands to controller (after begin)
   if (bus) {
-    // Формат пикселя: RGB565
+    // Pixel format: RGB565
     bus->sendCommand(0x3A);
     bus->sendData(0x55);
     delay(5);
-    // Инверсия выкл
+    // Inversion off
     bus->sendCommand(0x20);
     delay(2);
-    // Страница 0x10: настройка сканирования (C7=0x00 нормаль)
+    // Page 0x10: scan setup (C7=0x00 normal)
     bus->beginWrite();
     bus->writeCommand(0xFF); bus->write(0x77); bus->write(0x01); bus->write(0x00); bus->write(0x00); bus->write(0x10);
     bus->writeCommand(0xC7); bus->write(0x00);
-    // Возврат на страницу 0x00 и установка MADCTL (0x36) = 0x00 (RGB порядок)
+    // Return to page 0x00 and set MADCTL (0x36) = 0x00 (RGB order)
     bus->writeCommand(0xFF); bus->write(0x77); bus->write(0x01); bus->write(0x00); bus->write(0x00); bus->write(0x00);
     bus->writeCommand(0x36); bus->write(0x00);
     bus->endWrite();
   }
   
-  // 6. Включение подсветки (PWM совместимо с Arduino Core 3.x)
+  // 6. Enable backlight (PWM compatible with Arduino Core 3.x)
   pinMode(ST7701_BL, OUTPUT);
-  delay(50); // Задержка для стабилизации пина
+  delay(50); // Pin stabilization delay
   
-  // Принудительно включаем подсветку на полную яркость
+  // Force backlight to full brightness
   analogWrite(ST7701_BL, 255);
-  delay(100); // Задержка для стабилизации подсветки
+  delay(100); // Backlight stabilization delay
   
   Serial.println("[ST7701] Backlight enabled");
   
-  // --- КОНЕЦ БЛОКА ИНИЦИАЛИЗАЦИИ RGB PANEL ---
+  // --- RGB PANEL INITIALIZATION BLOCK END ---
 
 #ifdef CPU_LOAD
-  // Инициализация CPU виджета
+  // Initialize CPU widget
   cpuWidget.init(cpuConf, 20, false, config.theme.rssi, config.theme.background);
   cpuWidget.setActive(true);
-  // Запускаем мониторинг CPU
+  // Start CPU monitoring
   perfmon_start();
 #endif
 
@@ -249,10 +249,10 @@ void DspCore::initDisplay() {
   
   Serial.println("[ST7701] initDisplay completed successfully");
   
-  // Вызываем стабилизацию RGB Panel
+  // Call RGB Panel stabilization
   stabilizeRGBPanel();
   
-  // Простой тест - очистка экрана и базовая отрисовка
+  // Simple test - clear screen
   if (gfx) {
     gfx->fillScreen(BLACK);
     Serial.println("[ST7701] Screen cleared to BLACK");
@@ -265,14 +265,14 @@ void DspCore::initDisplay() {
 
 void DspCore::displayOn() {
   if (output_display) {
-    // Включение RGB дисплея
+    // Turn on RGB display
     Serial.println("[ST7701] Display ON");
   }
 }
 
 void DspCore::displayOff() {
   if (output_display) {
-    // Выключение RGB дисплея
+    // Turn off RGB display
     Serial.println("[ST7701] Display OFF");
   }
 }
@@ -286,17 +286,16 @@ void DspCore::drawLogo(uint16_t top)
         return;
     }
     
-    // Очищаем область под логотип
+    // Clear area for logo
     gfxFillRect(gfx, 0, top, width(), 88, config.theme.background);
     
-    // Рисуем логотип
+    // Draw logo
     gfxDrawBitmap(gfx, (width() - 134) / 2, top, bootlogo2, 134, 88);
     
-    // Уменьшаем задержку
     delay(100);
 }
 
-// Функция для вычисления ширины строки для стандартного шрифта Adafruit_GFX
+// Calculate string width for standard Adafruit_GFX font
 uint16_t DspCore::textWidthGFX(const char *txt, uint8_t textsize) {
   return strlen(txt) * CHARWIDTH * textsize;
 }
@@ -308,7 +307,7 @@ void DspCore::printPLitem(uint8_t pos, const char* item, ScrollWidget& current, 
   } else {
     uint8_t plColor = (abs(pos - plCurrentPos)-1)>4?4:abs(pos - plCurrentPos)-1;
     gfxFillRect(gfx, 0, plYStart + pos * plItemHeight - 1, width(), plItemHeight - 2, config.theme.background);
-    // Обрезка строки по ширине без троеточия
+    // Trim string to width without ellipsis
     const char* rus = utf8Rus(item, uppercase);
     int len = strlen(rus);
     char buf[128];
@@ -380,7 +379,7 @@ void DspCore::_getTimeBounds() {
 
 void DspCore::_clockSeconds(){
   if (!gfx) { Serial.println("[ST7701] gfx is nullptr! (_clockSeconds)"); return; }
-  // Секунды
+  // Seconds display
   char secbuf[8];
   snprintf(secbuf, sizeof(secbuf), "%02d", network.timeinfo.tm_sec);
   gfxDrawText(
@@ -395,10 +394,10 @@ void DspCore::_clockSeconds(){
     false
   );
   
-  // Очищаем область под двоеточием (только область самого двоеточия) - для старого шрифта
+  // Clear colon area (for old font compatibility)
   gfxFillRect(gfx, _timeleft+_dotsLeft+5, clockTop-CHARHEIGHT+5, 15, 65, config.theme.background);
   
-  // Двоеточие с прозрачным фоном
+  // Blinking colon
   gfxDrawText(
     gfx,
     _timeleft+_dotsLeft +1,
@@ -412,7 +411,7 @@ void DspCore::_clockSeconds(){
   );
 #ifndef BATTERY_OFF
   if(!config.isScreensaver) {
-    // Мигалки и батарейка
+    // Battery indicator with animations
     char batbuf[8] = "";
     uint16_t batcolor = 0;
     if (Charging) {
@@ -428,7 +427,7 @@ void DspCore::_clockSeconds(){
       if (g >= 2) {g = 0; strcpy(batbuf, "\x9D\x9E\x9E\x9F");}
       g++;
     } else {
-      // Статическая батарейка
+      // Static battery icon
       if (Volt >= 3.82)      { batcolor = color565(100, 255, 150); strcpy(batbuf, "\xA0\xA2\xA2\xA3"); }
       else if (Volt >= 3.72) { batcolor = color565(50, 255, 100);  strcpy(batbuf, "\x9D\xA2\xA2\xA3"); }
       else if (Volt >= 3.61) { batcolor = color565(0, 255, 0);     strcpy(batbuf, "\x9D\xA1\xA2\xA3"); }
@@ -453,12 +452,12 @@ void DspCore::_clockSeconds(){
 void DspCore::_clockDate(){
   if (!gfx) { Serial.println("[ST7701] gfx is nullptr! (_clockDate)"); return; }
   if(_olddateleft>0)
-    gfxFillRect(gfx, _olddateleft,  clockTop+78, _olddatewidth, CHARHEIGHT*2, config.theme.background); //очистка надписи даты
+    gfxFillRect(gfx, _olddateleft,  clockTop+78, _olddatewidth, CHARHEIGHT*2, config.theme.background); // clear old date
   gfxDrawText(gfx, _dateleft, clockTop+78, _dateBuf, config.theme.date, config.theme.background, 2, nullptr, true);
   strlcpy(_oldDateBuf, _dateBuf, sizeof(_dateBuf));
   _olddatewidth = _datewidth;
   _olddateleft = _dateleft;
-  // День недели
+  // Day of week
   gfxDrawText(
     gfx,
     width() - clockRightSpace - CHARWIDTH*4*2+13-20,
@@ -477,7 +476,7 @@ void DspCore::_clockTime(){
   if(_oldtimeleft>0 && !CLOCKFONT_MONO)
     gfxFillRect(gfx, _oldtimeleft, clockTop-clockTimeHeight+1, _oldtimewidth, clockTimeHeight, config.theme.background);
   _timeleft = width()-clockRightSpace-CHARWIDTH*4*2-24-_timewidth;
-  // Время
+  // Time display
   gfxDrawText(
     gfx,
     _timeleft,
@@ -492,9 +491,9 @@ void DspCore::_clockTime(){
   strlcpy(_oldTimeBuf, _timeBuf, sizeof(_timeBuf));
   _oldtimewidth = _timewidth;
   _oldtimeleft = _timeleft;
-  // Вертикальный разделитель
+  // Vertical divider (disabled)
   //gfxDrawLine(gfx, width()-clockRightSpace-CHARWIDTH*4*2-25, clockTop +5, width()-clockRightSpace-CHARWIDTH*4*2-25, clockTop +5 + clockTimeHeight-3, config.theme.div);
-  // Горизонтальный разделитель
+  // Horizontal divider (disabled)
   //gfxDrawLine(gfx, width()-clockRightSpace-CHARWIDTH*4*2+10, clockTop+32, width()-clockRightSpace-CHARWIDTH*4*2+10+62-1, clockTop+32, config.theme.div);
   sprintf(_buffordate, "%2d %s %d", network.timeinfo.tm_mday,mnths[network.timeinfo.tm_mon], network.timeinfo.tm_year+1900);
   strlcpy(_dateBuf, utf8Rus(_buffordate, true), sizeof(_dateBuf));
@@ -503,17 +502,17 @@ void DspCore::_clockTime(){
 }
 
 void DspCore::printClock(uint16_t top, uint16_t rightspace, uint16_t timeheight, bool redraw){
-  // Ограничиваем верхнюю границу
+  // Limit top boundary
   if(top < TFT_FRAMEWDT) {
     top = TFT_FRAMEWDT;
   }
   
-  // Ограничиваем нижнюю границу
-  // Учитываем:
-  // - высоту времени (clockTimeHeight)
-  // - высоту даты (CHARHEIGHT*2)
-  // - высоту дня недели (CHARHEIGHT*3)
-  // - отступы между элементами (78 пикселей для даты, 44 для дня недели)
+  // Limit bottom boundary
+  // Account for:
+  // - time height (clockTimeHeight)
+  // - date height (CHARHEIGHT*2)
+  // - day of week height (CHARHEIGHT*3)
+  // - spacing between elements (78px for date, 44 for day)
   uint16_t totalHeight = clockTimeHeight + CHARHEIGHT*2 + CHARHEIGHT*3 + 78 ;
   
   if(top + totalHeight > height() - TFT_FRAMEWDT) {
@@ -535,10 +534,10 @@ void DspCore::printClock(uint16_t top, uint16_t rightspace, uint16_t timeheight,
 void DspCore::clearClock(){
   if (!gfx) { Serial.println("[ST7701] gfx is nullptr! (clearClock)"); return; }
   
-  // Очищаем область под текущими часами
+  // Clear current clock area
   gfxFillRect(gfx, _timeleft, clockTop, MAX_WIDTH, clockTimeHeight+12+CHARHEIGHT, config.theme.background);
   
-  // Если есть старое положение часов (при перемещении), очищаем и его
+  // If there's old clock position (when moving), clear it too
   if(_oldtimeleft > 0) {
     gfxFillRect(gfx, _oldtimeleft, clockTop-clockTimeHeight, _oldtimewidth+CHARWIDTH*3*2+80, clockTimeHeight+CHARHEIGHT+100, config.theme.background);
   }
@@ -557,9 +556,9 @@ void DspCore::endWrite(void) {
 #ifdef CPU_LOAD
 uint32_t DspCore::_calculateCpuUsage() {
     static uint32_t lastUpdate = 0;
-    if (millis() - lastUpdate >= 500) { // Обновляем каждые 500мс
+    if (millis() - lastUpdate >= 500) { // Update every 500ms
         lastUpdate = millis();
-        return perfmon_get_cpu_usage(0); // Получаем загрузку первого ядра
+        return perfmon_get_cpu_usage(0); // Get first core load
     }
     return 0;
 }
@@ -571,32 +570,32 @@ void DspCore::loop(bool force) {
     
 #ifndef BATTERY_OFF
     static uint32_t lastBatteryUpdate = 0;
-    if (millis() - lastBatteryUpdate >= 1000) { // Обновляем каждую секунду
+    if (millis() - lastBatteryUpdate >= 1000) { // Update every second
         readBattery();
         lastBatteryUpdate = millis();
     }
 #endif
     
 #ifdef CPU_LOAD
-    // Обновляем каждую секунду
+    // Update every second
     if (millis() - lastCpuUpdate >= 1000) {
         uint32_t cpuUsage = _calculateCpuUsage();
         
-        // Обновляем виджет только если значение изменилось
+        // Update widget only if value changed
         if (cpuUsage != lastValue || force) {
             char buf[20];
             snprintf(buf, sizeof(buf), "CPU: %d%%", cpuUsage);
             cpuWidget.setText(buf);
             lastValue = cpuUsage;
             
-            // Принудительно обновляем виджет
+            // Force widget update
             if (force) {
                 cpuWidget.setActive(true);
             }
         }
         lastCpuUpdate = millis();
     }
-    // Проверяем, находимся ли мы на странице плеера
+    // Check if we're on player page
     if (display.mode() == PLAYER) {
         cpuWidget.setActive(true);
     } else {
@@ -624,7 +623,7 @@ void DspCore::flip(){
 void DspCore::invert(){
   TAKE_MUTEX();
   if (bus) {
-    // Аппаратное управление инверсией контроллера ST7701: 0x21 (INVON), 0x20 (INVOFF)
+    // Hardware inversion control for ST7701: 0x21 (INVON), 0x20 (INVOFF)
     bus->sendCommand(config.store.invertdisplay ? 0x21 : 0x20);
   }
   GIVE_MUTEX();
@@ -634,7 +633,7 @@ void DspCore::sleep(void) {
   Serial.println("[ST7701] sleep");
   TAKE_MUTEX();
   displayOff();
-  // Выключаем подсветку RGB панели
+  // Turn off RGB panel backlight
   analogWrite(ST7701_BL, 0);
   GIVE_MUTEX();
 }
@@ -643,7 +642,7 @@ void DspCore::wake(void) {
   Serial.println("[ST7701] wake");
   TAKE_MUTEX();
   displayOn();
-  // Включаем подсветку RGB панели
+  // Turn on RGB panel backlight
   #if defined(ENABLE_BRIGHTNESS_CONTROL)
     analogWrite(ST7701_BL, map(config.store.brightness, 0, 100, 0, 255));
   #else
@@ -654,7 +653,7 @@ void DspCore::wake(void) {
 
 void DspCore::setBrightness(uint8_t brightness) {
   TAKE_MUTEX();
-  // Управление яркостью через PWM (Core 3.x: analogWrite -> LEDC)
+  // Brightness control via PWM (Core 3.x: analogWrite -> LEDC)
   analogWrite(ST7701_BL, map(brightness, 0, 100, 0, 255));
   GIVE_MUTEX();
 }
@@ -683,8 +682,8 @@ void DspCore::clearClipping(){
 }
 
 void DspCore::setNumFont(){
-  // Для Canvas-режима смена шрифта производится в функциях gfxDrawText
-  // Здесь оставляем пусто
+  // For Canvas mode, font switching is done in gfxDrawText functions
+  // Leave empty here
 }
 
 uint16_t DspCore::width() {
@@ -698,7 +697,7 @@ uint16_t DspCore::height() {
 #ifndef BATTERY_OFF
 void DspCore::readBattery() {
     static uint32_t lastRead = 0;
-    if (millis() - lastRead < 100) return; // Ограничиваем частоту чтений
+    if (millis() - lastRead < 100) return; // Limit reading frequency
     lastRead = millis();
 
     float tempmVolt = 0;
@@ -709,7 +708,7 @@ void DspCore::readBattery() {
     float rawVolt = (mVolt + 0.0028 * mVolt * mVolt + 0.0096 * mVolt - 0.051) / (ADC_R2 / (ADC_R1 + ADC_R2)) + DELTA;
     if (rawVolt < 0) rawVolt = 0;
 
-    // Первый уровень сглаживания - скользящее среднее по 5 последним измерениям
+    // First level smoothing - moving average of last 5 readings
     Volt5 = Volt4;
     Volt4 = Volt3;
     Volt3 = Volt2;
@@ -717,7 +716,7 @@ void DspCore::readBattery() {
     Volt1 = rawVolt;
     float firstSmooth = (Volt1 + Volt2 + Volt3 + Volt4 + Volt5) / 5;
 
-    // Второй уровень сглаживания - циклический буфер из 10 измерений
+    // Second level smoothing - circular buffer of 10 readings
     smoothBuffer[smoothIndex] = firstSmooth;
     smoothIndex = (smoothIndex + 1) % BATTERY_SMOOTH_COUNT;
     
@@ -727,21 +726,21 @@ void DspCore::readBattery() {
     }
     Volt = sum / BATTERY_SMOOTH_COUNT;
 
-    // Определение зарядки на основе изменения напряжения
+    // Charging detection based on voltage change
     if (millis() - chargingState.lastCheck >= BATTERY_CHECK_INTERVAL) {
         chargingState.lastCheck = millis();
         float voltDelta = Volt - chargingState.lastVoltage;
         
         if (abs(voltDelta) < BATTERY_STABLE_THRESHOLD) {
-            // Напряжение стабильно
+            // Voltage is stable
             chargingState.stableCount++;
-            if (chargingState.stableCount >= 3) { // Если напряжение стабильно 3 раза подряд
+            if (chargingState.stableCount >= 3) { // If stable 3 times in a row
                 chargingState.chargeCount = 0;
                 chargingState.dischargeCount = 0;
-                Charging = false; // Нет зарядки при стабильном напряжении
+                Charging = false; // No charging when stable
             }
         } else {
-            chargingState.stableCount = 0; // Сбрасываем счетчик стабильности
+            chargingState.stableCount = 0; // Reset stability counter
             
             if (voltDelta > BATTERY_VOLTAGE_THRESHOLD && Volt >= BATTERY_CHARGE_MIN_VOLTAGE) {
                 chargingState.chargeCount++;
@@ -765,7 +764,7 @@ void DspCore::readBattery() {
         chargingState.lastVoltage = Volt;
     }
 
-    // Расчет процента заряда
+    // Calculate charge percentage
     uint8_t idx = 0;
     while (true) {
         if (Volt < vs[idx]) {ChargeLevel = 0; break;}
@@ -781,34 +780,34 @@ void DspCore::readBattery() {
  }
  #endif
 
-// Функция стабилизации RGB Panel
+// RGB Panel stabilization function
 void DspCore::stabilizeRGBPanel() {
   Serial.println("[ST7701] stabilizeRGBPanel start");
   
   if (bus) {
-    // Команды стабилизации на основе Guition type5
+    // Stabilization commands based on Guition type5
     bus->beginWrite();
     
-    // 0xEF команды для стабилизации
+    // 0xEF commands for stabilization
     bus->writeCommand(0xEF);
-    bus->write(0x08);  // Стабилизация
+    bus->write(0x08);  // Stabilization
     
-    // Дополнительные команды для RGB565
+    // Additional commands for RGB565
     bus->writeCommand(0xFF);
     bus->write(0x77); bus->write(0x01); bus->write(0x00); bus->write(0x00); bus->write(0x00);
     
-    // Установка MADCTL для стабильности
+    // Set MADCTL for stability
     bus->writeCommand(0x36);
-    bus->write(0x00);  // RGB порядок
+    bus->write(0x00);  // RGB order
     
-    // Команда 0xEF с параметрами для финальной стабилизации
+    // 0xEF command with parameters for final stabilization
     bus->writeCommand(0xEF);
     bus->write(0x10); bus->write(0x0D); bus->write(0x04); bus->write(0x08);
     bus->write(0x3F); bus->write(0x1F);
     
     bus->endWrite();
     
-    // Задержка для стабилизации
+    // Stabilization delay
     delay(50);
     
     Serial.println("[ST7701] stabilizeRGBPanel completed");

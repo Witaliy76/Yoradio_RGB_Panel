@@ -1,33 +1,33 @@
 // ===============================================
-// КОНФИГУРАЦИЯ ДЛЯ UEDX48480021-MD80ET
+// CONFIGURATION FOR UEDX48480021-MD80ET
 // ===============================================
-// Конфиг для UEDX48480021-MD80ET (ST7701S RGB 480x480 2.1")
-// Дисплей: 2.1" IPS LCD 480x480 ST7701S
-// Особенности:
+// Config for UEDX48480021-MD80ET (ST7701S RGB 480x480 2.1")
+// Display: 2.1" IPS LCD 480x480 ST7701S
+// Features:
 // - ST7701S Type4 preset (BGR mode)
-// - RGB→BGR pin swap в Arduino_ESP32RGBPanel
+// - RGB→BGR pin swap in Arduino_ESP32RGBPanel
 // - Active LOW backlight (GPIO7)
-// - I2S пины: DOUT=43, BCLK=44, LRC=4 (GPIO4 требует удаления конденсатора C9)
+// - I2S pins: DOUT=43, BCLK=44, LRC=4 (GPIO4 requires removing capacitor C9)
 //   by W76W, 4pda.to
 #ifndef myoptions_h
 #define myoptions_h
 
 /* Display */
-// Новый модуль UEDX48480021-MD80ET (ST7701S RGB 480x480 2.1")
+// New module UEDX48480021-MD80ET (ST7701S RGB 480x480 2.1")
 #define DSP_MODEL DSP_UEDX48480021
 
-// Пины дисплея UEDX48480021-MD80ET
-// Командная шина ST7701S (SWSPI)
+// Display pins UEDX48480021-MD80ET
+// ST7701S command bus (SWSPI)
 #define ST7701_CS   18
 #define ST7701_SCK  13
 #define ST7701_SDA  12
 #define ST7701_RST  8
-// RGB синхросигналы
+// RGB sync signals
 #define ST7701_DE     17
 #define ST7701_VSYNC  3
 #define ST7701_HSYNC  46
 #define ST7701_PCLK   9
-// RGB Data Pins (16-bit interface) - CRITICAL SWAP для UEDX48480021
+// RGB Data Pins (16-bit interface) - CRITICAL SWAP for UEDX48480021
 // Red data pins R0..R4 - SWAPPED with B pins
 #define ST7701_R0   10   // B0 (DATA0)  → R0 (SWAPPED)
 #define ST7701_R1   11   // B1 (DATA1)  → R1 (SWAPPED)
@@ -47,108 +47,115 @@
 #define ST7701_B2   42   // R2 (DATA13) → B2 (SWAPPED)
 #define ST7701_B3   2    // R3 (DATA14) → B3 (SWAPPED)
 #define ST7701_B4   1    // R4 (DATA15) → B4 (SWAPPED)
-// Подсветка - CRITICAL: Active LOW для UEDX48480021
+// Backlight - CRITICAL: Active LOW for UEDX48480021
 #define ST7701_BL   7
 
 
 /* ===============================================
-   ENCODER (Энкодер)
+   ENCODER
    =============================================== */
-#define ENC_BTNL              6           // Левое вращение (Left rotation)
-#define ENC_BTNB              0           // Кнопка энкодера (Encoder button)
-#define ENC_BTNR              5           // Правое вращение (Right rotation)
-#define ENC_INTERNALPULLUP    false       // Внутренние подтягивающие резисторы
-#define ENC_HALFQUARD         true        // Половинный режим (экспериментально)
+#define ENC_BTNL              6           // Left rotation
+#define ENC_BTNB              0           // Encoder button
+#define ENC_BTNR              5           // Right rotation
+#define ENC_INTERNALPULLUP    false       // Internal pull-up resistors
+#define ENC_HALFQUARD         true        // Half mode (experimental)
 
 /* ===============================================
-   DISPLAY OPTIONS (Опции дисплея)
+   DISPLAY OPTIONS
    =============================================== */
-#define RSSI_DIGIT            true        // Отображать RSSI цифрами вместо иконки
+#define RSSI_DIGIT            true        // Display RSSI as digits instead of icon
 
 /* ===============================================
-   I2S DAC (Аудио выход)
+   I2S DAC (Audio output)
    =============================================== */
-// ВАЖНО: Для использования GPIO4 (LRC) необходимо удалить конденсатор C9 с платы!
-#define I2S_DOUT     43      // I2S Data Out (GPIO43, UART TX1 на плате)
-#define I2S_BCLK     44      // I2S Bit Clock (GPIO44, UART RX1 на плате)
-#define I2S_LRC      4       // I2S Left/Right Clock (GPIO4, требует удаления C9)
-
-
-/* ===============================================
-   DISABLED FEATURES (Отключенные функции)
-   =============================================== */
-#define VS1053_CS     255                 // Отключаем VS1053 (не используется)
-//#define MUTE_PIN    255                 // Отключаем MUTE (не используется)
-
-/* ===============================================
-   BRIGHTNESS CONTROL (Управление яркостью)
-   =============================================== */
-// ВАЖНО: Подсветка UEDX48480021 управляется через Active LOW на GPIO7
-#define BRIGHTNESS_PIN 255                // Не используем стандартный пин яркости
-#define ENABLE_BRIGHTNESS_CONTROL         // Активирует управление яркостью в веб-интерфейсе
-
-/* ===============================================
-   GENERAL SETTINGS (Основные настройки)
-   =============================================== */
-#define PLAYER_FORCE_MONO false           // Моно режим (отключен)
-#define L10N_LANGUAGE RU                  // Язык интерфейса (русский)
-#define BITRATE_FULL  true                // Полный виджет битрейта
-
-/* ===============================================
-   SPECTRUM ANALYZER (Спектроанализатор)
-   =============================================== */
-// Выбор между VU-метром и спектроанализатором в настройках (usespectrum)
-#define SPECTRUM_USE_PSRAM     true       // Использовать PSRAM для FFT буферов
-#define SPECTRUM_BANDS         10         // Количество полос спектра (оптимизировано для круглого дисплея)
-#define SPECTRUM_FFT_SIZE      64         // Размер FFT
-#define SPECTRUM_SMOOTHING     0.90f      // Сглаживание (0.0-1.0, больше = плавнее)
-#define SPECTRUM_PEAK_HOLD_TIME 300.0f    // Время удержания пиков (мс)
-#define SPECTRUM_LOGARITHMIC   false      // Логарифмическая шкала частот
-#define SPECTRUM_STEREO        false      // Стерео режим (отключено - моно)
-#define SPECTRUM_GAIN          0.03f      // Общее усиление спектра (1.0 = без усиления)
-
-/* ===============================================
-   VU METER & DISPLAY WIDGETS (VU-метр и виджеты)
-   =============================================== */
-//#define HIDE_VU                         // Скрыть VU-метр (закомментировать для включения)
-#define BOOMBOX_STYLE                     // Стиль VU-метра (столбики вместо полос)
-#define CPU_LOAD                          // Виджет загрузки процессора
-//#define WAKE_PIN              255       // Пин пробуждения (не используется)
-
-/* ===============================================
-   SYSTEM & DEBUG (Система и отладка)
-   =============================================== */
-#define BATTERY_OFF                     // Отключить отображение батареи
-//#define PERFMON_DISABLED                // Отключить мониторинг производительности
-#define WDT_TIMEOUT 30                    // Таймаут сторожевого таймера (секунды)
+// IMPORTANT: To use GPIO4 (LRC) you must remove capacitor C9 from the board!
+#define I2S_DOUT     43      // I2S Data Out (GPIO43, UART TX1 on board)
+#define I2S_BCLK     44      // I2S Bit Clock (GPIO44, UART RX1 on board)
+#define I2S_LRC      4       // I2S Left/Right Clock (GPIO4, requires C9 removal)
 
 
 /* ===============================================
-   TOUCHSCREEN (Тачскрин)
+   DISABLED FEATURES
    =============================================== */
-// UEDX48480021-MD80ET использует CST826 
+#define VS1053_CS     255                 // Disable VS1053 (not used)
+//#define MUTE_PIN    255                 // Disable MUTE (not used)
+
+/* ===============================================
+   BRIGHTNESS CONTROL
+   =============================================== */
+// IMPORTANT: UEDX48480021 backlight is controlled via Active LOW on GPIO7
+#define BRIGHTNESS_PIN 255                // Don't use standard brightness pin
+#define ENABLE_BRIGHTNESS_CONTROL         // Enable brightness control in web interface
+
+// Auto-dimming (optional, see main.cpp for implementation)
+//#define AUTOBACKLIGHT(x)    *function*    // Autobacklight function. See options.h for example
+//#define AUTOBACKLIGHT_MAX     2500
+//#define AUTOBACKLIGHT_MIN     12
+//#define DOWN_LEVEL           50      // Lowest brightness level (0-255, default 2)
+//#define DOWN_INTERVAL        60      // Interval for backlight dimming in seconds (default 60)
+
+/* ===============================================
+   GENERAL SETTINGS
+   =============================================== */
+#define PLAYER_FORCE_MONO false           // Mono mode (disabled)
+#define L10N_LANGUAGE RU                  // Interface language (Russian)
+#define BITRATE_FULL  true                // Full bitrate widget
+
+/* ===============================================
+   SPECTRUM ANALYZER
+   =============================================== */
+// Switch between VU-meter and spectrum analyzer in settings (usespectrum)
+#define SPECTRUM_USE_PSRAM     true       // Use PSRAM for FFT buffers
+#define SPECTRUM_BANDS         10         // Number of spectrum bands (optimized for round display)
+#define SPECTRUM_FFT_SIZE      64         // FFT size
+#define SPECTRUM_SMOOTHING     0.90f      // Smoothing (0.0-1.0, higher = smoother)
+#define SPECTRUM_PEAK_HOLD_TIME 300.0f    // Peak hold time (ms)
+#define SPECTRUM_LOGARITHMIC   false      // Logarithmic frequency scale
+#define SPECTRUM_STEREO        false      // Stereo mode (disabled - mono)
+#define SPECTRUM_GAIN          0.03f      // Overall spectrum gain (1.0 = no gain)
+
+/* ===============================================
+   VU METER & DISPLAY WIDGETS
+   =============================================== */
+//#define HIDE_VU                         // Hide VU-meter (uncomment to enable)
+#define BOOMBOX_STYLE                     // VU-meter style (bars instead of strips)
+#define CPU_LOAD                          // CPU load widget
+//#define WAKE_PIN              255       // Wake pin (not used)
+
+/* ===============================================
+   SYSTEM & DEBUG
+   =============================================== */
+#define BATTERY_OFF                     // Disable battery display
+//#define PERFMON_DISABLED                // Disable performance monitoring
+#define WDT_TIMEOUT 30                    // Watchdog timeout (seconds)
 
 
-// CST826 для UEDX48480021-MD80ET:
+/* ===============================================
+   TOUCHSCREEN
+   =============================================== */
+// UEDX48480021-MD80ET uses CST826 
+
+
+// CST826 for UEDX48480021-MD80ET:
 #define TS_MODEL              TS_MODEL_CST826  // CST826 Capacitive I2C
 #define TS_SDA                16               // GPIO16
 #define TS_SCL                15               // GPIO15
-#define TS_INT                255              // Не используется
-#define TS_RST                255              // Не используется
+#define TS_INT                255              // Not used
+#define TS_RST                255              // Not used
 
 
 
-// Калибровка тачскрина (координаты):
-#define TS_X_MIN              0                  // Минимум X
-#define TS_X_MAX              480                // Максимум X
-#define TS_Y_MIN              0                  // Минимум Y
-#define TS_Y_MAX              480                // Максимум Y
+// Touchscreen calibration (coordinates):
+#define TS_X_MIN              0                  // X minimum
+#define TS_X_MAX              480                // X maximum
+#define TS_Y_MIN              0                  // Y minimum
+#define TS_Y_MAX              480                // Y maximum
 
 /* ===============================================
-   DEBUG (Отладка)
+   DEBUG
    =============================================== */
-//#define DEBUG_TOUCH                            // Отладка тачскрина
-//#define DEBUG_DISPLAY                          // Отладка дисплея
+//#define DEBUG_TOUCH                            // Touchscreen debug
+//#define DEBUG_DISPLAY                          // Display debug
 
 
 

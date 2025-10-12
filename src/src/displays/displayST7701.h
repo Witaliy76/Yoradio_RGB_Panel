@@ -66,7 +66,7 @@ public:
     void wake();
     void setBrightness(uint8_t brightness);
     
-    // Функция стабилизации RGB Panel
+    // RGB Panel stabilization function
     void stabilizeRGBPanel();
     
     void writePixel(int16_t x, int16_t y, uint16_t color);

@@ -110,18 +110,35 @@ void loop() {
   {
   if(network.status!=SOFT_AP)   {
     backlightTicker.detach();
-    current_brightness = map(config.store.brightness, 0, 100, 0, 255);
-    while(current_brightness > brightness_down_level) {
-        current_brightness -= 2;
-        if(current_brightness < brightness_down_level) current_brightness = brightness_down_level;
-        analogWrite(GFX_BL, current_brightness);
-        vTaskDelay(30);					                    }
+    #if DSP_MODEL==DSP_UEDX48480021
+      // UEDX48480021: Active LOW backlight - invert logic
+      current_brightness = map(config.store.brightness, 0, 100, 255, 0);
+      while(current_brightness < (255 - brightness_down_level)) {
+          current_brightness += 2;
+          if(current_brightness > (255 - brightness_down_level)) current_brightness = (255 - brightness_down_level);
+          analogWrite(GFX_BL, current_brightness);
+          vTaskDelay(30);					                    }
+    #else
+      // Standard backlight logic
+      current_brightness = map(config.store.brightness, 0, 100, 0, 255);
+      while(current_brightness > brightness_down_level) {
+          current_brightness -= 2;
+          if(current_brightness < brightness_down_level) current_brightness = brightness_down_level;
+          analogWrite(GFX_BL, current_brightness);
+          vTaskDelay(30);					                    }
+    #endif
 						                    }
   }
 
   void brightnessOn()          /* function Backlight ON */
   { backlightTicker.detach();
-    analogWrite(GFX_BL, map(config.store.brightness, 0, 100, 0, 255));
+    #if DSP_MODEL==DSP_UEDX48480021
+      // UEDX48480021: Active LOW backlight - invert mapping (same as display driver)
+      analogWrite(GFX_BL, map(config.store.brightness, 0, 100, 255, 0));
+    #else
+      // Standard backlight logic
+      analogWrite(GFX_BL, map(config.store.brightness, 0, 100, 0, 255));
+    #endif
     backlightTicker.attach(Out_Interval, backlightDown);
   }
 

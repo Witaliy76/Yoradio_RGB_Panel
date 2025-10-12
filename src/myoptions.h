@@ -74,6 +74,7 @@
 //#define AUTOBACKLIGHT_MIN     12
 //#define DOWN_LEVEL           50      // Lowest brightness level (0-255, default 2)
 //#define DOWN_INTERVAL        60      // Interval for backlight dimming in seconds (default 60)
+//#define GFX_BL      ST7701_BL  // Alias for autobacklight functions
 
 /* ===============================================
    GENERAL SETTINGS

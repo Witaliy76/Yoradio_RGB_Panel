@@ -13,3 +13,4 @@ docs/
 *.7z
 old/
 panel_vendor_files/
+.github/

@@ -203,7 +203,7 @@ uint16_t DspCore::textWidthGFX(const char *txt, uint8_t textsize) {
   return strlen(txt) * CHARWIDTH * textsize;
 }
 
-void DspCore::printPLitem(uint8_t pos, const char* item, ScrollWidget& current){
+void DspCore::printPLitem(uint8_t pos, const char* item, ScrollWidget& current, bool uppercase){
   if (!gfx) { Serial.println("[AXS15231B] gfx is nullptr! (printPLitem)"); return; }
   if (pos == plCurrentPos) {
     current.setText(item);

@@ -121,27 +121,29 @@ void AXS15231B_Touch::read() {
       return;
     }
 
-    uint16_t x = rawX;
-    uint16_t y = rawY;
+    // Swap X and Y axes / Меняем оси X и Y местами
+    uint16_t x = rawY;
+    uint16_t y = rawX;
     
-    if (x > 320) x = 320;
-    if (y > 480) y = 480;
+    if (x > 480) x = 480;
+    if (y > 320) y = 320;
     
     points[0] = TP_Point(0, x, y, (uint8_t)0);
 
-    // Обработка второго касания, если есть
+    // Обработка второго касания, если есть / Processing second touch if exists
     if (touches > 1) {
-      rawX = ((data[8] & 0x0F) << 8) | data[9];
-      rawY = ((data[10] & 0x0F) << 8) | data[11];
+      uint16_t rawX2 = ((data[8] & 0x0F) << 8) | data[9];
+      uint16_t rawY2 = ((data[10] & 0x0F) << 8) | data[11];
       
-      if (rawX != 273 && rawY != 273 && rawX <= 4000 && rawY <= 4000) {
-        x = rawX;
-        y = rawY;
+      if (rawX2 != 273 && rawY2 != 273 && rawX2 <= 4000 && rawY2 <= 4000) {
+        // Swap X and Y axes / Меняем оси X и Y местами
+        uint16_t x2 = rawY2;
+        uint16_t y2 = rawX2;
         
-        if (x > 320) x = 320;
-        if (y > 480) y = 480;
+        if (x2 > 480) x2 = 480;
+        if (y2 > 320) y2 = 320;
         
-        points[1] = TP_Point(1, x, y, (uint8_t)0);
+        points[1] = TP_Point(1, x2, y2, (uint8_t)0);
       } else {
         touches = 1;  // Если второе касание некорректное, считаем что касание одно
       }

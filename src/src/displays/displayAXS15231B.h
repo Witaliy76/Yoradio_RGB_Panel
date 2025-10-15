@@ -73,7 +73,7 @@ public:
     uint16_t textWidth(const char *txt);
     uint16_t textWidthN(const char *txt, int n);
     uint16_t textWidthGFX(const char *txt, uint8_t textsize);
-    void printPLitem(uint8_t pos, const char* item, ScrollWidget& current);
+    void printPLitem(uint8_t pos, const char* item, ScrollWidget& current, bool uppercase);
     void startWrite(void);
     void endWrite(void);
     uint8_t _charWidth(unsigned char c);

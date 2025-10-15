@@ -457,9 +457,11 @@ void TouchScreen::loop(){
             touchLongPress = millis();
             if(display.mode()==PLAYER || display.mode()==VOL){
               display.putRequest(NEWMODE, VOL);
-              // Влево-вправо для изменения громкости
+              // Влево-вправо для изменения громкости / Left-right for volume control
               #if TS_MODEL==TS_MODEL_CST826
               bool volumeUp = totalX > 0;  // CST826: totalX > 0 = вправо (громкость ВВЕРХ), totalX < 0 = влево (громкость ВНИЗ)
+              #elif TS_MODEL==TS_MODEL_AXS15231B
+              bool volumeUp = totalY > 0;  // AXS15231B: используем totalY (горизонталь после swap) для громкости
               #else
               bool volumeUp = totalX < 0;  // Другие модели: totalX < 0 = влево (громкость ВВЕРХ), totalX > 0 = вправо (громкость ВНИЗ)
               #endif

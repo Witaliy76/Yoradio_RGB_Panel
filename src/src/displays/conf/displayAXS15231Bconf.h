@@ -9,6 +9,7 @@
 #define displayAXS15231Bconf_h
 
 #include "../widgets/widgets.h"
+#include "../tools/spectrum_widget.h"
 
 // Определение для скрытия VU-метра (если нужно)
 // #define HIDE_VU
@@ -90,5 +91,26 @@ const char        bitrateFmt[]    PROGMEM = "%d kBs";
 const MoveConfig    clockMove     PROGMEM = { 0, 150, MAX_WIDTH /* MAX_WIDTH */ }; // -1 disables move
 const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
 const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
+
+/* SPECTRUM ANALYZER  */                 /* Spectrum analyzer config for AXS15231B (320x480) */
+const SpectrumWidgetConfig spectrumConf PROGMEM = {
+    .widget = {
+        .left = 10,           // Отступ слева / Left offset
+        .top = 250,           // Отступ сверху / Top offset
+        .textsize = 1,        // Размер текста (не используется) / Text size (not used)
+        .align = WA_LEFT      // Выравнивание (не используется) / Alignment (not used)
+    },
+    .width = 300,             // Ширина виджета / Widget width
+    .height = 120,            // Высота виджета / Widget height
+    .barWidth = 18,           // Ширина полосы / Bar width
+    .barGap = 2,              // Расстояние между полосами / Gap between bars
+    .orientation = 0,         // 0 - горизонтальный / 0 - horizontal
+    .showPeaks = true,        // Показывать пиковые значения / Show peaks
+    .showGrid = true,         // Показывать сетку / Show grid
+    .gridColor = 0x7BEF,      // Цвет сетки (серый) / Grid color (gray)
+    .barColor = 0x07E0,       // Цвет полос (зеленый) / Bar color (green)
+    .peakColor = 0xF800,      // Цвет пиков (красный) / Peak color (red)
+    .bgColor = 0x0000         // Цвет фона (черный) / Background color (black)
+};
 
 #endif

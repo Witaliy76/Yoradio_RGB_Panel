@@ -185,7 +185,7 @@ void Display::_buildPager(){
   #endif
   // Создаём оба виджета; их активность управляется в рантайме
   #if DSP_MODEL==DSP_AXS15231B
-    #include "../displays/conf/spectrum_axs15231b.h"
+    // spectrumConf теперь определена в displayAXS15231Bconf.h
     _spectrumwidget = new SpectrumWidget(spectrumConf);
   #elif DSP_MODEL==DSP_ST7701
     // spectrumConf теперь определена в displayST7701conf.h

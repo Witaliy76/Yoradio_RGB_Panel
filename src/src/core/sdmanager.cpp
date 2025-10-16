@@ -4,61 +4,54 @@
 #include "sdmanager.h"
 #include "display.h"
 #include "player.h"
-#include "sd_spi_config.h"
 
-// Используем новую конфигурацию SPI
-#define SDREALSPI (*SDSPIConfig::getSPI())
+#if defined(SD_SPIPINS) || SD_HSPI
+SPIClass  SDSPI(HOOPSENb);
+#define SDREALSPI SDSPI
+#else
+  #define SDREALSPI SPI
+#endif
+
+#ifndef SDSPISPEED
+  #define SDSPISPEED 20000000
+#endif
 
 SDManager sdman(FSImplPtr(new VFSImpl()));
 
 bool SDManager::start(){
+  // ПРОВЕРКА ПАМЯТИ ПЕРЕД ИНИЦИАЛИЗАЦИЕЙ SD
+  size_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < 100000) {  // Только критические уровни памяти
+    Serial.printf("##[CRITICAL]# SDManager: CRITICAL MEMORY before SD init! Only %u bytes free\n", freeHeap);
+    heap_caps_check_integrity_all(true);
+    delay(10);
+    freeHeap = ESP.getFreeHeap();
+    Serial.printf("##[DEBUG]# SDManager: After cleanup: %u bytes free\n", freeHeap);
+  }
+  
   if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {
     return false;
   }
   
-  // Инициализация SPI шины для SD карты
-  if (!SDSPIConfig::init()) {
-    Serial.println("❌ Failed to initialize SD SPI bus");
-    xSemaphoreGive(sdMutex);
-    return false;
+  // Явная инициализация SPI-шины и подготовка CS
+  if (SDC_CS != 255) {
+    pinMode(SDC_CS, OUTPUT);
+    digitalWrite(SDC_CS, HIGH); // снять выбор устройства на время настройки SPI
   }
-  
-  // Диагностика при включенной отладке
-  #ifdef SD_DEBUG_ENABLED
-    Serial.println("=== SD Card Configuration ===");
-    Serial.printf("  USE_SD: enabled\n");
-    Serial.printf("  SD_DEBUG_ENABLED: enabled\n");
-    Serial.printf("  SD_HSPI: enabled\n");
-    Serial.println();
-    
-    Serial.println("=== SD Card Pin Status ===");
-    Serial.printf("  CS: GPIO%d (Chip Select)\n", SDC_CS);
-    Serial.printf("  SCK: GPIO%d (Clock)\n", SD_SCK);
-    Serial.printf("  MISO: GPIO%d (Data In)\n", SD_MISO);
-    Serial.printf("  MOSI: GPIO%d (Data Out)\n", SD_MOSI);
-    Serial.printf("  SPI Speed: %d Hz\n", SDSPISPEED);
-    Serial.printf("  HSPI: %s\n", SD_HSPI ? "true" : "false");
-    Serial.println();
-  #endif
-  
-  // Попытки инициализации SD карты с повторными попытками
+
+#ifdef SD_SPIPINS
+  // Инициализируем шину с указанными пинами (SCK, MISO, MOSI)
+  SDREALSPI.begin(SD_SPIPINS);
+#elif SD_HSPI
+  // Инициализация шины по умолчанию для выбранного хоста
+  SDREALSPI.begin();
+#endif
+
   ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
   vTaskDelay(10);
-  if(!ready) {
-    Serial.println("⚠️  First SD init attempt failed, retrying...");
-    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
-  }
+  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
   vTaskDelay(10);
-  if(!ready) {
-    Serial.println("⚠️  Second SD init attempt failed, retrying...");
-    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
-  }
-  
-  if (ready) {
-    Serial.println("✅ SD card initialized successfully");
-  } else {
-    Serial.println("❌ SD card initialization failed");
-  }
+  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
   
   xSemaphoreGive(sdMutex);
   return ready;
@@ -72,18 +65,19 @@ void SDManager::stop(){
   end();
   ready = false;
   
-  // Завершение работы SPI шины
-  SDSPIConfig::deinit();
-  
-  #ifdef SD_DEBUG_ENABLED
-    Serial.println("🔄 SD card stopped and SPI bus deinitialized");
-  #endif
-  
   xSemaphoreGive(sdMutex);
 }
 
 #include "diskio_impl.h"
 bool SDManager::cardPresent() {
+  // ПРОВЕРКА ПАМЯТИ ПЕРЕД ПРОВЕРКОЙ SD
+  size_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < 100000) {  // Только критические уровни памяти
+    Serial.printf("##[CRITICAL]# SDManager: CRITICAL MEMORY in cardPresent! Only %u bytes free\n", freeHeap);
+    heap_caps_check_integrity_all(true);
+    delay(5);
+  }
+  
   if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {
     return false;
   }
@@ -141,16 +135,43 @@ bool SDManager::_endsWith (const char* base, const char* str) {
 }
 
 void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uint8_t levels) {
+    // ПРОВЕРКА ПАМЯТИ ПЕРЕД ОТКРЫТИЕМ SD
+    size_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < 100000) {  // Только критические уровни памяти
+        Serial.printf("##[CRITICAL]# SDManager: CRITICAL MEMORY! Only %u bytes free\n", freeHeap);
+        // Принудительная очистка памяти
+        heap_caps_check_integrity_all(true);
+        delay(5);
+        
+        // ДОПОЛНИТЕЛЬНАЯ ОЧИСТКА ПАМЯТИ
+        if (freeHeap < 80000) {  // Экстренная ситуация
+            Serial.printf("##[EMERGENCY]# SDManager: EMERGENCY MEMORY CLEANUP!\n");
+            // Множественная очистка heap
+            for (int i = 0; i < 3; i++) {
+                heap_caps_check_integrity_all(true);
+                delay(5);
+                ESP.getFreeHeap();  // Триггер сборки мусора
+                delay(3);
+            }
+            Serial.printf("##[DEBUG]# SDManager: Emergency cleanup completed\n");
+        }
+        
+        freeHeap = ESP.getFreeHeap();
+        Serial.printf("##[DEBUG]# SDManager: After cleanup: %u bytes free\n", freeHeap);
+    }
+    
     if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {
         return;
     }
     
     File root = sdman.open(dirname);
     if (!root) {
+        Serial.println("##[ERROR]#\tFailed to open directory");
         xSemaphoreGive(sdMutex);
         return;
     }
     if (!root.isDirectory()) {
+        Serial.println("##[ERROR]#\tNot a directory");
         xSemaphoreGive(sdMutex);
         return;
     }
@@ -163,15 +184,15 @@ void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uin
         bool isDir;
         String fileName = root.getNextFileName(&isDir);
         if (fileName.isEmpty()) break;
-        
         filePath = (char*)malloc(fileName.length() + 1);
         if (filePath == NULL) {
+            Serial.println("Memory allocation failed");
             break;
         }
         strcpy(filePath, fileName.c_str());
         const char* fn = strrchr(filePath, '/') + 1;
         if (isDir) {
-            if (levels && !_checkNoMedia(filePath, true)) {
+            if (levels && !_checkNoMedia(filePath, true)) { // Передаем true - mutex уже захвачен
                 xSemaphoreGive(sdMutex);  // Освобождаем перед рекурсией
                 listSD(plSDfile, plSDindex, filePath, levels - 1);
                 if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {

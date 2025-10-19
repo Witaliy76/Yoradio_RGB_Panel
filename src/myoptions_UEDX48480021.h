@@ -12,6 +12,10 @@
 #ifndef myoptions_h
 #define myoptions_h
 
+/* Audio library debug level / Уровень отладки аудиобиблиотеки */
+/* 0=no debug, 1=error, 2=warn, 3=info, 4=debug, 5=verbose */
+#define CORE_DEBUG_LEVEL 0
+
 /* Display */
 // New module UEDX48480021-MD80ET (ST7701S RGB 480x480 2.1")
 #define DSP_MODEL DSP_UEDX48480021

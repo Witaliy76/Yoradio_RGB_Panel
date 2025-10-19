@@ -11,6 +11,10 @@
 #ifndef myoptions_h
 #define myoptions_h
 
+/* Audio library debug level / Уровень отладки аудиобиблиотеки */
+/* 0=no debug, 1=error, 2=warn, 3=info, 4=debug, 5=verbose */
+#define CORE_DEBUG_LEVEL 0
+
 /* ===============================================
    DISPLAY
    =============================================== */
@@ -116,21 +120,22 @@
 /* ===============================================
    SD CARD
    =============================================== */
-// SD card support enabled for ESP32-4848S040
-#define USE_SD                              // Enable SD card support
-// Note: MISO = D0, MOSI = D1
+// SD card support DISABLED for ESP32-4848S040
+// SD card did not work properly on this board
 // SD pins according to ESP32-4848S040 schematic:
 //   io42 - TF(D3) - Chip Select
 //   io47 - SPICLK_P - MOSI (Master Out Slave In)
 //   io48 - SPICLK_N - SCK (Clock)
 //   io41 - TF(D1) - MISO (Master In Slave Out)
-#define SDC_CS        42                    // Chip Select
-#define SD_SCK        48                    // SCK pin
-#define SD_MISO       41                    // MISO pin
-#define SD_MOSI       47                    // MOSI pin
-#define SD_HSPI       true                  // Use HSPI to avoid conflicts
-#define SD_DEBUG_ENABLED true               // SD card debug
-#define SDSPISPEED    20000000              // SPI speed (20 MHz)
+// Note: SD card functionality is not implemented for this board
+//#define USE_SD                              // SD card support disabled
+//#define SDC_CS        42                    // Chip Select
+//#define SD_SCK        48                    // SCK pin
+//#define SD_MISO       41                    // MISO pin
+//#define SD_MOSI       47                    // MOSI pin
+//#define SD_HSPI       true                  // Use HSPI to avoid conflicts
+//#define SD_DEBUG_ENABLED true               // SD card debug
+//#define SDSPISPEED    20000000              // SPI speed (20 MHz)
 
 /* ===============================================
    TOUCHSCREEN

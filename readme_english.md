@@ -28,11 +28,12 @@ Differences from original Yoradio:
 6. **Format support** — OGG, OPUS, VORBIS, FLAC streams.
 7. **Auto-dimming** — widget in `main.cpp` (AUTOBACKLIGHT settings in `myoptions.h`).
 8. **Battery** — code built into display files, activated by uncommenting `#define BATTERY_OFF` (for UEDX48480021 requires free pins).
-9. **Updated libraries** — AudioI2S from Wolle (schreibfaul1) & Maleksm, Version 3.3.2r.
+9. **Updated libraries** — AudioI2S from Wolle (schreibfaul1) & Maleksm, Version 3.4.2p.
 10. **Many bugfixes** — stability and performance improvements.
 
 ### Changelog
 
+- 19.10.2025 — Updated audioI2S library from version 3.3.2r to 3.4.2p. Improved logging system, added NetworkClient support, updated all decoders (AAC, FLAC, MP3, Opus, Vorbis). 
 - 12.10.2025 — Project created. Added boards 4848S040 and UEDX48480021‑MD80ET.
 
 ### Important notes

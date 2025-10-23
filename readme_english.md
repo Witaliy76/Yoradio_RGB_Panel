@@ -33,6 +33,7 @@ Differences from original Yoradio:
 
 ### Changelog
 
+- 23.10.2025 — Updated liblwip.a and libesp_netif.a libraries for ESP-IDF 5.5 (stable). Optimized LwIP parameters to improve audio streaming stability and web server functionality. Libraries in `library!/esp32s3_5.5_stable/`. 
 - 19.10.2025 — Updated audioI2S library from version 3.3.2r to 3.4.2p. Improved logging system, added NetworkClient support, updated all decoders (AAC, FLAC, MP3, Opus, Vorbis). 
 - 12.10.2025 — Project created. Added boards 4848S040 and UEDX48480021‑MD80ET.
 
@@ -40,12 +41,12 @@ Differences from original Yoradio:
 
 - Russian font: replace `.pio/libdeps/<env>/GFX Library for Arduino/src/font/glcdfont.h` with the file from `fonts/glcdfont.h` (where `<env>` is the PlatformIO environment).
 
-- High bitrate radio stability: replace IDF libs with prebuilt ones from `library!/esp32s3_5.4/`:
+- High bitrate radio stability: replace IDF libs with prebuilt ones from `library!/esp32s3_5.5_stable/`:
   - `libesp_netif.a`
   - `liblwip.a`
   - Copy to (Windows): `%USERPROFILE%\.platformio\packages\framework-arduinoespressif32-libs\esp32s3\lib\`
-  - Supported: ESP‑IDF 5.4 / 5.5. Restart PlatformIO and rebuild after replacing.
-
+  - Version: ESP-IDF 5.5 (stable, commit 07e9bf4970). Restart PlatformIO and rebuild after replacing.
+  
 - First boot / after erase flash: screen can stay black for ~60 seconds (FS init). This is normal — just wait.
 
 - How to work with the project: follow the original `e2002/yoradio` docs and examples.

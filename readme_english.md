@@ -16,6 +16,11 @@
 - [How to connect this board to the project →](README_UEDX48480021_english.md)
 - ![photo](https://github.com/user-attachments/assets/360799e8-da95-4c77-8ad9-c10b85be3855)
 
+#### JC3248W535C (AXS15231B, 320x480, 3.5")
+- [AliExpress link](https://aliexpress.ru/item/1005007566332450.html)
+- [How to connect this board to the project →](README_JC3248W535C_english.md)
+- ![placeholder](https://via.placeholder.com/300x400?text=JC3248W535C)
+
 ### Project Features
 
 Differences from original Yoradio:
@@ -33,6 +38,7 @@ Differences from original Yoradio:
 
 ### Changelog
 
+- 23.10.2025 — Added support for JC3248W535C board (AXS15231B QSPI, 320x480, 3.5").
 - 23.10.2025 — Updated liblwip.a and libesp_netif.a libraries for ESP-IDF 5.5 (stable). Optimized LwIP parameters to improve audio streaming stability and web server functionality. Libraries in `library!/esp32s3_5.5_stable/`. 
 - 19.10.2025 — Updated audioI2S library from version 3.3.2r to 3.4.2p. Improved logging system, added NetworkClient support, updated all decoders (AAC, FLAC, MP3, Opus, Vorbis). 
 - 12.10.2025 — Project created. Added boards 4848S040 and UEDX48480021‑MD80ET.

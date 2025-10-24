@@ -550,16 +550,7 @@ void Display::loop() {
   }
   // Разрешаем loop при bootStep==1 для анимации / Allow loop at bootStep==1 for animation
   if(displayQueue==NULL && _bootStep!=1) return;
-  _pager.loop();
-  // Упрощенное условие - без хака _bootStep==1 / Simplified condition without _bootStep==1 hack
-  if(!_suspendFlush){
-    sdog.takeMutex();
-    gfxFlushScreen(gfx);
-    sdog.giveMutex();
-  }
-#ifdef USE_NEXTION
-  nextion.loop();
-#endif
+  // Сначала обработаем входящие запросы рендера, затем нарисуем и выполнем flush
   requestParams_t request;
   if(xQueueReceive(displayQueue, &request, DSP_QUEUE_TICKS)){
     bool pm_result = true;
@@ -643,6 +634,16 @@ void Display::loop() {
         default: break;
       }
   }
+  _pager.loop();
+  // Упрощенное условие - без хака _bootStep==1 / Simplified condition without _bootStep==1 hack
+  if(!_suspendFlush){
+    sdog.takeMutex();
+    gfxFlushScreen(gfx);
+    sdog.giveMutex();
+  }
+#ifdef USE_NEXTION
+  nextion.loop();
+#endif
   dsp.loop();
   #if I2S_DOUT==255
   player.computeVUlevel();

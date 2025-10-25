@@ -44,6 +44,7 @@ Differences from original Yoradio:
   - Updated liblwip.a and libesp_netif.a for ESP‑IDF 5.5 (stable), LwIP optimizations.
   - Updated audioI2S to 3.4.2p (logging improvements, NetworkClient, decoders updates).
   - Improved touchscreen handling: DEBUG_TOUCH via web interface, false click protection after swipes, proper multi-touch SD card detection.
+  - Added SPECTRUM_GRADIENT option: QSPI displays use solid colors, RGB Panels use smooth gradients.
 - 12.10.2025 — Project created. Added boards 4848S040 and UEDX48480021‑MD80ET.
 
 ### Important notes

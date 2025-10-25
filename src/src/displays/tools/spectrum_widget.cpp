@@ -135,38 +135,56 @@ void SpectrumWidget::_drawBar(uint16_t x, uint16_t width, uint16_t barHeight, fl
         barHeight = _config.height;
     }
     
-    // Рисуем столбик с красивым градиентом для RGB Panel
+    // Рисуем столбик
     if (gfx) {
-        // Создаем градиент от темного к яркому для каждой полосы
-        for (uint16_t y = 0; y < barHeight; y++) {
-            // Вычисляем прогресс по высоте (0.0 - 1.0)
-            float progress = (float)y / barHeight;
-            
-            // Применяем нелинейную кривую для более естественного градиента
-            float gradientProgress = pow(progress, 0.7f);
-            
-            // Базовый цвет в зависимости от высоты
-            uint16_t baseColor;
+        #if SPECTRUM_GRADIENT
+            // Градиентная заливка для RGB Panel (плавные переходы цветов)
+            // Создаем градиент от темного к яркому для каждой полосы
+            for (uint16_t y = 0; y < barHeight; y++) {
+                // Вычисляем прогресс по высоте (0.0 - 1.0)
+                float progress = (float)y / barHeight;
+                
+                // Применяем нелинейную кривую для более естественного градиента
+                float gradientProgress = pow(progress, 0.7f);
+                
+                // Базовый цвет в зависимости от высоты
+                uint16_t baseColor;
+                float heightPercent = (float)barHeight / _config.height;
+                
+                if (heightPercent > 0.85f) { // Верхние 15% - красный
+                    baseColor = _peakColor;
+                } else if (heightPercent > 0.60f) { // От 60% до 85% - оранжевый
+                    baseColor = 0xFD20; // Красивый оранжевый
+                } else if (heightPercent > 0.35f) { // От 35% до 60% - желтый
+                    baseColor = 0xFFE0; // Яркий желтый
+                } else { // До 35% - зеленый
+                    baseColor = _barColor;
+                }
+                
+                // Применяем градиент с затемнением внизу и осветлением вверху
+                uint16_t gradientColor = _applyGradient(baseColor, gradientProgress);
+                
+                // Рисуем одну линию градиента
+                gfxDrawLine(gfx, x, baseY + y, x + width - 1, baseY + y, gradientColor);
+            }
+        #else
+            // Простая заливка SOLID цветом (быстро, четко для QSPI)
+            // Выбираем цвет в зависимости от высоты столбика
+            uint16_t barColor = _barColor; // Зеленый по умолчанию
             float heightPercent = (float)barHeight / _config.height;
             
-            if (heightPercent > 0.85f) { // Верхние 15% - красный
-                baseColor = _peakColor;
-            } else if (heightPercent > 0.60f) { // От 60% до 85% - оранжевый
-                baseColor = 0xFD20; // Красивый оранжевый
-            } else if (heightPercent > 0.35f) { // От 35% до 60% - желтый
-                baseColor = 0xFFE0; // Яркий желтый
-            } else { // До 35% - зеленый
-                baseColor = _barColor;
+            if (heightPercent > 0.90f) {       // Верхние 10% - красный
+                barColor = _peakColor;         // Красный
+            } else if (heightPercent > 0.50f) { // От 50% до 90% - желтый
+                barColor = 0xFFE0;             // Желтый
             }
+            // До 50% остается зеленый (_barColor)
             
-            // Применяем градиент с затемнением внизу и осветлением вверху
-            uint16_t gradientColor = _applyGradient(baseColor, gradientProgress);
-            
-            // Рисуем одну линию градиента
-            gfxDrawLine(gfx, x, baseY + y, x + width - 1, baseY + y, gradientColor);
-        }
+            // Рисуем столбик одним цветом
+            gfxFillRect(gfx, x, baseY, width, barHeight, barColor);
+        #endif
 
-        // Рисуем пиковое значение если включено для RGB Panel
+        // Рисуем пиковое значение если включено
         if (_showPeaks && peak > value) {
             uint16_t peakHeight = (uint16_t)(peak * _config.height);
             if (peakHeight < 1) peakHeight = 1;
@@ -174,11 +192,10 @@ void SpectrumWidget::_drawBar(uint16_t x, uint16_t width, uint16_t barHeight, fl
 
             uint16_t peakY = _config.widget.top + _config.height - peakHeight;
 
-            // Рисуем толстую линию пика для RGB Panel
-            // Основная горизонтальная линия для RGB Panel
+            // Рисуем толстую линию пика
             gfxDrawLine(gfx, x, peakY, x + width, peakY, _peakColor);
 
-            // Дополнительные линии для толщины на RGB Panel
+            // Дополнительные линии для толщины
             if (peakY > 0) {
                 gfxDrawLine(gfx, x, peakY - 1, x + width, peakY - 1, _peakColor);
             }
@@ -186,7 +203,7 @@ void SpectrumWidget::_drawBar(uint16_t x, uint16_t width, uint16_t barHeight, fl
                 gfxDrawLine(gfx, x, peakY + 1, x + width, peakY + 1, _peakColor);
             }
 
-            // Вертикальные линии по краям для лучшей видимости на RGB Panel
+            // Вертикальные линии по краям для лучшей видимости
             if (width > 2) {
                 gfxDrawLine(gfx, x, peakY - 1, x, peakY + 1, _peakColor);
                 gfxDrawLine(gfx, x + width - 1, peakY - 1, x + width - 1, peakY + 1, _peakColor);

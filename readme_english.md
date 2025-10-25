@@ -16,6 +16,11 @@
 - [How to connect this board to the project →](README_UEDX48480021_english.md)
 - ![photo](https://github.com/user-attachments/assets/360799e8-da95-4c77-8ad9-c10b85be3855)
 
+#### JC3248W535C (AXS15231B, 320x480, 3.5")
+- [AliExpress link](https://aliexpress.ru/item/1005007566332450.html)
+- [How to connect this board to the project →](README_JC3248W535C_english.md)
+- ![placeholder](https://via.placeholder.com/300x400?text=JC3248W535C)
+
 ### Project Features
 
 Differences from original Yoradio:
@@ -33,19 +38,25 @@ Differences from original Yoradio:
 
 ### Changelog
 
-- 19.10.2025 — Updated audioI2S library from version 3.3.2r to 3.4.2p. Improved logging system, added NetworkClient support, updated all decoders (AAC, FLAC, MP3, Opus, Vorbis). 
+- 25.10.2025
+  - Fixed: Wi‑Fi boot screen status updates and robust multi‑SSID iteration.
+  - Added support for JC3248W535C board (AXS15231B QSPI, 320x480, 3.5").
+  - Updated liblwip.a and libesp_netif.a for ESP‑IDF 5.5 (stable), LwIP optimizations.
+  - Updated audioI2S to 3.4.2p (logging improvements, NetworkClient, decoders updates).
+  - Improved touchscreen handling: DEBUG_TOUCH via web interface, false click protection after swipes, proper multi-touch SD card detection.
+  - Added SPECTRUM_GRADIENT option: QSPI displays use solid colors, RGB Panels use smooth gradients.
 - 12.10.2025 — Project created. Added boards 4848S040 and UEDX48480021‑MD80ET.
 
 ### Important notes
 
 - Russian font: replace `.pio/libdeps/<env>/GFX Library for Arduino/src/font/glcdfont.h` with the file from `fonts/glcdfont.h` (where `<env>` is the PlatformIO environment).
 
-- High bitrate radio stability: replace IDF libs with prebuilt ones from `library!/esp32s3_5.4/`:
+- High bitrate radio stability: replace IDF libs with prebuilt ones from `library!/esp32s3_5.5_stable/`:
   - `libesp_netif.a`
   - `liblwip.a`
   - Copy to (Windows): `%USERPROFILE%\.platformio\packages\framework-arduinoespressif32-libs\esp32s3\lib\`
-  - Supported: ESP‑IDF 5.4 / 5.5. Restart PlatformIO and rebuild after replacing.
-
+  - Version: ESP-IDF 5.5 (stable, commit 07e9bf4970). Restart PlatformIO and rebuild after replacing.
+  
 - First boot / after erase flash: screen can stay black for ~60 seconds (FS init). This is normal — just wait.
 
 - How to work with the project: follow the original `e2002/yoradio` docs and examples.

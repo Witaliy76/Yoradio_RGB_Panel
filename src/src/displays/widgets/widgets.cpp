@@ -115,13 +115,17 @@ void TextWidget::_addToCache(const char* txt, char* value) {
         // Удаляем самый старый элемент
         TextCache* old = _textCache;
         _textCache = _textCache->next;
-        free(old->value);
+    if (old->value) free(old->value);
+    if (old->key) free((void*)old->key);
         delete old;
         _cacheSize--;
     }
     
     // Добавляем новый элемент в начало списка
-    TextCache* newCache = new TextCache(txt, value);
+  TextCache* newCache = new TextCache(nullptr, value);
+  // Дублируем ключ, чтобы не зависеть от временных буферов
+  char* keyCopy = strdup(txt);
+  newCache->key = keyCopy;
     newCache->next = _textCache;
     _textCache = newCache;
     _cacheSize++;
@@ -131,7 +135,8 @@ void TextWidget::_clearCache() {
     while (_textCache) {
         TextCache* current = _textCache;
         _textCache = _textCache->next;
-        free(current->value);
+    if (current->value) free(current->value);
+    if (current->key) free((void*)current->key);
         delete current;
     }
     _cacheSize = 0;
@@ -191,6 +196,8 @@ void TextWidget::setText(const char* txt) {
     
     _oldtextwidth = _textwidth;
     _oldleft = _realLeft();
+    // Зафиксируем текущее значение для сравнения при следующем обновлении
+    strlcpy(_oldtext, _text, _buffsize);
     if (_active) loop();
 }
 

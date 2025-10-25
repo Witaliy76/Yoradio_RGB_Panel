@@ -100,6 +100,7 @@
 #define SPECTRUM_LOGARITHMIC   false      // Logarithmic frequency scale
 #define SPECTRUM_STEREO        false       // Stereo mode
 #define SPECTRUM_GAIN          0.03f      // Overall spectrum gain (1.0 = no gain)
+#define SPECTRUM_GRADIENT      true       // Gradient fill (true = smooth gradients for RGB Panel)
 
 /* ===============================================
    VU METER & DISPLAY WIDGETS

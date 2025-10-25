@@ -136,6 +136,9 @@ bool MyNetwork::wifiBegin(bool silent){
   uint8_t startedls = ls;
   uint8_t errcnt = 0;
   WiFi.mode(WIFI_STA);
+  // На время перебора сетей отключим авто-переподключение,
+  // чтобы избегать состояния ESP_ERR_WIFI_STATE при смене SSID
+  WiFi.setAutoReconnect(false);
   /*
   char buf[MDNS_LENGTH];
   WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
@@ -152,6 +155,9 @@ bool MyNetwork::wifiBegin(bool silent){
       Serial.print("##[BOOT]#\t");
       display.putRequest(BOOTSTRING, ls);
     }
+    // Безопасно разорвём предыдущее соединение перед новой попыткой
+    WiFi.disconnect(true);
+    delay(100);
     WiFi.begin(config.ssids[ls].ssid, config.ssids[ls].password);
     while (WiFi.status() != WL_CONNECTED) {
       if(!silent) Serial.print(".");
@@ -160,17 +166,28 @@ bool MyNetwork::wifiBegin(bool silent){
       errcnt++;
       if (errcnt > WIFI_ATTEMPTS) {
         errcnt = 0;
+        // Переходим к следующему SSID
         ls++;
         if (ls > config.ssidsCount - 1) ls = 0;
         if(!silent) Serial.println();
+        // Обновим надпись немедленно для следующей сети
+        if(!silent){
+          Serial.printf("##[BOOT]#\tSwitching to %s\n", config.ssids[ls].ssid);
+          Serial.print("##[BOOT]#\t");
+          display.putRequest(BOOTSTRING, ls);
+        }
         break;
       }
     }
     if (WiFi.status() != WL_CONNECTED && ls == startedls) {
+      // Вернём поведение авто‑reconnect в исходное состояние
+      WiFi.setAutoReconnect(true);
       return false; break;
     }
     if (WiFi.status() == WL_CONNECTED) {
       config.setLastSSID(ls + 1);
+      // После успешного подключения включаем авто‑reconnect
+      WiFi.setAutoReconnect(true);
       return true; break;
     }
   }

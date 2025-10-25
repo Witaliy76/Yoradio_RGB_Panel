@@ -95,8 +95,14 @@ static TaskHandle_t _async_service_task_handle = NULL;
 
 
 SemaphoreHandle_t _slots_lock;
-const int _number_of_closed_slots = CONFIG_LWIP_MAX_ACTIVE_TCP;
-static uint32_t _closed_slots[_number_of_closed_slots];
+// Ограничиваем размер массива для экономии памяти / Limit array size to save memory
+// Вместо CONFIG_LWIP_MAX_ACTIVE_TCP (может быть 512!) используем фиксированный размер
+// Instead of CONFIG_LWIP_MAX_ACTIVE_TCP (can be 512!) use fixed size
+#ifndef MAX_ASYNC_TCP_SLOTS
+  #define MAX_ASYNC_TCP_SLOTS 64  // достаточно для большинства случаев / enough for most cases
+#endif
+const int _number_of_closed_slots = (CONFIG_LWIP_MAX_ACTIVE_TCP < MAX_ASYNC_TCP_SLOTS) ? CONFIG_LWIP_MAX_ACTIVE_TCP : MAX_ASYNC_TCP_SLOTS;
+static uint32_t _closed_slots[MAX_ASYNC_TCP_SLOTS];
 static uint32_t _closed_index = []() {
     _slots_lock = xSemaphoreCreateBinary();
     xSemaphoreGive(_slots_lock);

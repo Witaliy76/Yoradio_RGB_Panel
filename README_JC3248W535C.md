@@ -11,13 +11,10 @@
 2) Фото рабочего dev board
 
 <!-- Placeholder for photos - add your photos here -->
-- ![photo1_placeholder](https://via.placeholder.com/800x600?text=JC3248W535C+Photo+1)
-- ![photo2_placeholder](https://via.placeholder.com/800x600?text=JC3248W535C+Photo+2)
+- ![photo_2025-10-25_18-32-20](https://github.com/user-attachments/assets/8dd98024-9b3c-490f-a7c8-43c08ae6ef10)
+- ![535_back](https://github.com/user-attachments/assets/63f8773d-4c97-45d0-a80b-8a596d22d3a4)
 
-<!-- Uncomment and replace with actual photo URLs when ready:
-- ![photo1](URL_TO_PHOTO_1)
-- ![photo2](URL_TO_PHOTO_2)
--->
+
 
 3) Лог изменений
 
@@ -106,6 +103,11 @@ CPU Load Widget
 - Виджет загрузки процессора (усреднение по двум ядрам).
 - Отображается в режиме плеера.
 - Для отключения закомментируйте `#define CPU_LOAD` в `myoptions.h`.
+
+Электрическая схема 
+
+- <img width="1414" height="850" alt="JC3248W535-2" src="https://github.com/user-attachments/assets/9db10787-32ca-49b5-98c5-666e38c4c78b" />
+- <img width="1383" height="856" alt="JC4827W543-1" src="https://github.com/user-attachments/assets/ff23e1ba-4d69-4e93-8127-b347c2fa4ae8" />
 
 Заключение
 

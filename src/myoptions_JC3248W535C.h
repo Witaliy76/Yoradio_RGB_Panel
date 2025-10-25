@@ -16,7 +16,7 @@
 
 /* Audio library debug level / Уровень отладки аудиобиблиотеки */
 /* 0=no debug, 1=error, 2=warn, 3=info, 4=debug, 5=verbose */
-#define CORE_DEBUG_LEVEL 0
+#define CORE_DEBUG_LEVEL 3
 
 /* ===============================================
    DISPLAY
@@ -83,6 +83,7 @@
 #define SPECTRUM_STEREO        false         // Stereo mode (disabled - mono)
 #define SPECTRUM_REPLACE_VU    true          // Replace VU-meter with Spectrum Analyzer
 #define SPECTRUM_GAIN          0.06f         // Overall spectrum gain (1.0 = no gain)
+#define SPECTRUM_GRADIENT      false         // Gradient fill (false = solid colors, better for QSPI)
 
 /* ===============================================
    VU METER & DISPLAY WIDGETS
@@ -123,8 +124,7 @@
    SD CARD
    =============================================== */
 // SD card support (HSPI)
-#define USE_SD                               // Enable SD card support
-#define SDC_CS           10                  // SD Card Chip Select
+#define SDC_CS           10                  // SD Card Chip Select IF you wont use SD Card - use SDC_CS=255
 #define SD_SPIPINS       12, 13, 11          // SCK, MISO, MOSI
 #define SD_HSPI          true                // Use HSPI (SCK=14, MISO=12, MOSI=13) instead of VSPI
 
@@ -195,6 +195,6 @@
 //#define DSP_INVERT_TITLE false             // Invert station title colors
 //#define EXT_WEATHER      false             // Extended weather display
 
-#define DEBUG_TOUCH                          // Enable touchscreen debug output
+//#define DEBUG_TOUCH                          // Enable touchscreen debug output
 
 #endif

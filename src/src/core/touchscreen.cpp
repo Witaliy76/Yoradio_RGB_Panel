@@ -103,6 +103,21 @@
  * MOVEMENT_HISTORY_SIZE (3) - количество точек для сглаживания движения
  *    - Большее значение: более плавное, но медленное срабатывание
  *    - Меньшее значение: более быстрое, но менее плавное срабатывание
+ * 
+ * SWIPE_CLICK_COOLDOWN (400) - задержка после свайпа перед распознаванием клика (мс)
+ *    - Защита от случайного клика сразу после свайпа
+ *    - Если касание произошло раньше этого времени - оно игнорируется полностью
+ *    - Увеличьте значение если часто происходят ложные клики после свайпа
+ * 
+ * SWIPE_PROXIMITY_TIME (600) - время проверки близости к концу свайпа (мс)
+ *    - После свайпа дополнительно игнорируются касания близко к точке окончания
+ *    - Работает совместно с SWIPE_PROXIMITY_DIST
+ *    - Защищает от медленного листания с кликом в конце
+ * 
+ * SWIPE_PROXIMITY_DIST (100) - радиус защиты от касания у конца свайпа (пиксели)
+ *    - Касания в этом радиусе игнорируются в течение SWIPE_PROXIMITY_TIME
+ *    - Если слишком агрессивно - уменьшите расстояние
+ *    - Если недостаточно - увеличьте время или расстояние
  */
 
 // Определения констант
@@ -113,6 +128,9 @@
 #define SWIPE_ANGLE_THRESHOLD  22.5  // Угол для определения направления
 #define MOVEMENT_THRESHOLD     8     // Порог значимого движения
 #define MOVEMENT_HISTORY_SIZE  5     // Размер истории для сглаживания
+#define SWIPE_CLICK_COOLDOWN   400   // Задержка после свайпа до распознавания клика
+#define SWIPE_PROXIMITY_TIME   600   // Время проверки близости к концу свайпа (мс)
+#define SWIPE_PROXIMITY_DIST   100   // Расстояние близости к концу свайпа (px)
 
 // Специальные настройки для GT911 на квадратном экране 480x480
 #if TS_MODEL==TS_MODEL_GT911
@@ -194,12 +212,14 @@ void TouchScreen::loop(){
   static bool wastouched = true;
   static uint32_t touchLongPress;
   static tsDirection_e direct;
-  static uint16_t touchVol, touchStation;
-    static bool wasTwoFingerTouch = false;
+  static bool wasTwoFingerTouch = false;
     static uint32_t lastMultiTouchTime = 0;
     static uint32_t lastSwipeTime = 0;
   static bool wasSwiped = false;
     static uint32_t swipeStartTime = 0;
+    static uint32_t lastSwipeEndTime = 0;  // Время окончания последнего свайпа / Last swipe end time
+    static int16_t lastSwipeEndX = 0;      // Координата X конца последнего свайпа / Last swipe end X
+    static int16_t lastSwipeEndY = 0;      // Координата Y конца последнего свайпа / Last swipe end Y
     static int16_t lastProcessedX = 0;
     static int16_t lastProcessedY = 0;
     static TouchPoint touchBuffer[3] = {0}; // Буфер для сглаживания касаний и движений
@@ -247,9 +267,9 @@ void TouchScreen::loop(){
     #elif TS_MODEL==TS_MODEL_CST826
       TSPoint p = ts.getPoint(0);
       
-      #ifdef DEBUG_TOUCH
-      Serial.printf("[CST826] Raw touch: x=%d, y=%d, event=%d\n", p.x, p.y, p.event);
-      #endif
+      if (config.store.dbgtouch) {
+        Serial.printf("[CST826] Raw touch: x=%d, y=%d, event=%d\n", p.x, p.y, p.event);
+      }
       
       // Проверяем событие касания (PRESS или TOUCHING)
       if (p.event != PRESS && p.event != TOUCHING) {
@@ -267,11 +287,14 @@ void TouchScreen::loop(){
       if (touchX < 0) touchX = 0;
       if (touchY < 0) touchY = 0;
       
-      #ifdef DEBUG_TOUCH
-      Serial.printf("[CST826] Mapped touch: x=%d, y=%d\n", touchX, touchY);
-      #endif
+      if (config.store.dbgtouch) {
+        Serial.printf("[CST826] Mapped touch: x=%d, y=%d\n", touchX, touchY);
+      }
       
       // Обработка мультитача для CST826 (поддержка до 5 касаний)
+      // Мультитач используется для переключения между WEB и SD режимами
+      // Multitouch is used to switch between WEB and SD modes
+      #if SDC_CS != 255
       uint8_t touches = ts.touched();
       if (touches > 1) {
                 uint32_t currentTime = millis();
@@ -297,9 +320,8 @@ void TouchScreen::loop(){
                             }
                             delay(TOUCH_MODE_DELAY/2);
                             
-#ifdef USE_SD
-        config.changeMode();
-#endif
+                            config.changeMode();
+                            
                             delay(TOUCH_MODE_DELAY);
                             
                             if (pir) {
@@ -317,12 +339,20 @@ void TouchScreen::loop(){
                     }
                 }
       }
+      #endif
     #elif TS_MODEL==TS_MODEL_AXS15231B
       TSPoint p = ts.points[0];
       touchX = p.x;
       touchY = p.y;
       
-            // Обработка мультитача
+      if (config.store.dbgtouch) {
+        Serial.printf("[AXS15231B] Raw: x=%d y=%d touches=%d\n", touchX, touchY, ts.touches);
+      }
+      
+            // Обработка мультитача для AXS15231B (поддержка до 2 касаний)
+            // Мультитач используется для переключения между WEB и SD режимами
+            // Multitouch is used to switch between WEB and SD modes
+      #if SDC_CS != 255
       if (ts.touches > 1) {
                 uint32_t currentTime = millis();
                 if (currentTime - lastMultiTouchTime > TOUCH_MULTI_DELAY) {
@@ -347,9 +377,8 @@ void TouchScreen::loop(){
                             }
                             delay(TOUCH_MODE_DELAY/2);
                             
-#ifdef USE_SD
-        config.changeMode();
-#endif
+                            config.changeMode();
+                            
                             delay(TOUCH_MODE_DELAY);
                             
                             if (pir) {
@@ -367,6 +396,7 @@ void TouchScreen::loop(){
                     }
                 }
       }
+      #endif
     #endif
         
         // Буферизация касаний
@@ -409,10 +439,41 @@ void TouchScreen::loop(){
         }
         
         if (!wastouched) { /*     START TOUCH     */
+      if (config.store.dbgtouch) {
+        Serial.printf("[TS] START TOUCH: x=%d y=%d\n", touchX, touchY);
+      }
+      
+      // Двухуровневая защита от случайного касания после свайпа
+      // Two-level protection against accidental touch after swipe
+      if (lastSwipeEndTime > 0) {
+        uint32_t timeSinceLastSwipe = millis() - lastSwipeEndTime;
+        int16_t distX = abs((int16_t)touchX - lastSwipeEndX);
+        int16_t distY = abs((int16_t)touchY - lastSwipeEndY);
+        
+        // УРОВЕНЬ 1: В течение 400ms - блокируем ВСЕ касания
+        // LEVEL 1: Within 400ms - block ALL touches
+        bool tooSoon = timeSinceLastSwipe < SWIPE_CLICK_COOLDOWN;
+        
+        // УРОВЕНЬ 2: В течение 600ms - блокируем БЛИЗКИЕ касания (< 100px)
+        // LEVEL 2: Within 600ms - block CLOSE touches (< 100px)
+        bool tooClose = (timeSinceLastSwipe < SWIPE_PROXIMITY_TIME) && 
+                        (distX < SWIPE_PROXIMITY_DIST) && 
+                        (distY < SWIPE_PROXIMITY_DIST);
+        
+        if (tooSoon || tooClose) {
+          if (config.store.dbgtouch) {
+            if (tooSoon) {
+              Serial.printf("[TS] Touch ignored: %dms after swipe (need %dms)\n", timeSinceLastSwipe, SWIPE_CLICK_COOLDOWN);
+            } else {
+              Serial.printf("[TS] Touch ignored: too close to swipe end (%dpx, %dpx)\n", distX, distY);
+            }
+          }
+          return;  // Игнорируем касание сразу после свайпа / Ignore touch right after swipe
+        }
+      }
+      
       _oldTouchX = touchX;
       _oldTouchY = touchY;
-      touchVol = touchY;  // Для громкости используем Y координату
-      touchStation = touchX;  // Для станций используем X координату
       direct = TDS_REQUEST;
       touchLongPress=millis();
       swipeStartTime = millis();
@@ -445,9 +506,18 @@ void TouchScreen::loop(){
                 }
                 
                 if (abs(totalX) > MOVEMENT_THRESHOLD || abs(totalY) > MOVEMENT_THRESHOLD) {
+                    if (config.store.dbgtouch) {
+                      Serial.printf("[TS] Move: dX=%d dY=%d totalX=%d totalY=%d\n", dX, dY, totalX, totalY);
+                    }
+                    
                     uint32_t currentTime = millis();
                     if (currentTime - lastSwipeTime >= SWIPE_COOLDOWN) {
       direct = _tsDirection(touchX, touchY);
+      
+      if (config.store.dbgtouch) {
+        const char* dirNames[] = {"STAY", "REQ", "LEFT", "RIGHT", "UP", "DOWN"};
+        Serial.printf("[TS] Direction: %s\n", dirNames[direct]);
+      }
                         
                         // Используем направление из _tsDirection
       switch (direct) {
@@ -465,6 +535,11 @@ void TouchScreen::loop(){
               #else
               bool volumeUp = totalX < 0;  // Другие модели: totalX < 0 = влево (громкость ВВЕРХ), totalX > 0 = вправо (громкость ВНИЗ)
               #endif
+              
+              if (config.store.dbgtouch) {
+                Serial.printf("[TS] Volume: %s (totalY=%d)\n", volumeUp ? "UP" : "DOWN", totalY);
+              }
+              
               controlsEvent(volumeUp);
               lastProcessedX = touchX;
               lastSwipeTime = currentTime;
@@ -477,8 +552,17 @@ void TouchScreen::loop(){
             touchLongPress = millis();
             if(display.mode()==PLAYER || display.mode()==STATIONS){
                   display.putRequest(NEWMODE, STATIONS);
-                  // Вверх-вниз для выбора станций
+                  // Вверх-вниз для выбора станций / Up-down for station selection
+                  #if TS_MODEL==TS_MODEL_AXS15231B
+                  bool nextStation = totalX < 0;  // AXS15231B: после swap используем totalX (вертикаль)
+                  #else
                   bool nextStation = totalY < 0;  // totalY < 0 = вверх (следующая станция), totalY > 0 = вниз (предыдущая станция)
+                  #endif
+                  
+                  if (config.store.dbgtouch) {
+                    Serial.printf("[TS] Station: %s (totalX=%d totalY=%d)\n", nextStation ? "NEXT" : "PREV", totalX, totalY);
+                  }
+                  
                   controlsEvent(nextStation);
                   lastProcessedY = touchY;
                   lastSwipeTime = currentTime;
@@ -494,10 +578,29 @@ void TouchScreen::loop(){
     }
     } else {
         if (wastouched) { /* END TOUCH */
+            if (config.store.dbgtouch) {
+              Serial.printf("[TS] END TOUCH: time=%dms swiped=%d\n", millis() - touchLongPress, wasSwiped);
+            }
+            
+            // Сохраняем время и координаты окончания ТОЛЬКО при свайпе (не при клике)
+            // Нужно для защиты от случайных касаний близко к концу свайпа
+            // Save swipe end time and coordinates ONLY for swipes (not for clicks)
+            // Needed to prevent accidental touches close to swipe end point
+            if (wasSwiped) {
+                lastSwipeEndTime = millis();
+                lastSwipeEndX = lastProcessedX;
+                lastSwipeEndY = lastProcessedY;
+            }
+            
             if (!wasSwiped && direct == TDS_REQUEST) {
                 uint32_t pressTicks = millis() - touchLongPress;
                 if (pressTicks < BTN_PRESS_TICKS * 2) {
-                    if (pressTicks > 50) onBtnClick(EVT_BTNCENTER);
+                    if (pressTicks > 50) {
+                        if (config.store.dbgtouch) {
+                            Serial.printf("[TS] CLICK detected: pressTicks=%dms\n", pressTicks);
+                        }
+                        onBtnClick(EVT_BTNCENTER);
+                    }
                 } else {
           display.putRequest(NEWMODE, display.mode() == PLAYER ? STATIONS : PLAYER);
         }
@@ -506,12 +609,13 @@ void TouchScreen::loop(){
       wasSwiped = false;
             modeChangeInProgress = false;
             
-            // Очищаем буфер при отпускании
+            // Очищаем буфер при отпускании / Clear buffer on release
             for (int i = 0; i < 3; i++) {
                 touchBuffer[i].valid = false;
                 touchBuffer[i].movement[0] = 0;
                 touchBuffer[i].movement[1] = 0;
             }
+            bufferIndex = 0;  // Сброс индекса буфера / Reset buffer index
     }
   }
   wastouched = istouched;
@@ -670,15 +774,15 @@ void TouchScreen::init() {
     #if TS_MODEL==TS_MODEL_CST826
         Wire.begin(TS_SDA, TS_SCL);
         if (!ts.begin(&Wire, 0x15)) {
-            #ifdef DEBUG_TOUCH
-            Serial.println("[CST826] Touchscreen not found!");
-            #else
-            Serial.println("Touchscreen not found!");
-            #endif
+            if (config.store.dbgtouch) {
+              Serial.println("[CST826] Touchscreen not found!");
+            } else {
+              Serial.println("Touchscreen not found!");
+            }
         } else {
-            #ifdef DEBUG_TOUCH
-            Serial.println("[CST826] Touchscreen initialized successfully");
-            #endif
+            if (config.store.dbgtouch) {
+              Serial.println("[CST826] Touchscreen initialized successfully");
+            }
         }
     #endif
     _width  = dsp.width();
@@ -704,9 +808,9 @@ void TouchScreen::flip() {
     #if TS_MODEL==TS_MODEL_CST826
         // CST826 не поддерживает программный поворот через API
         // Поворот обрабатывается на уровне координат в loop()
-        #ifdef DEBUG_TOUCH
-        Serial.println("[CST826] Flip requested - handled in coordinate processing");
-        #endif
+        if (config.store.dbgtouch) {
+          Serial.println("[CST826] Flip requested - handled in coordinate processing");
+        }
     #endif
 }
 

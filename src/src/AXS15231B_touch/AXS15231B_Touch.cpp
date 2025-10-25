@@ -21,6 +21,11 @@
 // Максимальное количество одновременных касаний
 #define AXS_MAX_TOUCH_NUMBER 2  // Поддержка до 2 одновременных касаний для жестов
 
+// Константы для валидации координат / Constants for coordinate validation
+#define AXS_INVALID_COORD       273   // Невалидное значение координаты от сенсора / Invalid coordinate value from sensor
+#define AXS_MAX_RAW_COORD      4095   // Максимальное 12-bit значение / Maximum 12-bit value
+#define AXS_VALID_THRESHOLD    4000   // Порог валидности (отсекаем шум > 4000) / Validity threshold (filter noise > 4000)
+
 /**
  * @brief Конструктор класса AXS15231B_Touch
  * @param _sda Пин для линии SDA I2C
@@ -59,6 +64,47 @@ void AXS15231B_Touch::setRotation(uint8_t rot) {
 void AXS15231B_Touch::setResolution(uint16_t _width, uint16_t _height) {
   width = _width;
   height = _height;
+}
+
+/**
+ * @brief Проверка валидности сырых координат
+ * @param x Сырая координата X
+ * @param y Сырая координата Y
+ * @return true если координаты валидны, false если нет
+ * 
+ * ЛОГИКА:
+ * - Отклоняем если ОБЕ координаты == 273 (невалидное значение сенсора)
+ * - Отклоняем если ХОТЯ БЫ ОДНА > 4000 (шум/выход за пределы)
+ */
+inline bool isValidRawCoord(uint16_t x, uint16_t y) {
+    // Проверка на невалидное значение сенсора (обе координаты 273)
+    if (x == AXS_INVALID_COORD && y == AXS_INVALID_COORD) {
+        return false;
+    }
+    // Проверка на шум (хотя бы одна координата > 4000)
+    if (x > AXS_VALID_THRESHOLD || y > AXS_VALID_THRESHOLD) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @brief Обработка одного касания (swap осей + обрезка)
+ * @param id Идентификатор касания (0 или 1)
+ * @param rawX Сырая координата X (0-4095)
+ * @param rawY Сырая координата Y (0-4095)
+ * @return Обработанная точка касания
+ */
+inline TP_Point processTouch(uint8_t id, uint16_t rawX, uint16_t rawY) {
+    // Swap X and Y axes / Меняем оси X и Y местами
+    uint16_t x = rawY;
+    uint16_t y = rawX;
+    
+    // Boundary check / Проверка границ
+    if (x > AXS_MAX_RAW_COORD) x = AXS_MAX_RAW_COORD;
+    if (y > AXS_MAX_RAW_COORD) y = AXS_MAX_RAW_COORD;
+    
+    return TP_Point(id, x, y, (uint8_t)0);
 }
 
 /**
@@ -106,46 +152,32 @@ void AXS15231B_Touch::read() {
   if (touches > 0 && touches <= AXS_MAX_TOUCH_NUMBER) {
     isTouched = true;
     
-    // Обработка первого касания
+    // Обработка первого касания / Processing first touch
     uint16_t rawX = ((data[2] & 0x0F) << 8) | data[3];
     uint16_t rawY = ((data[4] & 0x0F) << 8) | data[5];
     
-    if (rawX == 273 && rawY == 273) {
-      isTouched = false;
-      touches = 0;
-      return;
-    }
-    if (rawX > 4000 || rawY > 4000) {
+    // Проверка валидности координат / Validate coordinates
+    if (!isValidRawCoord(rawX, rawY)) {
       isTouched = false;
       touches = 0;
       return;
     }
 
-    // Swap X and Y axes / Меняем оси X и Y местами
-    uint16_t x = rawY;
-    uint16_t y = rawX;
-    
-    if (x > 480) x = 480;
-    if (y > 320) y = 320;
-    
-    points[0] = TP_Point(0, x, y, (uint8_t)0);
+    // Обработка касания (swap осей + обрезка) / Process touch (swap axes + clipping)
+    points[0] = processTouch(0, rawX, rawY);
 
     // Обработка второго касания, если есть / Processing second touch if exists
     if (touches > 1) {
       uint16_t rawX2 = ((data[8] & 0x0F) << 8) | data[9];
       uint16_t rawY2 = ((data[10] & 0x0F) << 8) | data[11];
       
-      if (rawX2 != 273 && rawY2 != 273 && rawX2 <= 4000 && rawY2 <= 4000) {
-        // Swap X and Y axes / Меняем оси X и Y местами
-        uint16_t x2 = rawY2;
-        uint16_t y2 = rawX2;
-        
-        if (x2 > 480) x2 = 480;
-        if (y2 > 320) y2 = 320;
-        
-        points[1] = TP_Point(1, x2, y2, (uint8_t)0);
+      // Проверка валидности второго касания / Validate second touch
+      if (isValidRawCoord(rawX2, rawY2)) {
+        points[1] = processTouch(1, rawX2, rawY2);
       } else {
-        touches = 1;  // Если второе касание некорректное, считаем что касание одно
+        // Если второе касание некорректное, считаем что касание одно
+        // If second touch is invalid, count as single touch
+        touches = 1;
       }
     }
   } else {

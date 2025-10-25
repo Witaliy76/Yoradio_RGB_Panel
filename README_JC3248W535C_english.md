@@ -16,7 +16,7 @@
 
 3) Changelog
 
-- 23.10.2025 — Initial README for JC3248W535C board.
+- 23.10.2025 — Initial version for JC3248W535C board.
 
 4) Features & pins
 

@@ -8,16 +8,11 @@
 - **IMPORTANT:** In PlatformIO select environment `[env:JC3248W535C]` from `platformio.ini` (or use universal `[env:yoradio-esp32s3]`).
 - Then run project clean in `.pioarduino`/PlatformIO to apply config.
 
-2) Photos
+2) Photos of working dev board
 
 <!-- Placeholder for photos - add your photos here -->
-- ![photo1_placeholder](https://via.placeholder.com/800x600?text=JC3248W535C+Photo+1)
-- ![photo2_placeholder](https://via.placeholder.com/800x600?text=JC3248W535C+Photo+2)
-
-<!-- Uncomment and replace with actual photo URLs when ready:
-- ![photo1](URL_TO_PHOTO_1)
-- ![photo2](URL_TO_PHOTO_2)
--->
+- ![photo_2025-10-25_18-32-20](https://github.com/user-attachments/assets/8dd98024-9b3c-490f-a7c8-43c08ae6ef10)
+- ![535_back](https://github.com/user-attachments/assets/63f8773d-4c97-45d0-a80b-8a596d22d3a4)
 
 3) Changelog
 

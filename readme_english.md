@@ -19,7 +19,7 @@
 #### JC3248W535C (AXS15231B, 320x480, 3.5")
 - [AliExpress link](https://aliexpress.ru/item/1005007566332450.html)
 - [How to connect this board to the project →](README_JC3248W535C_english.md)
-- ![placeholder](https://via.placeholder.com/300x400?text=JC3248W535C)
+- ![photo_2025-10-25_18-32-20](https://github.com/user-attachments/assets/72968eda-fa70-446a-8830-b598320f346d)
 
 ### Project Features
 

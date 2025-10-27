@@ -35,7 +35,7 @@
 #define PREFER_POINTERS // Use if target platform has address generators with autoincrement
 // #define BIG_IQ_TABLE
 // #define USE_DOUBLE_PRECISION // use double precision
-#define FIXED_POINT          // use fixed point reals, undefs MAIN_DEC and SSR_DEC
+// #define FIXED_POINT          // ⚠️ ОТКЛЮЧЕНО для ESP32-S3 FPU - используем FLOATING_POINT для HE-AAC v2 (PS+SBR)
 #define ERROR_RESILIENCE 2
 #define MAIN_DEC // Allow decoding of MAIN profile AAC
 // #define SSR_DEC // Allow decoding of SSR profile AAC
@@ -44,7 +44,11 @@
 // #define DRM_SUPPORT // Allow decoding of Digital Radio Mondiale (DRM)
 #if (defined CONFIG_IDF_TARGET_ESP32S3 || defined CONFIG_IDF_TARGET_ESP32P4)
     #define SBR_DEC // Allow decoding of SBR (Spectral Band Replication) profile AAC
-    #define PS_DEC // Allow decoding of PS (Parametric Stereo) profile AAC
+    // PS_DEC для QSPI дисплеев (низкая нагрузка) / PS_DEC for QSPI displays (low load)
+    #if defined(DSP_AXS15231B)
+        #define PS_DEC // ⚠️ Включено только для QSPI дисплеев (JC3248W535C)
+    #endif
+    // Для RGB Panel (4848S040, UEDX) PS отключен из-за высокой нагрузки / PS disabled for RGB panels due to high load
 #endif
 // #define SBR_LOW_POWER
 #define ALLOW_SMALL_FRAMELENGTH

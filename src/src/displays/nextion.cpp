@@ -50,7 +50,9 @@ void Nextion::begin(bool dummy) {
   
   _displayQueue = xQueueCreate( 10, sizeof( requestParams_t ) );
   if(dummy) {
-    xTaskCreatePinnedToCore(nextionCore0, "TaskCore0", CORE_STACK_SIZE, NULL, 4, &_TaskCore0, !xPortGetCoreID());
+    // Pin Nextion Task to Core 0 to balance CPU load (despite function name)
+    // Закрепляем Nextion Task на ядре 0 для балансировки нагрузки CPU (несмотря на название функции)
+    xTaskCreatePinnedToCore(nextionCore0, "TaskCore0", CORE_STACK_SIZE, NULL, 4, &_TaskCore0, 0);
   }
 }
 

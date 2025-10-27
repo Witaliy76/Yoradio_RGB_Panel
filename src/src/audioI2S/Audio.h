@@ -504,7 +504,11 @@ public:
     static void     taskWrapper(void *param);
     void            audioTask();
     void            performAudioTask();
-    uint8_t       m_audioTaskCoreId = 1;  // :If the ARDUINO RUNNING CORE is 1, the audio task should be core 0 or vice versa
+    #ifdef AUDIOTASK_CORE
+      uint8_t       m_audioTaskCoreId = AUDIOTASK_CORE;  // Set from platformio.ini
+    #else
+      uint8_t       m_audioTaskCoreId = 1;  // Default core 1
+    #endif
     bool            m_f_audioTaskIsRunning = false;
 
     //+++ W E B S T R E A M  -  H E L P   F U N C T I O N S +++

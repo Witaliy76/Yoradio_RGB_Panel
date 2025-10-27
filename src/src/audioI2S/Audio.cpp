@@ -6944,7 +6944,7 @@ void Audio::startAudioTask() {
         "PeriodicTask",         /* Name of the task */
         AUDIO_STACK_SIZE,       /* Stack size in words */
         this,                   /* Task input parameter */
-        2,                      /* Priority of the task */
+        4,                      /* Priority of the task (highest priority for audio stability) */
         xAudioStack,            /* Task stack */
         &xAudioTaskBuffer,      /* Memory for the task's control block */
         m_audioTaskCoreId       /* Core where the task should run */

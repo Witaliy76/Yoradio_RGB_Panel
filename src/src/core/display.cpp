@@ -43,7 +43,11 @@ void returnPlayer(){
 }
 
 void Display::_createDspTask(){
-  xTaskCreatePinnedToCore(loopDspTask, "DspTask", CORE_STACK_SIZE,  NULL,  4, &DspTask, !xPortGetCoreID());
+  // Display Task on Core 0 for better touchscreen response
+  // Display Task на ядре 0 для лучшей отзывчивости touchscreen
+  // Priority lowered to 3 to give Audio Task more CPU time
+  // Приоритет снижен до 3 для предоставления Audio Task больше времени CPU
+  xTaskCreatePinnedToCore(loopDspTask, "DspTask", CORE_STACK_SIZE,  NULL,  3, &DspTask, 0);
 }
 
 void loopDspTask(void * pvParameters){

@@ -80,6 +80,11 @@ void Player::init() {
   #endif
   _loadVol(config.store.volume);
   setConnectionTimeout(1700, 3700);
+  // Set Audio Task core from platformio.ini define or default to 1
+  // Установка ядра Audio Task из define platformio.ini или по умолчанию 1
+  #ifdef AUDIOTASK_CORE
+    setAudioTaskCore(AUDIOTASK_CORE);
+  #endif
   Serial.println("done");
 }
 

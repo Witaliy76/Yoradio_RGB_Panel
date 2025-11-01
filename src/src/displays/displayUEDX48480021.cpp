@@ -170,7 +170,7 @@ void DspCore::initDisplay() {
         // Vertical timing parameters - CRITICAL for UEDX48480021: vfp=8, vsync=2, vbp=18
         /* vsync_polarity */ 1, /* vsync_front_porch */ 8, /* vsync_pulse_width */ 2, /* vsync_back_porch */ 18,
         // Clock and data format parameters - CRITICAL for UEDX48480021: 8MHz, pclk_active_neg=0
-        /* pclk_active_neg */ 0, /* prefer_speed */ 8000000UL, /* big endian */ false,
+        /* pclk_active_neg */ 0, /* prefer_speed */ 6000000UL, /* big endian */ false,
         /* de_idle_high */ 0, /* pclk_idle_high */ 0, /* bounce_buffer_size_px */ 0);
     if (!rgbpanel) {
       Serial.println("[UEDX48480021] Failed to initialize RGB panel!");
@@ -543,11 +543,29 @@ void DspCore::clearClock(){
   if (!gfx) { Serial.println("[UEDX48480021] gfx is nullptr! (clearClock)"); return; }
   
   // Clear current clock area
-  gfxFillRect(gfx, _timeleft, clockTop, MAX_WIDTH, clockTimeHeight+12+CHARHEIGHT, config.theme.background);
+  // Ограничиваем очистку правой границей часов, дополнительно сдвигаем на 50 px влево
+  // чтобы гарантированно не задевать область RSSI при возврате со списков/диалогов
+  int16_t rightLimit = (int16_t)(width() - clockRightSpace - 13);
+  int16_t rectWidth  = (int16_t)(rightLimit - _timeleft);
+  if (rectWidth < 0) rectWidth = 0;
+  gfxFillRect(gfx,
+              _timeleft,
+              clockTop,
+              rectWidth,
+              clockTimeHeight + 12 + CHARHEIGHT,
+              config.theme.background);
   
-  // If there's old clock position (when moving), clear it too
+  // If there's old clock position (when moving), clear it too, но не дальше правой границы часов
   if(_oldtimeleft > 0) {
-    gfxFillRect(gfx, _oldtimeleft, clockTop-10, _oldtimewidth+CHARWIDTH*3*2+80, clockTimeHeight+CHARHEIGHT+48, config.theme.background); // +48 to clear date under clock
+    int16_t oldRightLimit = (int16_t)(width() - clockRightSpace - 13);
+    int16_t oldRectWidth  = (int16_t)(oldRightLimit - _oldtimeleft);
+    if (oldRectWidth < 0) oldRectWidth = 0;
+    gfxFillRect(gfx,
+                _oldtimeleft,
+                clockTop - 10,
+                oldRectWidth,
+                clockTimeHeight + CHARHEIGHT + 48,
+                config.theme.background); // +48 to clear date under clock
   }
 }
 

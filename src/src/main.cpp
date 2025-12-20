@@ -13,16 +13,28 @@
 // Spectrum Analyzer
 #include "displays/tools/spectrum_analyzer.h"
 
+// Plugins
+#include "plugins/AIPlugin.h"
+
 #if DSP_HSPI || TS_HSPI || VS_HSPI
 SPIClass  SPI2(HOOPSENb);
 #endif
 
 extern __attribute__((weak)) void yoradio_on_setup();
 
+// Создаём экземпляр AI-плагина
+// Create AI plugin instance
+static AIPlugin aiPluginInstance;
+
 void setup() {
   Serial.begin(115200);
   if(REAL_LEDBUILTIN!=255) pinMode(REAL_LEDBUILTIN, OUTPUT);
   if (yoradio_on_setup) yoradio_on_setup();
+  
+  // Регистрируем плагины явно перед вызовом pm.on_setup()
+  // Register plugins explicitly before calling pm.on_setup()
+  aiPluginInstance.init();
+  
   pm.on_setup();
   config.init();
   display.init();

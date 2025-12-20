@@ -143,11 +143,11 @@
 
 
 // CST826 for UEDX48480021-MD80ET:
-//#define TS_MODEL              TS_MODEL_CST826  // CST826 Capacitive I2C
-//#define TS_SDA                16               // GPIO16
-//#define TS_SCL                15               // GPIO15
-//#define TS_INT                255              // Not used
-//#define TS_RST                255              // Not used
+#define TS_MODEL              TS_MODEL_CST826  // CST826 Capacitive I2C
+#define TS_SDA                16               // GPIO16
+#define TS_SCL                15               // GPIO15
+#define TS_INT                255              // Not used
+#define TS_RST                255              // Not used
 
 
 

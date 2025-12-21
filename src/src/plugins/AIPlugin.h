@@ -6,7 +6,6 @@
 #include "ai/ai_types.h"
 #include "ai/ai_coordinator.h"
 #include "ai/ai_layer.h"
-#include "ai/layers/facts_layer.h"
 #include "ai/layers/interpretation_layer.h"
 #include "ai/layers/moment_layer.h"
 #include "ai/providers/deepseek_provider.h"
@@ -48,7 +47,6 @@ private:
     
     // AI компоненты / AI components
     AIDisplayCoordinator _coordinator;
-    FactsLayer _factsLayer;
     InterpretationLayer _interpretationLayer;
     MomentLayer _momentLayer;
     
@@ -69,7 +67,9 @@ private:
     
     // Обработка кандидатов от всех слоёв
     // Process candidates from all layers
-    void _processLayers(const AIContext& context);
+    // Returns true if any layer successfully enqueued LLM request
+    // Возвращает true если любой слой успешно поставил LLM запрос в очередь
+    bool _processLayers(const AIContext& context);
     
     // Проверка условий активации AI согласно runtime-манифесту
     // Check AI activation conditions according to runtime manifest
@@ -77,6 +77,11 @@ private:
     // log_state_change: логировать только при смене состояния (false = тихий режим)
     // log_state_change: log only on state change (false = quiet mode)
     bool _isAIActivated(const AIContext& context, bool log_state_change = true);
+    
+    // Проверка готовности LLM (без требования track_title)
+    // Check LLM readiness (without track_title requirement)
+    // Returns true if LLM is configured and ready: WiFi, internet, provider, api_key, model
+    bool _isLLMReady() const;
 };
 
 #endif // AIPLUGIN_H

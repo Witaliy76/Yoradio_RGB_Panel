@@ -117,16 +117,18 @@ bool InterpretationLayer::process(const AIContext& context, AICandidate& out) {
         return false;
     }
     
-    const uint32_t now = millis();
-    
-    // 1) Debounce: не стартуем AI раньше чем через 4 секунды после смены трека
-    // 1) Debounce: don't start AI earlier than 4 seconds after track change
-    if (_track_start_ms > 0 && (now - _track_start_ms) < 4000) {
-        Serial.println("[InterpretationLayer] Debounce active (<4s), skipping");
-        return false;
+    // Запрет LLM без валидного трека / Prohibit LLM without valid track
+    if (context.track_title.isEmpty()) {
+        Serial.println("[InterpretationLayer] track_title empty, skipping LLM request");
+        return false;  // На boot/служебных строках/станциях без метаданных LLM не дергать / Don't call LLM on boot/service strings/stations without metadata
     }
     
-    // 2) Строго 1 запрос на трек / Strictly 1 request per track
+    const uint32_t now = millis();
+    
+    // Debounce теперь обрабатывается в AIPlugin, здесь не нужен
+    // Debounce is now handled in AIPlugin, not needed here
+    
+    // Строго 1 запрос на трек / Strictly 1 request per track
     if (_last_enqueued_track_id == _track_id) {
         Serial.println("[InterpretationLayer] Already enqueued for this track_id, skipping");
         return false;
@@ -157,6 +159,6 @@ bool InterpretationLayer::process(const AIContext& context, AICandidate& out) {
     
     // Задача поставлена в очередь, результат будет обработан асинхронно в _processLayers()
     // Job enqueued, result will be processed asynchronously in _processLayers()
-    Serial.println("[InterpretationLayer] Request enqueued, returning false (async processing)");
-    return false;  // Не возвращаем кандидата сразу - результат придёт асинхронно
+    Serial.println("[InterpretationLayer] Request enqueued successfully");
+    return true;  // Возвращаем true для индикации успешного enqueue / Return true to indicate successful enqueue
 }

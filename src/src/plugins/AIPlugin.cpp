@@ -304,7 +304,7 @@ void AIPlugin::_pumpResults() {
     }
 }
 
-void AIPlugin::_processLayers(const AIContext& context) {
+bool AIPlugin::_processLayers(const AIContext& context) {
     Serial.println("[AIPlugin] _processLayers() entered");
     uint32_t current_time = millis();
     
@@ -316,7 +316,7 @@ void AIPlugin::_processLayers(const AIContext& context) {
     // Latch: if decision already made for current track - don't process layers
     if (_ai_decided_for_track) {
         Serial.println("[AIPlugin] Decision already made for track, skipping layer processing");
-        return;
+        return false;
     }
     
     // Обновляем track_id в InterpretationLayer перед обработкой
@@ -324,17 +324,18 @@ void AIPlugin::_processLayers(const AIContext& context) {
     _interpretationLayer.setTrackId(_current_track_id);
     
     AICandidate candidate;
+    bool enqueued_any = false;  // Флаг успешного enqueue / Flag for successful enqueue
     
-    // Обрабатываем слои Interpretation и Facts (MomentLayer обрабатывается только в тикере)
-    // Process Interpretation and Facts layers (MomentLayer processed only in ticker)
-    AILayer* layers[] = { &_factsLayer, &_interpretationLayer };
-    const char* layer_names[] = { "Facts", "Interpretation" };
+    // Обрабатываем слой Interpretation (MomentLayer обрабатывается только в тикере)
+    // Process Interpretation layer (MomentLayer processed only in ticker)
+    AILayer* layers[] = { &_interpretationLayer };
+    const char* layer_names[] = { "Interpretation" };
     
     Serial.print("[AIPlugin] Processing ");
-    Serial.print(2);
-    Serial.println(" layers");
+    Serial.print(1);
+    Serial.println(" layer");
     
-    for (size_t i = 0; i < 2; i++) {
+    for (size_t i = 0; i < 1; i++) {
         Serial.print("[AIPlugin] Checking layer: ");
         Serial.println(layer_names[i]);
         
@@ -350,10 +351,12 @@ void AIPlugin::_processLayers(const AIContext& context) {
         
         // Слой обрабатывает контекст / Layer processes context
         if (layers[i]->process(context, candidate)) {
+            // InterpretationLayer возвращает true только при успешном enqueueRequest()
+            // InterpretationLayer returns true only on successful enqueueRequest()
+            enqueued_any = true;
             Serial.print("[AIPlugin] Layer ");
             Serial.print(layer_names[i]);
-            Serial.println(" returned candidate");
-            // Слой вернул кандидата / Layer returned candidate
+            Serial.println(" enqueued LLM request");
             
             // Coordinator решает: показывать ли / Coordinator decides: show or not
             if (_coordinator.shouldShow(&candidate, current_time)) {
@@ -372,6 +375,8 @@ void AIPlugin::_processLayers(const AIContext& context) {
         // Слой молчит / Layer silent - не логируем (Runtime Manifest: минимизация логов)
         // Layer silent - don't log (Runtime Manifest: minimize logs)
     }
+    
+    return enqueued_any;
 }
 
 bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
@@ -437,6 +442,44 @@ bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
     if (log_state_change) {
         Serial.println("[AIPlugin] _isAIActivated: All conditions met");
     }
+    return true;
+}
+
+bool AIPlugin::_isLLMReady() const {
+    // Проверка готовности LLM без требования track_title
+    // Check LLM readiness without track_title requirement
+    // Используется для enqueue после debounce в тикере
+    // Used for enqueue after debounce in ticker
+    
+    // 0. AI включён в настройках / AI enabled in settings
+    if (!config.store.ai_enabled) {
+        return false;
+    }
+    
+    // 1. Wi‑Fi подключён / Wi‑Fi connected
+    if (network.status != CONNECTED || WiFi.status() != WL_CONNECTED) {
+        return false;
+    }
+    
+    // 2. Интернет доступен (проверяем наличие IP адреса) / Internet available (check IP)
+    IPAddress ip = WiFi.localIP();
+    if (ip == IPAddress(0, 0, 0, 0)) {
+        return false;
+    }
+    
+    // 3. Провайдер LLM настроен / LLM provider configured
+    if (config.store.llm_provider == LLM_NONE) {
+        return false;
+    }
+    
+    // 4. API ключ и модель настроены / API key and model configured
+    String api_key = String(config.store.ai_api_key);
+    String model = String(config.store.ai_model);
+    if (api_key.isEmpty() || model.isEmpty()) {
+        return false;
+    }
+    
+    // Все условия выполнены (без требования track_title) / All conditions met (without track_title requirement)
     return true;
 }
 
@@ -512,14 +555,30 @@ void AIPlugin::on_ticker() {
     
     // ИСКЛЮЧЕНИЕ: отправка LLM запроса после debounce (единственный случай enqueue из тикера)
     // EXCEPTION: send LLM request after debounce (only case of enqueue from ticker)
-    if (ai_activated && _enqueue_at_ms > 0 && now >= _enqueue_at_ms && 
+    // Используем _isLLMReady() вместо _isAIActivated() - не требует track_title
+    // Use _isLLMReady() instead of _isAIActivated() - doesn't require track_title
+    bool llm_ready = _isLLMReady();
+    if (llm_ready && _enqueue_at_ms > 0 && now >= _enqueue_at_ms && 
         _enqueued_for_track_id != _current_track_id && !_ai_decided_for_track) {
+        // Диагностический лог перед enqueue / Diagnostic log before enqueue
+        Serial.printf("[AIPlugin] Debounce check: track_title_len=%d llm_ready=%d ai_activated=%d\n",
+                      context.track_title.length(), llm_ready ? 1 : 0, ai_activated ? 1 : 0);
+        
         // Debounce прошел, отправляем запрос один раз для текущего трека
         // Debounce passed, send request once for current track
         Serial.println("[AIPlugin] Debounce passed, processing layers to enqueue LLM request");
-        _processLayers(context);
-        _enqueued_for_track_id = _current_track_id;  // Помечаем что запрос отправлен / Mark request as sent
+        bool enqueued = _processLayers(context);
+        
+        // ВСЕГДА выставляем флаги после попытки (строго 1 attempt per track)
+        // ALWAYS set flags after attempt (strictly 1 attempt per track)
+        _enqueued_for_track_id = _current_track_id;  // Помечаем что попытка была / Mark attempt as made
         _enqueue_at_ms = 0;  // Сбрасываем debounce таймер / Reset debounce timer
+        
+        if (enqueued) {
+            Serial.println("[AIPlugin] LLM request enqueued successfully");
+        } else {
+            Serial.println("[AIPlugin] LLM enqueue attempt failed (rate limit/busy) -> silence for this track");
+        }
     }
     
     // MomentLayer: обрабатываем только если нет валидного трека

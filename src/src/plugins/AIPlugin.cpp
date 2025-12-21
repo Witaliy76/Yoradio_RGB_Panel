@@ -1,6 +1,8 @@
 #include "AIPlugin.h"
+#include "ai/utils/utf8_casefold_search.h"
 #include "../core/network.h"
 #include "../core/player.h"
+#include <WiFi.h>  // Для проверки WiFi статуса / For WiFi status check
 
 extern Config config;
 extern MyNetwork network;
@@ -24,7 +26,21 @@ void AIPlugin::init() {
 
 void AIPlugin::on_setup() {
     Serial.println("[AIPlugin] on_setup() called - AI plugin initialized");
-    Serial.println("[AIPlugin] MVP-0: Architecture ready, all layers silent by default");
+    Serial.println("[AIPlugin] MVP-2: Architecture ready with LLM provider integration");
+    Serial.println("[AIPlugin] Runtime Manifest: AI is optional, silence is valid");
+    
+    // Инициализация AI Task Manager для асинхронного выполнения HTTPS запросов
+    // Initialize AI Task Manager for asynchronous HTTPS request execution
+    if (!_aiTaskManager.begin(&_deepseekProvider)) {
+        Serial.println("[AIPlugin] WARNING: AI Task Manager initialization failed");
+    }
+    
+    // Передаём Task Manager в InterpretationLayer
+    // Pass Task Manager to InterpretationLayer
+    _interpretationLayer.setTaskManager(&_aiTaskManager);
+    
+    _last_pump_time = 0;  // Инициализация времени последнего pump / Initialize last pump time
+    _last_ai_activated_state = false;  // Инициализация состояния активации AI / Initialize AI activation state
     _initialized = true;
 }
 
@@ -76,84 +92,370 @@ void AIPlugin::_buildContext(AIContext& context) {
     context.uptime_ms = millis();
 }
 
-void AIPlugin::_processLayers(const AIContext& context) {
+void AIPlugin::_pumpResults() {
+    // Периодическая обработка результатов AI Task (независимо от смены трека)
+    // Periodic processing of AI Task results (independent of track change)
     uint32_t current_time = millis();
+    
+    // Rate limiting: вызываем не чаще чем каждые 300ms для снижения нагрузки
+    // Rate limiting: call no more than every 300ms to reduce load
+    if (current_time - _last_pump_time < 300) {
+        return;  // Слишком рано / Too soon
+    }
+    _last_pump_time = current_time;
+    
+    AIRequestResult result;
+    while (_aiTaskManager.getResult(result)) {
+        // Диагностический лог: результат получен из очереди (показываем raw данные)
+        // Diagnostic log: result dequeued (show raw data)
+        Serial.printf("[AIPlugin] Dequeued result: ok=%d mode=%s track_id=%u current=%u conf=%.2f\n",
+                      result.ok, result.mode, result.track_id, _current_track_id, result.confidence);
+        
+        // Проверяем, не устарел ли результат / Check if result is stale
+        if (result.track_id != _current_track_id) {
+            Serial.printf("[AIPlugin] Stale result dropped: result_id=%u current_id=%u\n", 
+                          result.track_id, _current_track_id);
+            continue;  // Пропускаем устаревший результат / Skip stale result
+        }
+        
+        if (!result.ok) {
+            Serial.println("[AIPlugin] Coordinator reject reason: not_ok");
+            continue;  // ok=false - молчим / ok=false - silence
+        }
+        
+        if (strlen(result.text) == 0) {
+            Serial.println("[AIPlugin] Coordinator reject reason: empty");
+            continue;  // Пустой текст - молчим / Empty text - silence
+        }
+        
+        // Предохранитель "строгих фактов" по манифесту с risk scoring
+        // "Strict facts" safety gate per manifest with risk scoring
+        String mode = String(result.mode);
+        float confidence = result.confidence;
+        bool was_downgraded = false;  // Флаг: был ли downgrade fact → listen / Flag: was there a downgrade fact → listen
+        
+        if (mode == "fact") {
+            // Risk-scoring для безопасности фактов (без String, без heap-аллокаций)
+            // We do NOT hard-ban phrases; we raise required confidence gradually.
+            // Goal: keep interesting facts, but suppress high-risk narrative claims unless confidence is high.
+            
+            // Helper lambda для clamp
+            auto clampf = [](float v, float lo, float hi) -> float {
+                if (v < lo) return lo;
+                if (v > hi) return hi;
+                return v;
+            };
+            
+            // Используем const char* напрямую, без String
+            const char* txt = result.text;
+            
+            // Class A: credits / production / collaborations (very specific, high hallucination cost)
+            static const char* kRiskA[] = {
+                "соавтор", "соавторстве", "продюсер", "продюсировал", "продюсирован",
+                "работал с", "в соавторстве",
+                "collaborat", "producer", "produced", "co-wrote", "cowrote", "co-writer", "co writer"
+            };
+            
+            // Class B: narrative / origin / dedication / charity / soundtrack (risky but common in true facts)
+            static const char* kRiskB1[] = { // +1
+                "впервые", "originally", "изначально", "первоначально"
+            };
+            static const char* kRiskB2[] = { // +2
+                "благотвор", "благотворительн", "charity", "benefit",
+                "посвящен", "посвящена", "в честь", "в память", "dedicated", "in honor", "in honour",
+                "написана для", "записана для", "создана для", "written for",
+                "soundtrack", "саундтрек", "по заказу", "commissioned"
+            };
+            static const char* kRiskB3[] = { // +2 (abbrev expansions are often hallucinated)
+                "расшифровывается как"
+            };
+            
+            int riskScore = 0;
+            bool hitA = utf8_contains_any_ci(txt, kRiskA, sizeof(kRiskA)/sizeof(kRiskA[0]));
+            if (hitA) riskScore += 3;
+            
+            bool hitB1 = utf8_contains_any_ci(txt, kRiskB1, sizeof(kRiskB1)/sizeof(kRiskB1[0]));
+            if (hitB1) riskScore += 1;
+            
+            bool hitB2 = utf8_contains_any_ci(txt, kRiskB2, sizeof(kRiskB2)/sizeof(kRiskB2[0]));
+            if (hitB2) riskScore += 2;
+            
+            bool hitB3 = utf8_contains_any_ci(txt, kRiskB3, sizeof(kRiskB3)/sizeof(kRiskB3[0]));
+            if (hitB3) riskScore += 2;
+            
+            // Dynamic confidence threshold for facts
+            // Base 0.85, then increases with riskScore
+            float required_conf = 0.85f;
+            if (riskScore == 0) {
+                required_conf = 0.85f;
+            } else if (riskScore <= 2) {
+                required_conf = 0.90f;
+            } else if (riskScore <= 4) {
+                required_conf = 0.93f;
+            } else {
+                required_conf = 0.95f;
+            }
+            
+            // If Class A is hit, never go below 0.95 (keep old behavior / improve clarity)
+            if (hitA && required_conf < 0.95f) {
+                required_conf = 0.95f;
+            }
+            
+            // Cap at 0.97 if you want ultra strict at very high risk
+            required_conf = clampf(required_conf, 0.85f, 0.97f);
+            
+            // Apply downgrade only for "fact"
+            if (confidence < required_conf) {
+                // Логируем с куском текста для диагностики
+                Serial.printf("[AIPlugin] RiskScore=%d (A=%d B1=%d B2=%d B3=%d) required_conf=%.2f, got=%.2f -> downgrade fact->listen text=\"%.100s\"\n",
+                              riskScore, hitA?1:0, hitB1?1:0, hitB2?1:0, hitB3?1:0, required_conf, confidence, result.text);
+                mode = "listen";
+                confidence = 0.5f;
+                was_downgraded = true;
+            } else {
+                Serial.printf("[AIPlugin] RiskScore=%d required_conf=%.2f, got=%.2f -> fact allowed\n",
+                              riskScore, required_conf, confidence);
+            }
+        }
+        
+        // Расширенный диагностический лог с effective_mode и was_downgraded
+        // Extended diagnostic log with effective_mode and was_downgraded
+        Serial.printf("[AIPlugin] Processed result: original_mode=%s effective_mode=%s was_downgraded=%d\n",
+                      result.mode, mode.c_str(), was_downgraded ? 1 : 0);
+        
+        // Если был downgrade fact → listen: не показываем (silence is valid по манифесту)
+        // If there was downgrade fact → listen: don't show (silence is valid per manifest)
+        if (was_downgraded) {
+            // Не показываем downgraded listen, чтобы не спамить одинаковой строкой
+            // Don't show downgraded listen to avoid spamming the same line
+            Serial.println("[AIPlugin] Coordinator reject reason: downgraded_fact_to_listen (silence is valid)");
+            continue;  // Пропускаем этот результат / Skip this result
+        }
+        
+        // Если mode="listen" пришел напрямую от LLM — используем оригинальный текст
+        // If mode="listen" came directly from LLM — use original text
+        // Формируем кандидата из результата / Build candidate from result
+        AICandidate candidate;
+        candidate.text = String(result.text);
+        candidate.source_layer = LAYER_INTERPRETATION;
+        candidate.min_interval_ms = 10000;
+        candidate.confidence = confidence;  // Используем скорректированную уверенность / Use adjusted confidence
+        
+        // Coordinator решает: показывать ли / Coordinator decides: show or not
+        bool should_show = _coordinator.shouldShow(&candidate, current_time);
+        
+        if (should_show) {
+            _coordinator.markAsShown(&candidate, current_time);
+            Serial.print("##AI.INTERP#: ");
+            Serial.println(candidate.text);
+            Serial.println("[AIPlugin] Coordinator: show");
+        } else {
+            // Coordinator отклонил - логируем причину (будет видно в shouldShow если добавим детализацию)
+            // Coordinator rejected - log reason (will be visible in shouldShow if we add details)
+            Serial.println("[AIPlugin] Coordinator reject reason: rate_limit_or_duplicate");
+        }
+    }
+}
+
+void AIPlugin::_processLayers(const AIContext& context) {
+    Serial.println("[AIPlugin] _processLayers() entered");
+    uint32_t current_time = millis();
+    
+    // Обрабатываем результаты (также вызывается периодически через _pumpResults)
+    // Process results (also called periodically via _pumpResults)
+    _pumpResults();
+    
+    // Обновляем track_id в InterpretationLayer перед обработкой
+    // Update track_id in InterpretationLayer before processing
+    _interpretationLayer.setTrackId(_current_track_id);
+    
     AICandidate candidate;
     
     // Обрабатываем все слои / Process all layers
     AILayer* layers[] = { &_factsLayer, &_interpretationLayer, &_momentLayer };
     const char* layer_names[] = { "Facts", "Interpretation", "Moment" };
     
+    Serial.print("[AIPlugin] Processing ");
+    Serial.print(3);
+    Serial.println(" layers");
+    
     for (size_t i = 0; i < 3; i++) {
+        Serial.print("[AIPlugin] Checking layer: ");
+        Serial.println(layer_names[i]);
+        
         if (!layers[i]->isEnabled()) {
+            Serial.print("[AIPlugin] Layer ");
+            Serial.print(layer_names[i]);
+            Serial.println(" disabled, skipping");
             continue;  // Слой выключен / Layer disabled
         }
         
+        Serial.print("[AIPlugin] Calling layer->process() for ");
+        Serial.println(layer_names[i]);
+        
         // Слой обрабатывает контекст / Layer processes context
         if (layers[i]->process(context, candidate)) {
-            // Слой вернул кандидата / Layer returned candidate
-            
-            // Логируем кандидата / Log candidate
-            Serial.print("[AIPlugin] ");
+            Serial.print("[AIPlugin] Layer ");
             Serial.print(layer_names[i]);
-            Serial.print(" layer candidate: \"");
-            Serial.print(candidate.text);
-            Serial.print("\" (confidence=");
-            Serial.print(candidate.confidence);
-            Serial.print(", interval=");
-            Serial.print(candidate.min_interval_ms);
-            Serial.print("ms)");
+            Serial.println(" returned candidate");
+            // Слой вернул кандидата / Layer returned candidate
             
             // Coordinator решает: показывать ли / Coordinator decides: show or not
             if (_coordinator.shouldShow(&candidate, current_time)) {
-                Serial.println(" -> SHOW");
-                
                 // Отмечаем как показанное / Mark as shown
                 _coordinator.markAsShown(&candidate, current_time);
                 
+                // Логирование происходит в слоях (например, ##AI.INTERP# в InterpretationLayer)
+                // Logging happens in layers (e.g., ##AI.INTERP# in InterpretationLayer)
+                
                 // TODO: В будущем здесь будет вывод на экран
                 // TODO: In the future, screen output will be here
-            } else {
-                Serial.println(" -> SILENCE (filtered by coordinator)");
             }
-        } else {
-            // Слой молчит / Layer silent
-            // Не логируем молчание для MVP-0 (слишком много шума)
-            // Don't log silence for MVP-0 (too much noise)
+            // Не логируем фильтрацию или молчание для уменьшения шума
+            // Don't log filtering or silence to reduce noise
         }
+        // Слой молчит / Layer silent - не логируем (Runtime Manifest: минимизация логов)
+        // Layer silent - don't log (Runtime Manifest: minimize logs)
     }
+}
+
+bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
+    // Runtime Manifest Section 1: AI activation conditions
+    // Все условия должны выполняться одновременно / All conditions must be met simultaneously
+    
+    // 0. AI включён в настройках / AI enabled in settings
+    if (!config.store.ai_enabled) {
+        if (log_state_change) {
+            Serial.println("[AIPlugin] _isAIActivated: ai_enabled=false");
+        }
+        return false;
+    }
+    
+    // 1. Wi‑Fi подключён / Wi‑Fi connected
+    if (network.status != CONNECTED || WiFi.status() != WL_CONNECTED) {
+        if (log_state_change) {
+            Serial.println("[AIPlugin] _isAIActivated: WiFi not connected");
+        }
+        return false;
+    }
+    
+    // 2. Интернет доступен (проверяем наличие IP адреса) / Internet available (check IP)
+    IPAddress ip = WiFi.localIP();
+    if (ip == IPAddress(0, 0, 0, 0)) {
+        if (log_state_change) {
+            Serial.println("[AIPlugin] _isAIActivated: No IP address");
+        }
+        return false;
+    }
+    
+    // 3. Провайдер LLM настроен / LLM provider configured
+    if (config.store.llm_provider == LLM_NONE) {
+        if (log_state_change) {
+            Serial.println("[AIPlugin] _isAIActivated: llm_provider=LLM_NONE");
+        }
+        return false;
+    }
+    
+    // 4. API ключ и модель настроены / API key and model configured
+    String api_key = String(config.store.ai_api_key);
+    String model = String(config.store.ai_model);
+    if (api_key.isEmpty() || model.isEmpty()) {
+        if (log_state_change) {
+            Serial.println("[AIPlugin] _isAIActivated: API key or model empty");
+        }
+        return false;
+    }
+    
+    // 5. Валидный музыкальный контекст (реальный трек, не системный статус)
+    // Valid music context (real track, not system status)
+    // Ослабляем требование: достаточно track_title, artist/song могут быть пустыми
+    // Relaxed requirement: track_title is enough, artist/song may be empty
+    if (context.track_title.isEmpty()) {
+        if (log_state_change) {
+            Serial.print("[AIPlugin] _isAIActivated: Invalid context - track_title empty");
+            Serial.println();
+        }
+        return false;
+    }
+    
+    // Все условия выполнены / All conditions met
+    if (log_state_change) {
+        Serial.println("[AIPlugin] _isAIActivated: All conditions met");
+    }
+    return true;
 }
 
 void AIPlugin::on_track_change() {
+    // Инкрементируем ID трека при валидной смене трека
+    // Increment track ID on valid track change
+    _current_track_id++;
+    Serial.printf("[AIPlugin] Track changed, new track_id: %u\n", _current_track_id);
     if (!_initialized) {
+        Serial.println("[AIPlugin] on_track_change() called but not initialized");
         return;
     }
 
-    // MVP-0: Формируем контекст и обрабатываем слои
-    // MVP-0: Build context and process layers
+    // MVP-2: Формируем контекст и проверяем условия активации
+    // MVP-2: Build context and check activation conditions
     AIContext context;
     _buildContext(context);
     
-    // Логируем контекст для отладки / Log context for debugging
-    Serial.print("[AIPlugin] on_track_change() - Context: ");
-    Serial.print("station=\"");
-    Serial.print(context.station_name);
-    Serial.print("\", track=\"");
+    // Временное логирование для отладки / Temporary logging for debugging
+    Serial.print("[AIPlugin] on_track_change() - ai_enabled=");
+    Serial.print(config.store.ai_enabled);
+    Serial.print(", llm_provider=");
+    Serial.print(config.store.llm_provider);
+    Serial.print(", has_api_key=");
+    Serial.print(strlen(config.store.ai_api_key) > 0);
+    Serial.print(", track_title=\"");
     Serial.print(context.track_title);
-    Serial.print("\", artist=\"");
-    Serial.print(context.artist);
-    Serial.print("\", song=\"");
-    Serial.print(context.song);
-    Serial.print("\", playing=");
-    Serial.print(context.is_playing ? "true" : "false");
-    Serial.print(", hour=");
-    if (context.current_hour == 255) {
-        Serial.print("invalid");
-    } else {
-        Serial.print(context.current_hour);
+    Serial.println("\"");
+    
+    // Runtime Manifest: AI активируется только при выполнении всех условий
+    // Runtime Manifest: AI activates only when all conditions are met
+    if (!_isAIActivated(context)) {
+        Serial.println("[AIPlugin] AI not activated - skipping");
+        return;
     }
-    Serial.println();
+    
+    Serial.println("[AIPlugin] AI activated - processing layers");
     
     // Обрабатываем все слои / Process all layers
+    // Добавляем защиту от падения / Add crash protection
+    Serial.println("[AIPlugin] Starting _processLayers()");
     _processLayers(context);
+    Serial.println("[AIPlugin] _processLayers() completed");
 }
+
+void AIPlugin::on_ticker() {
+    // Вызывается из ticks() каждую секунду / Called from ticks() every second
+    // Вызываем _pumpResults() для периодической обработки результатов AI Task
+    // Call _pumpResults() for periodic processing of AI Task results
+    _pumpResults();
+    
+    // Проверяем и отправляем отложенные запросы после debounce
+    // Check and send pending requests after debounce
+    AIContext context;
+    _buildContext(context);
+    
+    // Проверяем, активирован ли AI (логируем только при смене состояния)
+    // Check if AI is activated (log only on state change)
+    bool ai_activated = _isAIActivated(context, false);  // Не логируем каждый тик / Don't log every tick
+    if (ai_activated != _last_ai_activated_state) {
+        _last_ai_activated_state = ai_activated;
+        _isAIActivated(context, true);  // Логируем смену состояния / Log state change
+    }
+    
+    if (ai_activated) {
+        // Пытаемся отправить отложенный запрос из InterpretationLayer
+        // Try to send pending request from InterpretationLayer
+        _interpretationLayer.tryEnqueuePending(context);
+    }
+}
+
+// Публичный метод для периодического вызова (можно вызывать из main loop)
+// Public method for periodic calls (can be called from main loop)
+// ВАЖНО: Для интеграции в main loop нужно добавить вызов в network.ticks() или main loop()
+// IMPORTANT: To integrate into main loop, add call to network.ticks() or main loop()
+// Пока вызывается только из _processLayers() при смене трека
+// Currently called only from _processLayers() on track change

@@ -9,6 +9,8 @@
 #include "ai/layers/facts_layer.h"
 #include "ai/layers/interpretation_layer.h"
 #include "ai/layers/moment_layer.h"
+#include "ai/providers/deepseek_provider.h"
+#include "ai/ai_task.h"
 
 /**
  * AIPlugin - плагин AI-слоя для yoRadio
@@ -29,15 +31,30 @@ public:
     // Переопределяем обработчики событий / Override event handlers
     virtual void on_setup() override;
     virtual void on_track_change() override;
+    virtual void on_ticker() override;  // Вызывается из ticks() каждую секунду / Called from ticks() every second
+    
+    // Периодическая обработка результатов (вызывается из on_ticker())
+    // Periodic result processing (called from on_ticker())
+    void _pumpResults();
 
 private:
     bool _initialized;
+    uint32_t _current_track_id;  // ID текущего трека для защиты от stale results / Current track ID to prevent stale results
+    uint32_t _last_pump_time;  // Время последнего вызова _pumpResults для rate limiting / Last _pumpResults call time for rate limiting
+    bool _last_ai_activated_state;  // Последнее состояние активации AI (для логирования только при смене) / Last AI activation state (for logging only on change)
     
     // AI компоненты / AI components
     AIDisplayCoordinator _coordinator;
     FactsLayer _factsLayer;
     InterpretationLayer _interpretationLayer;
     MomentLayer _momentLayer;
+    
+    // LLM провайдеры / LLM providers
+    DeepSeekProvider _deepseekProvider;
+    
+    // AI Task Manager для асинхронного выполнения HTTPS запросов
+    // AI Task Manager for asynchronous HTTPS request execution
+    AITaskManager _aiTaskManager;
     
     // Формирование контекста из текущего состояния
     // Build context from current state
@@ -50,6 +67,13 @@ private:
     // Обработка кандидатов от всех слоёв
     // Process candidates from all layers
     void _processLayers(const AIContext& context);
+    
+    // Проверка условий активации AI согласно runtime-манифесту
+    // Check AI activation conditions according to runtime manifest
+    // Returns true if ALL conditions are met: WiFi, internet, API, valid context
+    // log_state_change: логировать только при смене состояния (false = тихий режим)
+    // log_state_change: log only on state change (false = quiet mode)
+    bool _isAIActivated(const AIContext& context, bool log_state_change = true);
 };
 
 #endif // AIPLUGIN_H

@@ -1,3 +1,11 @@
+/**
+ * ai_task.cpp - Реализация менеджера AI задач
+ * Описание: Асинхронное выполнение AI запросов через FreeRTOS task, управление очередями
+ * Автор: W76W, 4pda.to
+ * Дата: 21.12.2025
+ * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ */
+
 #include "ai_task.h"
 #include "utils/utf8_truncate.h"
 #include <string.h> // For strnlen, memcpy

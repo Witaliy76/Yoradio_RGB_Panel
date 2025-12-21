@@ -1,6 +1,14 @@
 #ifndef UTF8_CASEFOLD_SEARCH_H
 #define UTF8_CASEFOLD_SEARCH_H
 
+/**
+ * utf8_casefold_search.h - Утилиты для регистронезависимого поиска в UTF-8 строках
+ * Описание: Регистронезависимый поиск паттернов в UTF-8 строках без выделения памяти (RU+EN)
+ * Автор: W76W, 4pda.to
+ * Дата: 21.12.2025
+ * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ */
+
 #include <stddef.h>
 #include <stdbool.h>
 #include <cstdint>

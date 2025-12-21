@@ -1,6 +1,14 @@
 #ifndef AI_TYPES_H
 #define AI_TYPES_H
 
+/**
+ * ai_types.h - Базовые типы данных для AI-слоя
+ * Описание: Определения структур данных, перечислений и типов для AI-слоя
+ * Автор: W76W, 4pda.to
+ * Дата: 21.12.2025
+ * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ */
+
 #include <Arduino.h>
 
 /**

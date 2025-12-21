@@ -1,3 +1,11 @@
+/**
+ * AIPlugin.cpp - Реализация плагина AI-слоя для yoRadio
+ * Описание: Основная логика AI-слоя, обработка событий, координация слоёв
+ * Автор: W76W, 4pda.to
+ * Дата: 21.12.2025
+ * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ */
+
 #include "AIPlugin.h"
 #include "ai/utils/utf8_casefold_search.h"
 #include "../core/network.h"

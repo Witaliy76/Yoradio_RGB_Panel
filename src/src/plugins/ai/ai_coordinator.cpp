@@ -1,3 +1,11 @@
+/**
+ * ai_coordinator.cpp - Реализация координатора показа AI-текста
+ * Описание: Менеджер показа AI-текста (анти-спам, дедупликация, контроль частоты)
+ * Автор: W76W, 4pda.to
+ * Дата: 21.12.2025
+ * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ */
+
 #include "ai_coordinator.h"
 
 AIDisplayCoordinator::AIDisplayCoordinator() {

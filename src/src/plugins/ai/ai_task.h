@@ -1,6 +1,14 @@
 #ifndef AI_TASK_H
 #define AI_TASK_H
 
+/**
+ * ai_task.h - Заголовочный файл менеджера AI задач
+ * Описание: Структуры данных и интерфейс для асинхронного выполнения AI запросов через FreeRTOS
+ * Автор: W76W, 4pda.to
+ * Дата: 21.12.2025
+ * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ */
+
 #include "ai_types.h"
 #include "providers/llm_provider.h"
 #include <Arduino.h>

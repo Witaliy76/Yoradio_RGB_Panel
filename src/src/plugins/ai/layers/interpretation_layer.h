@@ -1,6 +1,14 @@
 #ifndef INTERPRETATION_LAYER_H
 #define INTERPRETATION_LAYER_H
 
+/**
+ * interpretation_layer.h - Заголовочный файл слоя интерпретации
+ * Описание: Слой интерпретации музыки через LLM (факты и нейтральные фразы)
+ * Автор: W76W, 4pda.to
+ * Дата: 21.12.2025
+ * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ */
+
 #include "../ai_layer.h"
 #include "../providers/llm_provider.h"
 #include "../ai_task.h"

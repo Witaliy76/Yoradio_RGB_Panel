@@ -1,6 +1,14 @@
 #ifndef MOMENT_LAYER_H
 #define MOMENT_LAYER_H
 
+/**
+ * moment_layer.h - Заголовочный файл слоя момента
+ * Описание: Автономный слой момента (предопределённые фразы, без LLM)
+ * Автор: W76W, 4pda.to
+ * Дата: 21.12.2025
+ * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ */
+
 #include "../ai_layer.h"
 
 /**

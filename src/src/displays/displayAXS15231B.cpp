@@ -97,6 +97,9 @@ Arduino_Canvas *gfx = nullptr;
 #endif
 
 DspCore::DspCore(): Arduino_AXS15231B(bus, GFX_NOT_DEFINED /* RST */, 0 /* rotation */, true /* IPS */) {
+  _scrollid = nullptr;
+  _lastScroller = nullptr;
+  _lastReleaseTime = 0;
 #ifndef BATTERY_OFF
   // Инициализация ADC для батареи
   adc1_config_width(ADC_WIDTH_BIT_12);
@@ -666,6 +669,10 @@ void DspCore::readBattery() {
     if (ChargeLevel > 100) ChargeLevel = 100;
 }
 #endif
+
+Arduino_G* DspCore::getOutputDisplay() {
+  return output_display;
+}
 
 #endif
 

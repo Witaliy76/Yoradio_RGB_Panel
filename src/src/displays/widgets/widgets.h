@@ -188,6 +188,16 @@ class ScrollWidget: public TextWidget {
     uint16_t _sepwidth, _startscrolldelay;
     uint8_t _charWidth;
     float _fx;
+    Arduino_Canvas* _line; // Line canvas for pixel-perfect scrolling
+    // MVP-2: Cached cycle string for smooth scrolling
+    String _cycle;
+    int16_t _cycleWidth;
+    int16_t _textWidth;
+    int16_t _sepWidth;
+    bool _cycleDirty;
+    int16_t _scrollPx; // Pixel scroll position (integer pixels)
+    int16_t _scrollAcc10; // Fixed-point accumulator (tenths-of-pixel) for smooth sub-pixel scrolling
+    int16_t _lastPix; // Last drawn pixel position (for optimization: skip redraw if unchanged)
   private:
     void _setTextParams();
     void _calcX();
@@ -197,6 +207,7 @@ class ScrollWidget: public TextWidget {
     bool _checkDelay(int m, uint32_t &tstamp);
     void _clear();
     void _reset();
+    void _rebuildCycleIfNeeded(); // MVP-2: Build cycle string when needed
 };
 
 class SliderWidget: public Widget {

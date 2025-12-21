@@ -115,6 +115,9 @@ DspCore::DspCore() {
   adc1_config_channel_atten(USER_ADC_CHAN, ADC_ATTEN_DB_12);
   esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, 0, &adc1_chars);
 #endif
+  _scrollid = nullptr;
+  _lastScroller = nullptr;
+  _lastReleaseTime = 0;
 }
 
 #include "tools/utf8RusGFX.h"
@@ -813,6 +816,9 @@ void DspCore::readBattery() {
  }
  #endif
 
+Arduino_G* DspCore::getOutputDisplay() {
+  return output_display;
+}
 
 #endif
 

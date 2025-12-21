@@ -95,10 +95,11 @@ void SpectrumWidget::_draw() {
         _drawBar(x, _config.barWidth, barHeight, value, peak);
     }
     
-    // Обновляем экран RGB Panel (Canvas путь)
-    if (gfx) {
-        gfx->flush(); // Обновление RGB Panel для плавной анимации
-    }
+    // NOTE: Removed local flush() to avoid mid-frame flush conflicts
+    // Canvas will be flushed once at end of frame by display loop
+    // if (gfx) {
+    //     gfx->flush(); // Обновление RGB Panel для плавной анимации
+    // }
 }
 
 void SpectrumWidget::_clear() {

@@ -17,6 +17,7 @@ extern "C" {
 #include <cmath>
 
 #include "../tools/GFX_Canvas_screen.h"
+#include "Arduino_GFX_Library.h"
 extern Arduino_Canvas* gfx;
 
 // === НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ДЛЯ ПОДБОРА ===
@@ -243,16 +244,22 @@ TextWidget::~TextWidget() {
       SCROLL WIDGET
  ************************/
 ScrollWidget::ScrollWidget(const char* separator, ScrollConfig conf, uint16_t fgcolor, uint16_t bgcolor) {
+  _line = nullptr;
   init(separator, conf, fgcolor, bgcolor);
 }
 
 ScrollWidget::~ScrollWidget() {
+  if (_line) {
+    delete _line;
+    _line = nullptr;
+  }
   free(_sep);
   free(_window);
 }
 
 void ScrollWidget::init(const char* separator, ScrollConfig conf, uint16_t fgcolor, uint16_t bgcolor) {
   TextWidget::init(conf.widget, conf.buffsize, conf.uppercase, fgcolor, bgcolor);
+  _line = nullptr;
   _sep = (char *) malloc(sizeof(char) * 4);
   memset(_sep, 0, 4);
   snprintf(_sep, 4, " %.*s ", 1, separator);
@@ -268,6 +275,15 @@ void ScrollWidget::init(const char* separator, ScrollConfig conf, uint16_t fgcol
   _window = (char *) malloc(sizeof(char) * (MAX_WIDTH / _charWidth + 1));
   memset(_window, 0, (MAX_WIDTH / _charWidth + 1));
   _doscroll = false;
+  // MVP-2: Initialize cycle cache
+  _cycle = "";
+  _cycleWidth = 0;
+  _textWidth = 0;
+  _sepWidth = 0;
+  _cycleDirty = true;
+  _scrollPx = 0;
+  _scrollAcc10 = 0; // Fixed-point accumulator for smooth sub-pixel scrolling
+  _lastPix = -1; // Initialize to -1 to force first draw
 }
 
 void ScrollWidget::_setTextParams() {
@@ -275,6 +291,11 @@ void ScrollWidget::_setTextParams() {
 }
 
 bool ScrollWidget::_checkIsScrollNeeded() {
+  // MVP-2: Use accurate pixel measurement if available, otherwise fallback to char-based
+  if (_textWidth > 0) {
+    return _textWidth > _width;
+  }
+  // Fallback to old char-based calculation
   return _textwidth > _width;
 }
 
@@ -282,21 +303,22 @@ void ScrollWidget::setText(const char* txt) {
   if (!gfx) return;
   strlcpy(_text, utf8Rus(txt, _uppercase), _buffsize - 1);
   if (strcmp(_oldtext, _text) == 0) return;
-  _textwidth = strlen(_text) * _charWidth;
+  _textwidth = strlen(_text) * _charWidth; // Keep for fallback
   _x = _config.left;
   _fx = _config.left;
+  _scrollPx = 0; // MVP-2: Reset pixel scroll position
+  _scrollAcc10 = 0; // Reset fixed-point accumulator
+  _lastPix = -1; // Reset last drawn position to force redraw
+  _cycleDirty = true; // MVP-2: Mark cycle as dirty
+  // MVP-2: Rebuild cycle to get accurate measurement before checking scroll
+  _rebuildCycleIfNeeded();
+  // Now check scroll with accurate measurement
   _doscroll = _checkIsScrollNeeded();
   if (dsp.getScrollId() == this) dsp.setScrollId(NULL);
   _scrolldelay = millis();
+  // MVP-2: Always use _draw() for consistent rendering (removed old direct drawing code)
   if (_active) {
-    if (_doscroll) {
-        gfxFillRect(gfx, _config.left,  _config.top, _width, _textheight, _bgcolor);
-        snprintf(_window, _width / _charWidth + 1, "%s", _text); //TODO: прокрутка
-        gfxDrawText(gfx, _config.left, _config.top, _window, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
-    } else {
-      gfxFillRect(gfx, _config.left, _config.top, _width, _textheight, _bgcolor);
-      gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
-    }
+    _draw();
     strlcpy(_oldtext, _text, _buffsize);
   }
 }
@@ -309,17 +331,75 @@ void ScrollWidget::setText(const char* txt, const char *format){
 
 void ScrollWidget::loop() {
   if(_locked) return;
-  if (!_doscroll || _config.textsize == 0 || (dsp.getScrollId() != NULL && dsp.getScrollId() != this)) return;
-  if (_checkDelay(_fx == _config.left ? _startscrolldelay : _scrolltime, _scrolldelay)) {
-    _fx -= _scrolldelta * 0.1f;
-    if (-_fx > _textwidth + _sepwidth - _config.left) {
-      _fx = _config.left;
-      dsp.setScrollId(NULL);
-    } else {
-      dsp.setScrollId(this);
-    }
+  
+  // Check if widget is eligible for scrolling
+  bool isEligible = _active && _doscroll && _config.textsize > 0 && _text && strlen(_text) > 0;
+  
+  // If another widget is scrolling, we still need to draw (but don't update position)
+  if (dsp.getScrollId() != NULL && dsp.getScrollId() != this) {
     if (_active) _draw();
+    return;
   }
+  
+  if (!isEligible) {
+    // Even if not scrolling, draw static text (only if text changed)
+    if (_active) _draw();
+    return;
+  }
+  
+  // Round-robin fairness: if scrollId is NULL and we're the last scroller, skip this turn
+  // (allow other widgets to claim the slot first)
+  // Exception: if enough time passed (200ms), allow re-claiming (handles single-widget case)
+  if (dsp.getScrollId() == NULL) {
+    if (dsp.getLastScroller() == this) {
+      // We just finished, check if enough time passed for single-widget case
+      uint32_t timeSinceRelease = millis() - dsp.getLastReleaseTime();
+      if (timeSinceRelease < 200) {
+        // Skip this turn to allow other widgets to claim
+        // But still draw our static position
+        if (_active) _draw();
+        return;
+      }
+      // Enough time passed (likely no other widgets), allow re-claiming
+    }
+    // Slot is free and we're not the last scroller (or enough time passed) - claim it
+    dsp.setScrollId(this);
+  }
+  
+  // Original behavior: use startscrolldelay when at start position, scrolltime otherwise
+  // Delay units: milliseconds (ms)
+  // Check if at start position (both pixel and accumulator are zero)
+  uint16_t delay = (_scrollPx == 0 && _scrollAcc10 == 0) ? _startscrolldelay : _scrolltime;
+  
+  // Original behavior: update position only once per period (respects scrolltime/scrolldelta from config)
+  // Use _checkDelay to ensure we only update when the delay period has passed
+  if (_checkDelay(delay, _scrolldelay)) {
+    // Fixed-point arithmetic for deterministic sub-pixel scrolling
+    // Accumulate tenths-of-pixel: _scrollAcc10 += _scrolldelta
+    // Convert to pixels: step = _scrollAcc10 / 10, remainder = _scrollAcc10 % 10
+    // This preserves the original scrolldelta * 0.1 behavior without float jitter
+    _scrollAcc10 += _scrolldelta;
+    int16_t step = _scrollAcc10 / 10;
+    _scrollAcc10 = _scrollAcc10 % 10;
+    _scrollPx += step;
+    
+    // Reset when cycle completes (textWidth + sepWidth)
+    if (_scrollPx >= (_textWidth + _sepWidth)) {
+      _scrollPx = 0; // Reset to start of cycle
+      _scrollAcc10 = 0; // Reset accumulator
+      // Round-robin: mark this widget as last scroller before releasing slot
+      dsp.setLastScroller(this);
+      dsp.setScrollId(NULL);
+    }
+  }
+  
+  // Update scroll ID if still scrolling (we already claimed it above if NULL)
+  if (_scrollPx < (_textWidth + _sepWidth) && dsp.getScrollId() == this) {
+    // Already claimed, continue scrolling
+  }
+  
+  // Draw only if pixel position changed (optimization: skip redundant fillScreen/print/blit)
+  if (_active) _draw();
 }
 
 void ScrollWidget::_clear(){
@@ -327,27 +407,149 @@ void ScrollWidget::_clear(){
   gfxFillRect(gfx, _config.left, _config.top, _width, _textheight, _bgcolor);
 }
 
+void ScrollWidget::_rebuildCycleIfNeeded() {
+  if (!_cycleDirty) return;
+  
+  // Measure widths in pixels using getTextBounds
+  // Use _line if available (same font/size as rendering), otherwise use main gfx
+  Arduino_Canvas* measureCanvas = _line ? _line : gfx;
+  if (!measureCanvas) return;
+  if (!_text || strlen(_text) == 0) {
+    _textWidth = 0;
+    _sepWidth = 0;
+    _cycleWidth = 0;
+    _cycle = "";
+    _cycleDirty = false;
+    return;
+  }
+  
+  // Set font and size for measurement (must match drawing settings exactly)
+  // Use same settings as will be used for rendering in _line
+  measureCanvas->setFont();
+  measureCanvas->setTextSize(_config.textsize);
+  // Ensure wrapping is disabled for consistency (doesn't affect getTextBounds, but good practice)
+  if (_line) {
+    _line->setTextWrap(false);
+  }
+  
+  // Measure text width - _text is already processed through utf8Rus in setText()
+  int16_t x1, y1;
+  uint16_t w, h;
+  measureCanvas->getTextBounds(_text, 0, 0, &x1, &y1, &w, &h);
+  _textWidth = w;
+  
+  // Measure separator width
+  measureCanvas->getTextBounds(_sep, 0, 0, &x1, &y1, &w, &h);
+  _sepWidth = w;
+  
+  // Build cycle string: _text + separator + _text
+  // Use existing _sep separator (configured in init)
+  _cycle = String(_text) + String(_sep) + String(_text);
+  
+  // Measure cycle width (for reference, can be calculated as _textWidth + _sepWidth + _textWidth)
+  measureCanvas->getTextBounds(_cycle.c_str(), 0, 0, &x1, &y1, &w, &h);
+  _cycleWidth = w;
+  
+  _cycleDirty = false;
+}
+
 void ScrollWidget::_draw() {
   if(!_active || _locked || !gfx) return;
   
-  // Сначала очищаем всю область виджета
-  gfxFillRect(gfx, _config.left, _config.top, _width, _textheight, _bgcolor);
-  
-  if (_doscroll) {
-    uint16_t _newx = _config.left - _fx;
-    const char* _cursor = _text + _newx / _charWidth;
-    uint16_t hiddenChars = _cursor - _text;
-    if (hiddenChars < strlen(_text)) {
-      snprintf(_window, _width / _charWidth + 1, "%s%s%s", _cursor, _sep, _text);
-    } else {
-      const char* _scursor = _sep + (_cursor - (_text + strlen(_text)));
-      snprintf(_window, _width / _charWidth + 1, "%s%s", _scursor, _text);
+  // Initialize line-canvas lazily on first use (always use line-canvas to prevent wrapping)
+  if (!_line) {
+    Arduino_G* output = dsp.getOutputDisplay();
+    if (!output) return; // Cannot create line-canvas without output display
+    _line = new Arduino_Canvas(_width, _textheight, output);
+    if (!_line) return; // Failed to allocate line-canvas
+    // Use GFX_SKIP_OUTPUT_BEGIN to avoid re-initializing RGB panel
+    // (ESP32-S3 has only one RGB panel slot, already used by main canvas)
+    if (!_line->begin(GFX_SKIP_OUTPUT_BEGIN)) {
+      delete _line;
+      _line = nullptr;
+      return; // Failed to initialize line-canvas
     }
-    int16_t drawX = _fx + hiddenChars * _charWidth;
-    if (drawX < _config.left) drawX = _config.left;
-    gfxDrawText(gfx, drawX, _config.top, _window, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
+    // Disable text wrapping to ensure single-line rendering (set once during init)
+    _line->setTextWrap(false);
+  }
+  
+  // MVP-2: Rebuild cycle only if needed (when text changes)
+  // This avoids expensive getTextBounds() calls on every frame
+  _rebuildCycleIfNeeded();
+  
+  // Check if scrolling is actually needed based on accurate pixel measurement
+  // Force scroll if _textWidth > 0 but _doscroll was false (recheck needed)
+  if (_textWidth > _width && !_doscroll) {
+    _doscroll = true;
+  }
+  
+  // Optimization: Skip redraw if pixel position didn't change (prevents redundant fillScreen/print/blit)
+  // Only apply optimization for the active scrolling widget
+  bool isActiveScroller = (dsp.getScrollId() == NULL || dsp.getScrollId() == this);
+  
+  if (_doscroll && _textWidth > _width) {
+    // Scrolling mode: only skip if we're the active scroller AND position/text unchanged
+    int16_t pix = _scrollPx; // _scrollPx is already integer pixels
+    if (isActiveScroller && pix == _lastPix && !_cycleDirty) {
+      return; // Position unchanged, skip redraw (only for active scroller)
+    }
+    // Update last drawn position (even if not active scroller, to track current state)
+    _lastPix = pix;
   } else {
-    gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
+    // For non-scrolling mode, always redraw if text changed (cycleDirty handles this)
+    // But we can optimize further by tracking text content hash if needed
+    if (!_cycleDirty && _lastPix != -2) {
+      // -2 is special marker for non-scrolling mode "already drawn"
+      // Only redraw if text changed (cycleDirty) or first draw (lastPix == -1)
+      if (_lastPix != -1) {
+        return; // Text unchanged, skip redraw
+      }
+    }
+    _lastPix = -2; // Mark as drawn for non-scrolling mode
+  }
+  
+  // Clear line-canvas buffer (only if we're actually drawing)
+  _line->fillScreen(_bgcolor);
+  
+  if (_doscroll && _textWidth > _width) {
+    // Scrolling mode: draw cycle at pixel position (can be negative for smooth entry)
+    // _scrollPx is already integer pixels, use directly
+    int16_t drawX = -_scrollPx;
+    
+    // Render cycle into line-canvas (no alignment, text scrolls from left)
+    // Wrapping is disabled, text will be clipped by canvas bounds
+    gfxDrawText(_line, drawX, 0, _cycle.c_str(), _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
+  } else {
+    // Non-scrolling mode: draw text with alignment within line-canvas
+    int16_t drawX = 0;
+    
+    // Calculate X position based on alignment within line-canvas (0.._width)
+    switch (_config.align) {
+      case WA_CENTER:
+        drawX = (_width - _textWidth) / 2;
+        break;
+      case WA_RIGHT:
+        drawX = _width - _textWidth;
+        break;
+      default: // WA_LEFT
+        drawX = 0;
+        break;
+    }
+    
+    // Clamp drawX to prevent negative values (text will be clipped at left edge)
+    // This ensures text doesn't start before canvas boundary
+    if (drawX < 0) drawX = 0;
+    
+    // Render text into line-canvas (clipped by canvas bounds, no wrapping)
+    // Wrapping is disabled, long text will be clipped at right edge (_width)
+    // Arduino_GFX automatically clips text that extends beyond canvas bounds
+    gfxDrawText(_line, drawX, 0, _text, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
+  }
+  
+  // Always blit line-canvas framebuffer into main canvas
+  uint16_t* buf = _line->getFramebuffer();
+  if (buf) {
+    gfxDrawBitmap(gfx, _config.left, _config.top, buf, _width, _textheight);
   }
 }
 

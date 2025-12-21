@@ -69,6 +69,10 @@ public:
     void clearClipping();
     void setScrollId(void * scrollid) { _scrollid = scrollid; }
     void * getScrollId() { return _scrollid; }
+    void setLastScroller(void * lastScroller) { _lastScroller = lastScroller; _lastReleaseTime = millis(); }
+    void * getLastScroller() { return _lastScroller; }
+    uint32_t getLastReleaseTime() { return _lastReleaseTime; }
+    Arduino_G* getOutputDisplay(); // Get output display for line-canvas creation
     void setNumFont();
     uint16_t textWidth(const char *txt);
     uint16_t textWidthN(const char *txt, int n);
@@ -87,6 +91,8 @@ private:
     bool _clipping, _printdots;
     clipArea _cliparea;
     void * _scrollid;
+    void * _lastScroller; // Last widget that finished scrolling (for round-robin fairness)
+    uint32_t _lastReleaseTime; // Time when slot was last released (for single-widget timeout)
     void _getTimeBounds();
     void _clockSeconds();
     void _clockDate();

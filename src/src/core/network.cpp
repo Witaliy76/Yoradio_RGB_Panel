@@ -85,6 +85,8 @@ void ticks() {
   }
 #endif
   if(player.isRunning() && config.getMode()==PM_SDCARD) netserver.requestOnChange(SDPOS, 0);
+  
+  
   if(divrssi) {
     if(network.status == CONNECTED){
       netserver.setRSSI(WiFi.RSSI());
@@ -96,6 +98,11 @@ void ticks() {
 #endif
     player.sendCommand({PR_VUTONUS, 0});
   }
+  
+  // Периодическая обработка результатов AI (каждые ~300ms через rate limiting в _pumpResults)
+  // Periodic AI result processing (~300ms via rate limiting in _pumpResults)
+  // Объявление extern будет в начале файла если понадобится, или через forward declaration
+  // extern declaration will be at file start if needed, or via forward declaration
 }
 
 void MyNetwork::WiFiReconnected(WiFiEvent_t event, WiFiEventInfo_t info){

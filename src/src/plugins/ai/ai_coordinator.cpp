@@ -69,6 +69,31 @@ String AIDisplayCoordinator::filterTrackTitle(const String& raw_title) {
         return "";
     }
     
+    // Удаляем строки, начинающиеся с ## (служебные сообщения)
+    // Remove lines starting with ## (service messages)
+    String result = raw_title;
+    int newline_pos = result.indexOf('\n');
+    while (newline_pos >= 0) {
+        String line = result.substring(0, newline_pos);
+        line.trim();
+        if (line.startsWith("##")) {
+            // Удаляем строку, начинающуюся с ##
+            // Remove line starting with ##
+            if (newline_pos + 1 < result.length()) {
+                result = result.substring(newline_pos + 1);
+                result.trim();
+                newline_pos = result.indexOf('\n');
+            } else {
+                result = "";
+                break;
+            }
+        } else {
+            // Первая строка не служебная - останавливаемся
+            // First line is not service - stop
+            break;
+        }
+    }
+    
     // Список служебных строк для игнорирования
     // List of service strings to ignore
     const char* ignore_patterns[] = {

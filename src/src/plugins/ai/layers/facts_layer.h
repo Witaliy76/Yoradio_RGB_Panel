@@ -10,12 +10,22 @@
  * Информационный слой о треке или станции
  * Informational layer about track or station
  * 
- * MVP-0: пустая реализация (всегда молчит)
- * MVP-0: empty implementation (always silent)
+ * Runtime Manifest Section 4.1:
+ * - Формат: "Артист — Трек. Альбом: <Название>, <Год>"
+ * - Альбом и год обязательны
+ * - Только проверенные данные
+ * - Если нет надёжных данных → Facts не выводится
+ * 
+ * MVP-1: Структура готова, но молчит без API данных
+ * MVP-1: Structure ready, but silent without API data
  */
 class FactsLayer : public AILayer {
 private:
     bool _enabled;
+    
+    // MVP-1: Заглушка для будущего API
+    // MVP-1: Stub for future API
+    bool _hasAPIData(const AIContext& context) const;
     
 public:
     FactsLayer();

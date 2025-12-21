@@ -42,6 +42,9 @@ private:
     uint32_t _current_track_id;  // ID текущего трека для защиты от stale results / Current track ID to prevent stale results
     uint32_t _last_pump_time;  // Время последнего вызова _pumpResults для rate limiting / Last _pumpResults call time for rate limiting
     bool _last_ai_activated_state;  // Последнее состояние активации AI (для логирования только при смене) / Last AI activation state (for logging only on change)
+    bool _ai_decided_for_track;  // Флаг: решение принято для текущего трека (latch) / Flag: decision made for current track (latch)
+    uint32_t _enqueue_at_ms;  // Время когда можно отправить LLM запрос (debounce 4 сек) / Time when LLM request can be sent (debounce 4 sec)
+    uint32_t _enqueued_for_track_id;  // ID трека для которого уже отправлен запрос / Track ID for which request already enqueued
     
     // AI компоненты / AI components
     AIDisplayCoordinator _coordinator;

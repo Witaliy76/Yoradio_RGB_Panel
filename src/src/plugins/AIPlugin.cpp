@@ -42,6 +42,9 @@ void AIPlugin::on_setup() {
     
     _last_pump_time = 0;  // Инициализация времени последнего pump / Initialize last pump time
     _last_ai_activated_state = false;  // Инициализация состояния активации AI / Initialize AI activation state
+    _ai_decided_for_track = false;  // Инициализация флага принятия решения / Initialize decision flag
+    _enqueue_at_ms = 0;  // Инициализация времени debounce / Initialize debounce time
+    _enqueued_for_track_id = 0;  // Инициализация ID трека для enqueue / Initialize track ID for enqueue
     _initialized = true;
 }
 
@@ -105,6 +108,12 @@ void AIPlugin::_pumpResults() {
     }
     _last_pump_time = current_time;
     
+    // Latch: если решение уже принято для текущего трека - игнорируем новые результаты
+    // Latch: if decision already made for current track - ignore new results
+    if (_ai_decided_for_track) {
+        return;  // Решение принято, больше ничего не меняем / Decision made, don't change anything
+    }
+    
     AIRequestResult result;
     while (_aiTaskManager.getResult(result)) {
         // Диагностический лог: результат получен из очереди (показываем raw данные)
@@ -119,14 +128,27 @@ void AIPlugin::_pumpResults() {
             continue;  // Пропускаем устаревший результат / Skip stale result
         }
         
+        // Latch: если решение уже принято для этого трека - игнорируем результат
+        // Latch: if decision already made for this track - ignore result
+        if (_ai_decided_for_track) {
+            Serial.println("[AIPlugin] Decision already made for this track, ignoring result");
+            continue;
+        }
+        
         if (!result.ok) {
             Serial.println("[AIPlugin] Coordinator reject reason: not_ok");
-            continue;  // ok=false - молчим / ok=false - silence
+            // ok=false - молчим, решение принято (silence is valid)
+            // ok=false - silence, decision made (silence is valid)
+            _ai_decided_for_track = true;
+            continue;
         }
         
         if (strlen(result.text) == 0) {
             Serial.println("[AIPlugin] Coordinator reject reason: empty");
-            continue;  // Пустой текст - молчим / Empty text - silence
+            // Пустой текст - молчим, решение принято (silence is valid)
+            // Empty text - silence, decision made (silence is valid)
+            _ai_decided_for_track = true;
+            continue;
         }
         
         // Предохранитель "строгих фактов" по манифесту с risk scoring
@@ -232,6 +254,8 @@ void AIPlugin::_pumpResults() {
             // MVP-1: Очищаем виджет при downgrade / MVP-1: Clear widget on downgrade
             display.setAIInterpretation("");
             Serial.println("[AIPlugin] Coordinator reject reason: downgraded_fact_to_listen (silence is valid)");
+            // Решение принято: молчим / Decision made: silence
+            _ai_decided_for_track = true;
             continue;  // Пропускаем этот результат / Skip this result
         }
         
@@ -240,7 +264,12 @@ void AIPlugin::_pumpResults() {
         // Формируем кандидата из результата / Build candidate from result
         AICandidate candidate;
         candidate.text = String(result.text);
-        candidate.source_layer = LAYER_INTERPRETATION;
+        // Разводим source_layer по mode / Set source_layer based on mode
+        if (mode == "fact") {
+            candidate.source_layer = LAYER_FACTS;
+        } else {
+            candidate.source_layer = LAYER_INTERPRETATION;  // mode == "listen"
+        }
         candidate.min_interval_ms = 10000;
         candidate.confidence = confidence;  // Используем скорректированную уверенность / Use adjusted confidence
         
@@ -253,13 +282,24 @@ void AIPlugin::_pumpResults() {
             // MVP-1: Вывод интерпретации на экран / MVP-1: Display interpretation on screen
             display.setAIInterpretation(candidate.text);
             
-            Serial.print("##AI.INTERP#: ");
+            // Логируем с корректным префиксом в зависимости от mode / Log with correct prefix based on mode
+            if (mode == "fact") {
+                Serial.print("##AI.FACT#: ");
+            } else {
+                Serial.print("##AI.LISTEN#: ");  // mode == "listen"
+            }
             Serial.println(candidate.text);
             Serial.println("[AIPlugin] Coordinator: show");
+            // Решение принято: текст показан / Decision made: text shown
+            _ai_decided_for_track = true;
         } else {
             // Coordinator отклонил - логируем причину (будет видно в shouldShow если добавим детализацию)
             // Coordinator rejected - log reason (will be visible in shouldShow if we add details)
             Serial.println("[AIPlugin] Coordinator reject reason: rate_limit_or_duplicate");
+            // НЕ выставляем latch здесь - это может быть промежуточный результат
+            // Если это финальный результат для трека, latch выставится при следующем невалидном результате
+            // DON'T set latch here - this may be intermediate result
+            // If this is final result for track, latch will be set on next invalid result
         }
     }
 }
@@ -272,21 +312,29 @@ void AIPlugin::_processLayers(const AIContext& context) {
     // Process results (also called periodically via _pumpResults)
     _pumpResults();
     
+    // Latch: если решение уже принято для текущего трека - не обрабатываем слои
+    // Latch: if decision already made for current track - don't process layers
+    if (_ai_decided_for_track) {
+        Serial.println("[AIPlugin] Decision already made for track, skipping layer processing");
+        return;
+    }
+    
     // Обновляем track_id в InterpretationLayer перед обработкой
     // Update track_id in InterpretationLayer before processing
     _interpretationLayer.setTrackId(_current_track_id);
     
     AICandidate candidate;
     
-    // Обрабатываем все слои / Process all layers
-    AILayer* layers[] = { &_factsLayer, &_interpretationLayer, &_momentLayer };
-    const char* layer_names[] = { "Facts", "Interpretation", "Moment" };
+    // Обрабатываем слои Interpretation и Facts (MomentLayer обрабатывается только в тикере)
+    // Process Interpretation and Facts layers (MomentLayer processed only in ticker)
+    AILayer* layers[] = { &_factsLayer, &_interpretationLayer };
+    const char* layer_names[] = { "Facts", "Interpretation" };
     
     Serial.print("[AIPlugin] Processing ");
-    Serial.print(3);
+    Serial.print(2);
     Serial.println(" layers");
     
-    for (size_t i = 0; i < 3; i++) {
+    for (size_t i = 0; i < 2; i++) {
         Serial.print("[AIPlugin] Checking layer: ");
         Serial.println(layer_names[i]);
         
@@ -398,6 +446,16 @@ void AIPlugin::on_track_change() {
     _current_track_id++;
     Serial.printf("[AIPlugin] Track changed, new track_id: %u\n", _current_track_id);
     
+    // Сбрасываем флаг принятия решения для нового трека
+    // Reset decision flag for new track
+    _ai_decided_for_track = false;
+    
+    // Устанавливаем время debounce: запрос можно отправить через 4 секунды
+    // Set debounce time: request can be sent after 4 seconds
+    uint32_t now = millis();
+    _enqueue_at_ms = now + 4000;  // Debounce 4 секунды / Debounce 4 seconds
+    _enqueued_for_track_id = 0;  // Сбрасываем флаг отправки запроса / Reset enqueue flag
+    
     // MVP-1: Очищаем виджет интерпретации при смене трека / MVP-1: Clear interpretation widget on track change
     display.setAIInterpretation("");
     
@@ -429,13 +487,9 @@ void AIPlugin::on_track_change() {
         return;
     }
     
-    Serial.println("[AIPlugin] AI activated - processing layers");
-    
-    // Обрабатываем все слои / Process all layers
-    // Добавляем защиту от падения / Add crash protection
-    Serial.println("[AIPlugin] Starting _processLayers()");
-    _processLayers(context);
-    Serial.println("[AIPlugin] _processLayers() completed");
+    Serial.println("[AIPlugin] AI activated - debounce scheduled, will process layers after 4s");
+    // НЕ вызываем _processLayers() сразу - запрос уйдет через тикер после debounce
+    // DON'T call _processLayers() immediately - request will be sent via ticker after debounce
 }
 
 void AIPlugin::on_ticker() {
@@ -444,8 +498,7 @@ void AIPlugin::on_ticker() {
     // Call _pumpResults() for periodic processing of AI Task results
     _pumpResults();
     
-    // Проверяем и отправляем отложенные запросы после debounce
-    // Check and send pending requests after debounce
+    uint32_t now = millis();
     AIContext context;
     _buildContext(context);
     
@@ -457,10 +510,48 @@ void AIPlugin::on_ticker() {
         _isAIActivated(context, true);  // Логируем смену состояния / Log state change
     }
     
-    if (ai_activated) {
-        // Пытаемся отправить отложенный запрос из InterpretationLayer
-        // Try to send pending request from InterpretationLayer
-        _interpretationLayer.tryEnqueuePending(context);
+    // ИСКЛЮЧЕНИЕ: отправка LLM запроса после debounce (единственный случай enqueue из тикера)
+    // EXCEPTION: send LLM request after debounce (only case of enqueue from ticker)
+    if (ai_activated && _enqueue_at_ms > 0 && now >= _enqueue_at_ms && 
+        _enqueued_for_track_id != _current_track_id && !_ai_decided_for_track) {
+        // Debounce прошел, отправляем запрос один раз для текущего трека
+        // Debounce passed, send request once for current track
+        Serial.println("[AIPlugin] Debounce passed, processing layers to enqueue LLM request");
+        _processLayers(context);
+        _enqueued_for_track_id = _current_track_id;  // Помечаем что запрос отправлен / Mark request as sent
+        _enqueue_at_ms = 0;  // Сбрасываем debounce таймер / Reset debounce timer
+    }
+    
+    // MomentLayer: обрабатываем только если нет валидного трека
+    // MomentLayer: process only if no valid track
+    // MomentLayer автономен: НЕ зависит от LLM (llm_provider/api_key/model)
+    // MomentLayer is autonomous: does NOT depend on LLM (llm_provider/api_key/model)
+    // Latch: если решение уже принято для трека - MomentLayer не должен вытеснять текст
+    // Latch: if decision already made for track - MomentLayer should not replace text
+    if (context.track_title.isEmpty() && !_ai_decided_for_track) {
+        // Проверяем минимальные условия для MomentLayer (без LLM зависимостей)
+        // Check minimal conditions for MomentLayer (without LLM dependencies)
+        bool moment_ready = config.store.ai_enabled &&
+                            (network.status == CONNECTED) &&
+                            (WiFi.status() == WL_CONNECTED) &&
+                            (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+        
+        if (moment_ready) {
+            // MomentLayer автономен: только локальные шаблоны, никаких LLM запросов
+            // MomentLayer is autonomous: only local templates, no LLM requests
+            AICandidate moment_candidate;
+            if (_momentLayer.process(context, moment_candidate)) {
+                // MomentLayer вернул кандидата - обрабатываем его
+                // MomentLayer returned candidate - process it
+                uint32_t current_time = millis();
+                if (_coordinator.shouldShow(&moment_candidate, current_time)) {
+                    _coordinator.markAsShown(&moment_candidate, current_time);
+                    display.setAIInterpretation(moment_candidate.text);
+                    Serial.print("##AI.MOMENT#: ");
+                    Serial.println(moment_candidate.text);
+                }
+            }
+        }
     }
 }
 

@@ -2,6 +2,7 @@
 #include "ai/utils/utf8_casefold_search.h"
 #include "../core/network.h"
 #include "../core/player.h"
+#include "../core/display.h"
 #include <WiFi.h>  // Для проверки WiFi статуса / For WiFi status check
 
 extern Config config;
@@ -228,6 +229,8 @@ void AIPlugin::_pumpResults() {
         if (was_downgraded) {
             // Не показываем downgraded listen, чтобы не спамить одинаковой строкой
             // Don't show downgraded listen to avoid spamming the same line
+            // MVP-1: Очищаем виджет при downgrade / MVP-1: Clear widget on downgrade
+            display.setAIInterpretation("");
             Serial.println("[AIPlugin] Coordinator reject reason: downgraded_fact_to_listen (silence is valid)");
             continue;  // Пропускаем этот результат / Skip this result
         }
@@ -246,6 +249,10 @@ void AIPlugin::_pumpResults() {
         
         if (should_show) {
             _coordinator.markAsShown(&candidate, current_time);
+            
+            // MVP-1: Вывод интерпретации на экран / MVP-1: Display interpretation on screen
+            display.setAIInterpretation(candidate.text);
+            
             Serial.print("##AI.INTERP#: ");
             Serial.println(candidate.text);
             Serial.println("[AIPlugin] Coordinator: show");
@@ -390,6 +397,10 @@ void AIPlugin::on_track_change() {
     // Increment track ID on valid track change
     _current_track_id++;
     Serial.printf("[AIPlugin] Track changed, new track_id: %u\n", _current_track_id);
+    
+    // MVP-1: Очищаем виджет интерпретации при смене трека / MVP-1: Clear interpretation widget on track change
+    display.setAIInterpretation("");
+    
     if (!_initialized) {
         Serial.println("[AIPlugin] on_track_change() called but not initialized");
         return;

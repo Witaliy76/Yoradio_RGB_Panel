@@ -45,6 +45,7 @@
 const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT+30, 107, 5, WA_CENTER }, 140, true, MAX_WIDTH-55, 5000, 50, 12 }; //5,12
 const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT+10, 158, 3, WA_CENTER }, 140, true, MAX_WIDTH-15, 5000, 30, 12 };
 const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT+15, 155, 3, WA_CENTER }, 140, false, MAX_WIDTH-20, 5000, 30, 12 };
+const ScrollConfig interpretationConf PROGMEM = {{ TFT_FRAMEWDT+10, 185, 2, WA_CENTER }, 256, false, MAX_WIDTH-20, 1000, 40, 6 }; // AI interpretation / AI интерпретация (faster scroll / быстрая прокрутка)
 const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 4, WA_LEFT }, 140, false, MAX_WIDTH, 1000, 30, 12 };
 const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT+10, 107, 4, WA_CENTER }, 140, true, MAX_WIDTH-20, 0, 30, 8 };
 const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT+10, 350, 2, WA_CENTER }, 140, false, MAX_WIDTH-20, 0, 30, 8 };

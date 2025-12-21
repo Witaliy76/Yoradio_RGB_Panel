@@ -47,6 +47,8 @@
 #define MAX_PLAY_MODE   1
 #define WEATHERKEY_LENGTH 58
 #define MDNS_LENGTH 24
+#define AI_API_KEY_LENGTH 64
+#define AI_MODEL_LENGTH 32
 
 #if SDC_CS!=255
   #define USE_SD
@@ -55,10 +57,11 @@
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
   #define ESP_ARDUINO_3 1
 #endif
-#define CONFIG_VERSION  5
+#define CONFIG_VERSION  6  // Incremented for AI settings addition
 
 enum playMode_e      : uint8_t  { PM_WEB=0, PM_SDCARD=1 };
 enum BitrateFormat { BF_UNCNOWN, BF_MP3, BF_AAC, BF_FLAC, BF_OGG, BF_WAV, BF_VOR, BF_OPU };
+enum LLMProvider_e  : uint8_t  { LLM_NONE=0, LLM_DEEPSEEK=1, LLM_OPENAI=2 };
 
 void u8fix(char *src);
 
@@ -72,6 +75,7 @@ struct theme_t {
   uint16_t digit;
   uint16_t div;
   uint16_t weather;
+  uint16_t interpretation;  // AI interpretation color / Цвет AI интерпретации
   uint16_t vumax;
   uint16_t vumin;
   uint16_t clock;
@@ -152,6 +156,12 @@ struct config_t
   char      mdnsname[24];
   bool      skipPlaylistUpDown;
   bool      usespectrum;
+  // AI settings / Настройки AI
+  bool      ai_enabled;                    // AI включён / AI enabled
+  uint8_t   llm_provider;                  // LLM провайдер (LLMProvider_e) / LLM provider
+  char      ai_api_key[AI_API_KEY_LENGTH]; // API ключ / API key
+  char      ai_model[AI_MODEL_LENGTH];     // Модель / Model
+  bool      ai_enableFiles;                // Опция для файлов (если используется) / Files option
 };
 
 #if IR_PIN!=255

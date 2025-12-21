@@ -443,6 +443,9 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef COLOR_WEATHER
   #define COLOR_WEATHER           255, 150,   0
 #endif
+#ifndef COLOR_AI_INTERPRETATION
+  #define COLOR_AI_INTERPRETATION 255, 200, 100  // AI interpretation default color / Цвет AI интерпретации по умолчанию
+#endif
 #ifndef COLOR_VU_MAX
   #define COLOR_VU_MAX            231, 211,  90
 #endif

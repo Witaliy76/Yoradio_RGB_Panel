@@ -7,6 +7,22 @@ char* utf8Rus(const char* str, bool uppercase) {
     static char strn[BUFLEN];
     int i = 0, j = 0;
     while (str[i] && j < BUFLEN - 1) {
+        // UTF-8: специальные символы (кавычки и т.д.) / Special characters (quotes etc.)
+        if ((uint8_t)str[i] == 0xC2 && str[i+1]) {
+            uint8_t next = (uint8_t)str[i+1];
+            if (next == 0xAB) { // « (U+00AB) - левая кавычка / left quote
+                strn[j++] = '"';
+                i += 2;
+                continue;
+            } else if (next == 0xBB) { // » (U+00BB) - правая кавычка / right quote
+                strn[j++] = '"';
+                i += 2;
+                continue;
+            }
+            // Другие C2-символы пропускаем (не поддерживаются) / Other C2 chars skipped (not supported)
+            i++;
+            continue;
+        }
         // UTF-8: кириллица
         if ((uint8_t)str[i] == 0xD0 && str[i+1]) {
             uint8_t next = (uint8_t)str[i+1];

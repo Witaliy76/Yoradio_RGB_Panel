@@ -31,6 +31,7 @@
 #define COLOR_SNG_TITLE_1       255,255,255     /*  first title                                                 */
 #define COLOR_SNG_TITLE_2         227,227,227    /*  second title                                                */
 #define COLOR_WEATHER           255,126,38     /*  weather string                                              */
+#define COLOR_AI_INTERPRETATION  255,200,100    /*  AI interpretation / AI интерпретация                      */
 #define COLOR_VU_MAX            255,0,0     /*  max of VU meter                                             */
 #define COLOR_VU_MIN            0,255,6     /*  min of VU meter                                             */
 #define COLOR_CLOCK              255,255,255     /*  clock color                                                 */

@@ -16,6 +16,7 @@
   config.theme.weather    = TFT_FG;
   config.theme.title1     = TFT_FG;
   config.theme.title2     = TFT_FG;
+  config.theme.interpretation = TFT_FG;  // AI interpretation / AI интерпретация
   config.theme.rssi       = TFT_FG;
   config.theme.ip         = TFT_FG;
   config.theme.vol        = TFT_FG;

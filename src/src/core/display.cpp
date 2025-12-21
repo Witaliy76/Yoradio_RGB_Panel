@@ -226,6 +226,9 @@ void Display::_buildPager(){
   #ifndef HIDE_WEATHER
     _weather = new ScrollWidget("\007", weatherConf, config.theme.weather, config.theme.background);
   #endif
+  // AI interpretation widget / Виджет AI интерпретации
+  _ai_interpretation = new ScrollWidget(" ", interpretationConf, config.theme.interpretation, config.theme.background);
+  _ai_interpretation->setActive(false);  // По умолчанию скрыт / Hidden by default
   
   if(_volbar)   _footer.addWidget( _volbar);
   if(_voltxt)   _footer.addWidget( _voltxt);
@@ -237,6 +240,7 @@ void Display::_buildPager(){
   pages[PG_PLAYER]->addWidget(&_meta);
   pages[PG_PLAYER]->addWidget(&_title1);
   if(_title2) pages[PG_PLAYER]->addWidget(_title2);
+  if(_ai_interpretation) pages[PG_PLAYER]->addWidget(_ai_interpretation);
   if(_weather) pages[PG_PLAYER]->addWidget(_weather);
   #if BITRATE_FULL
     _fullbitrate = new BitrateWidget(fullbitrateConf, config.theme.bitrate, config.theme.background);
@@ -481,6 +485,22 @@ void Display::_drawNextStationNum(uint16_t num) {
 
 void Display::printPLitem(uint8_t pos, const char* item, bool uppercase){
   dsp.printPLitem(pos, item, _plcurrent, uppercase);
+}
+
+void Display::setAIInterpretation(const String& text) {
+  // AI interpretation widget / Виджет AI интерпретации
+  // MVP-1: просто показываем/скрываем виджет в зависимости от наличия текста
+  // MVP-1: simply show/hide widget based on text presence
+  if (!_ai_interpretation) return;
+  
+  if (text.isEmpty()) {
+    // Очищаем текст и скрываем виджет / Clear text and hide widget
+    _ai_interpretation->setText("");
+    _ai_interpretation->setActive(false, true);  // clr=true для явной очистки области / clr=true for explicit area clearing
+  } else {
+    _ai_interpretation->setText(text.c_str());
+    _ai_interpretation->setActive(true);
+  }
 }
 
 void Display::putRequest(displayRequestType_e type, int payload){

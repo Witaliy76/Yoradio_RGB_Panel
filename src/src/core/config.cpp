@@ -60,6 +60,62 @@ void Config::init() {
   if(store.version>CONFIG_VERSION) store.version=1;
   while(store.version!=CONFIG_VERSION) _setupVersion();
   BOOTLOG("CONFIG_VERSION\t%d", store.version);
+  
+  // Проверка и инициализация AI полей если они невалидны (для конфигов которые были обновлены без миграции)
+  // Check and initialize AI fields if they are invalid (for configs that were updated without migration)
+  // Проверяем llm_provider - если невалидное значение (255 или > LLM_OPENAI), инициализируем все AI поля
+  // Check llm_provider - if invalid value (255 or > LLM_OPENAI), initialize all AI fields
+  if (store.llm_provider > LLM_OPENAI || store.llm_provider == 255) {
+    BOOTLOG("Initializing AI fields (invalid llm_provider=%d)", store.llm_provider);
+    saveValue(&store.ai_enabled, false, true, true);  // force=true чтобы перезаписать даже если значение совпадает
+    saveValue(&store.llm_provider, (uint8_t)LLM_NONE, true, true);
+    saveValue(store.ai_api_key, "", AI_API_KEY_LENGTH, true, true);
+    saveValue(store.ai_model, "deepseek-chat", AI_MODEL_LENGTH, true, true);
+    saveValue(&store.ai_enableFiles, false, true, true);
+  }
+  
+  // Применяем настройки из myoptions.h если они определены (перезаписываем значения из EEPROM)
+  // Apply settings from myoptions.h if defined (overwrite values from EEPROM)
+  #ifdef AI_ENABLED
+    if (!store.ai_enabled) {
+      BOOTLOG("AI enabled from myoptions.h");
+      saveValue(&store.ai_enabled, true, true, true);
+    }
+  #else
+    if (store.ai_enabled) {
+      BOOTLOG("AI disabled (not defined in myoptions.h)");
+      saveValue(&store.ai_enabled, false, true, true);
+    }
+  #endif
+  
+  #ifdef AI_LLM_PROVIDER
+    if (store.llm_provider != AI_LLM_PROVIDER) {
+      BOOTLOG("LLM provider set to %d from myoptions.h", AI_LLM_PROVIDER);
+      saveValue(&store.llm_provider, (uint8_t)AI_LLM_PROVIDER, true, true);
+    }
+  #endif
+  
+  #ifdef AI_API_KEY
+    if (strcmp(store.ai_api_key, AI_API_KEY) != 0) {
+      BOOTLOG("AI API key updated from myoptions.h");
+      saveValue(store.ai_api_key, AI_API_KEY, AI_API_KEY_LENGTH, true, true);
+    }
+  #endif
+  
+  #ifdef AI_MODEL
+    if (strcmp(store.ai_model, AI_MODEL) != 0) {
+      BOOTLOG("AI model set to %s from myoptions.h", AI_MODEL);
+      saveValue(store.ai_model, AI_MODEL, AI_MODEL_LENGTH, true, true);
+    }
+  #endif
+  
+  #ifdef AI_ENABLE_FILES
+    bool files_enabled = (AI_ENABLE_FILES != 0);
+    if (store.ai_enableFiles != files_enabled) {
+      BOOTLOG("AI enableFiles set to %d from myoptions.h", files_enabled);
+      saveValue(&store.ai_enableFiles, files_enabled, true, true);
+    }
+  #endif
 //  if(store.play_mode==80) store.play_mode=0b100;			//**********************************
   store.play_mode = store.play_mode & 0b11;
   if(store.play_mode>1) store.play_mode=PM_WEB;
@@ -102,6 +158,14 @@ void Config::_setupVersion(){
     case 4:
       // introduce usespectrum with default false
       saveValue(&store.usespectrum, false);
+      break;
+    case 5:
+      // introduce AI settings with defaults
+      saveValue(&store.ai_enabled, false);
+      saveValue(&store.llm_provider, (uint8_t)LLM_NONE);
+      saveValue(store.ai_api_key, "", AI_API_KEY_LENGTH);
+      saveValue(store.ai_model, "deepseek-chat", AI_MODEL_LENGTH);
+      saveValue(&store.ai_enableFiles, false);
       break;
     default:
       break;
@@ -280,6 +344,7 @@ void Config::loadTheme(){
   theme.digit         = color565(COLOR_DIGITS);
   theme.div           = color565(COLOR_DIVIDER);
   theme.weather       = color565(COLOR_WEATHER);
+  theme.interpretation = color565(COLOR_AI_INTERPRETATION);
   theme.vumax         = color565(COLOR_VU_MAX);
   theme.vumin         = color565(COLOR_VU_MIN);
   theme.clock         = color565(COLOR_CLOCK);
@@ -387,6 +452,34 @@ void Config::setDefaults() {
   store.screensaverPlayingEnabled = false;
   store.screensaverPlayingTimeout = 5;
   store.usespectrum = false;
+  // AI defaults / Значения по умолчанию для AI
+  store.ai_enabled = false;
+  store.llm_provider = LLM_NONE;
+  strlcpy(store.ai_api_key, "", AI_API_KEY_LENGTH);
+  strlcpy(store.ai_model, "deepseek-chat", AI_MODEL_LENGTH);  // DeepSeek default model
+  store.ai_enableFiles = false;
+  
+  // Применяем настройки из myoptions.h если они определены / Apply settings from myoptions.h if defined
+  #ifdef AI_ENABLED
+    store.ai_enabled = true;
+  #endif
+  
+  #ifdef AI_LLM_PROVIDER
+    store.llm_provider = AI_LLM_PROVIDER;
+  #endif
+  
+  #ifdef AI_API_KEY
+    strlcpy(store.ai_api_key, AI_API_KEY, AI_API_KEY_LENGTH);
+  #endif
+  
+  #ifdef AI_MODEL
+    strlcpy(store.ai_model, AI_MODEL, AI_MODEL_LENGTH);
+  #endif
+  
+  #ifdef AI_ENABLE_FILES
+    store.ai_enableFiles = (AI_ENABLE_FILES != 0);
+  #endif
+  
   eepromWrite(EEPROM_START, store);
 }
 void Config::setTimezone(int8_t tzh, int8_t tzm) {

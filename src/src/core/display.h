@@ -45,10 +45,12 @@ class Display {
     void wakeup();
     void setContrast();
     void printPLitem(uint8_t pos, const char* item, bool uppercase);
+    void setAIInterpretation(const String& text);  // AI interpretation widget / Виджет AI интерпретации
   private:
     ScrollWidget _meta, _title1, _plcurrent;
     ScrollWidget *_weather;
     ScrollWidget *_title2;
+    ScrollWidget *_ai_interpretation;
     BitrateWidget *_fullbitrate;
     FillWidget *_metabackground, *_plbackground;
     SliderWidget *_volbar, *_heapbar;
@@ -108,6 +110,7 @@ class Display {
     bool deepsleep(){return true;}
     void wakeup(){}
     void printPLitem(uint8_t pos, const char* item, bool uppercase){}
+    void setAIInterpretation(const String& text){}  // AI interpretation widget / Виджет AI интерпретации
 };
 
 #endif

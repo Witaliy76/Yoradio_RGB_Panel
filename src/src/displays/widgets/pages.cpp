@@ -46,7 +46,12 @@ Page::Page() : _widgets(LinkedList<Widget * >([](Widget * wd) { delete wd;})), _
 }
 
 Page::~Page() {
-  for (const auto& w : _widgets) removeWidget(w);
+  // Безопасная очистка: используем free() вместо range-for, чтобы избежать UB
+  // Safe cleanup: use free() instead of range-for to avoid UB
+  // free() вызывает _onRemove (delete) для каждого элемента и очищает список
+  // free() calls _onRemove (delete) for each element and clears the list
+  _widgets.free();
+  _pages.free();
 }
 
 void Page::loop() {
@@ -60,6 +65,7 @@ Widget& Page::addWidget(Widget* widget) {
 }
 
 bool Page::removeWidget(Widget* widget){
+  if (!widget) return false; // Защита от nullptr / nullptr protection
   widget->setActive(false, _active);
   return _widgets.remove(widget);
 }
@@ -70,6 +76,7 @@ Page& Page::addPage(Page* page){
 }
 
 bool Page::removePage(Page* page){
+  if (!page) return false; // Защита от nullptr / nullptr protection
   return _pages.remove(page);
 }
 

@@ -18,6 +18,7 @@ extern "C" {
 
 #include "../tools/GFX_Canvas_screen.h"
 #include "Arduino_GFX_Library.h"
+#include "../../core/display.h"
 extern Arduino_Canvas* gfx;
 
 // === НАСТРАИВАЕМЫЕ ПАРАМЕТРЫ ДЛЯ ПОДБОРА ===
@@ -162,29 +163,13 @@ void TextWidget::setText(const char* txt) {
         return;
     }
     
-    // Проверяем, является ли это названием песни (длинная строка)
-    if (strlen(txt) > 10) {
-        // Очищаем старый кэш при смене контента
-        static const char* lastContent = nullptr;
-        if (lastContent != txt) {
-            _clearCache();
-            lastContent = txt;
-        }
-        
-        char* cachedText = _getCachedText(txt);
-        if (cachedText) {
-            strlcpy(_text, cachedText, _buffsize);
-        } else {
-            char* converted = strdup(utf8Rus(txt, _uppercase));
-            strlcpy(_text, converted, _buffsize);
-            _addToCache(txt, converted);
-        }
-    } else {
-        // Для коротких строк не используем кэш
-        strlcpy(_text, utf8Rus(txt, _uppercase), _buffsize);
-    }
+    // Храним UTF-8 как есть (без конвертации)
+    strlcpy(_text, txt, _buffsize);
     
-    _textwidth = strlen(_text) * _charWidth;
+    // Пересчитываем ширину по 1-byte представлению (для выравнивания)
+    const char* converted = utf8Rus(_text, _uppercase);
+    _textwidth = strlen(converted) * _charWidth;
+    
     if (strcmp(_oldtext, _text) == 0) return;
     
     if (_active) {
@@ -224,7 +209,9 @@ uint16_t TextWidget::_realLeft() {
 
 void TextWidget::_draw() {
   if(!_active || !gfx) return;
-  gfxDrawText(gfx, _realLeft(), _config.top, _text, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
+  // Конвертируем UTF-8 в 1-byte локально (один раз) и используем gfxDrawText1b()
+  const char* converted = utf8Rus(_text, _uppercase);
+  gfxDrawText1b(gfx, _realLeft(), _config.top, converted, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
   strlcpy(_oldtext, _text, _buffsize);
 }
 
@@ -299,11 +286,42 @@ bool ScrollWidget::_checkIsScrollNeeded() {
   return _textwidth > _width;
 }
 
+void ScrollWidget::ensureScrollMetrics() {
+  // Гарантирует, что _textWidth и _doscroll актуальны
+  // Вызывается перед проверками eligibility, чтобы не зависеть от loop()
+  if (!gfx) return;
+  if (!_text || strlen(_text) == 0) {
+    _textWidth = 0;
+    _doscroll = false;
+    return;
+  }
+  // Перестраиваем цикл при необходимости (это обновит _textWidth)
+  _rebuildCycleIfNeeded();
+  // Обновляем _doscroll на основе актуального _textWidth
+  if (_textWidth > 0) {
+    _doscroll = _textWidth > _width;
+  } else {
+    // Fallback: используем старую проверку через _textwidth
+    _doscroll = _checkIsScrollNeeded();
+  }
+}
+
+bool ScrollWidget::canParticipateInScroll() {
+  // Возвращает true ТОЛЬКО если виджет может участвовать в скролле
+  // Сначала гарантируем актуальность метрик (независимо от loop())
+  ensureScrollMetrics();
+  // Проверяем eligibility
+  return _active && _doscroll && _config.textsize > 0 && _text && strlen(_text) > 0;
+}
+
 void ScrollWidget::setText(const char* txt) {
   if (!gfx) return;
-  strlcpy(_text, utf8Rus(txt, _uppercase), _buffsize - 1);
+  // Храним UTF-8 как есть (без конвертации)
+  strlcpy(_text, txt, _buffsize - 1);
   if (strcmp(_oldtext, _text) == 0) return;
-  _textwidth = strlen(_text) * _charWidth; // Keep for fallback
+  // Keep fallback width calculation (will be recalculated in _rebuildCycleIfNeeded)
+  const char* converted = utf8Rus(_text, _uppercase);
+  _textwidth = strlen(converted) * _charWidth; // Keep for fallback
   _x = _config.left;
   _fx = _config.left;
   _scrollPx = 0; // MVP-2: Reset pixel scroll position
@@ -329,11 +347,51 @@ void ScrollWidget::setText(const char* txt, const char *format){
   setText(buf);
 }
 
+void ScrollWidget::setActive(bool act, bool clr) {
+  // Если виджет деактивируется и имеет слот скролла - освобождаем слот немедленно
+  if (!act && dsp.getScrollId() == this) {
+    dsp.setScrollId(NULL);
+    // Сбрасываем индекс в -1, чтобы следующий eligible виджет мог сразу получить слот
+    // (не ждать завершения цикла текущего виджета)
+    dsp.resetScrollIndex(); // Сбрасываем индекс для немедленного перехода к следующему
+  }
+  
+  // Вызываем базовую реализацию (устанавливает _active)
+  TextWidget::setActive(act, clr);
+  
+  // Если виджет активируется - обновляем метрики и нормализуем индекс очереди
+  if (act) {
+    // Гарантируем актуальность метрик (чтобы виджет сразу мог участвовать в очереди)
+    ensureScrollMetrics();
+    // Нормализуем индекс очереди при изменении состава scrollable-виджетов
+    // (новый виджет добавился, нужно скорректировать lastIndex если нужно)
+    dsp.normalizeScrollIndex();
+  }
+}
+
 void ScrollWidget::loop() {
   if(_locked) return;
   
+  // КРИТИЧНО: Если виджет имеет слот, но больше не может участвовать в скролле
+  // (стал неактивным или текст изменился), освобождаем слот НЕМЕДЛЕННО
+  if (dsp.getScrollId() == this) {
+    if (!canParticipateInScroll()) {
+      // Виджет больше не может скроллиться - освобождаем слот и сбрасываем индекс
+      dsp.setScrollId(NULL);
+      dsp.resetScrollIndex(); // Сбрасываем индекс для немедленного перехода к следующему
+      // Рисуем статический текст если виджет активен
+      if (_active) _draw();
+      return;
+    }
+  }
+  
   // Check if widget is eligible for scrolling
-  bool isEligible = _active && _doscroll && _config.textsize > 0 && _text && strlen(_text) > 0;
+  // canParticipateInScroll() теперь сам вызывает ensureScrollMetrics()
+  if (!canParticipateInScroll()) {
+    // Even if not scrolling, draw static text (only if text changed)
+    if (_active) _draw();
+    return;
+  }
   
   // If another widget is scrolling, we still need to draw (but don't update position)
   if (dsp.getScrollId() != NULL && dsp.getScrollId() != this) {
@@ -341,29 +399,51 @@ void ScrollWidget::loop() {
     return;
   }
   
-  if (!isEligible) {
-    // Even if not scrolling, draw static text (only if text changed)
-    if (_active) _draw();
-    return;
-  }
-  
-  // Round-robin fairness: if scrollId is NULL and we're the last scroller, skip this turn
-  // (allow other widgets to claim the slot first)
-  // Exception: if enough time passed (200ms), allow re-claiming (handles single-widget case)
+  // Логическая очередь: выбираем следующий виджет строго по порядку добавления
   if (dsp.getScrollId() == NULL) {
-    if (dsp.getLastScroller() == this) {
-      // We just finished, check if enough time passed for single-widget case
-      uint32_t timeSinceRelease = millis() - dsp.getLastReleaseTime();
-      if (timeSinceRelease < 200) {
-        // Skip this turn to allow other widgets to claim
-        // But still draw our static position
+    // Получаем общее количество скроллируемых виджетов
+    extern Display display;
+    Page* activePage = display.getActivePage();
+    int16_t totalScrollable = activePage ? activePage->getScrollableCount() : 0;
+    
+    // Нормализуем lastIndex при изменении состава scrollable-виджетов
+    // (важно делать это ДО проверки totalScrollable, чтобы индекс был актуален)
+    dsp.normalizeScrollIndex();
+    
+    if (totalScrollable <= 0) {
+      // Нет скроллируемых виджетов - разрешаем скролл для одного виджета (fallback)
+      // Это может быть, если виджеты еще не инициализированы или текст короткий
+      dsp.setScrollId(this);
+    } else if (totalScrollable == 1) {
+      // Правило "один scrollable == скроллим сразу": разрешаем скролл единственному виджету всегда
+      // (без проверки индекса next)
+      // Это работает и при включении нового виджета, который становится единственным
+      dsp.setScrollId(this);
+    } else {
+      // Получаем наш порядковый индекс среди всех ScrollWidget'ов, которые могут скроллиться
+      int16_t myIndex = dsp.getScrollWidgetIndex(this);
+      if (myIndex < 0) {
+        // Виджет не найден в активной странице или не может скроллиться, просто рисуем
         if (_active) _draw();
         return;
       }
-      // Enough time passed (likely no other widgets), allow re-claiming
+      
+      // Получаем индекс последнего скроллившегося виджета (после нормализации выше)
+      int16_t lastIndex = dsp.getLastScrollIndex();
+      
+      // Вычисляем индекс следующего виджета в очереди
+      // Если lastIndex == -1 (начало), то nextIndex = 0
+      int16_t nextIndex = (lastIndex + 1) % totalScrollable;
+      
+      // Захватываем слот только если мы следующий в очереди
+      if (myIndex == nextIndex) {
+        dsp.setScrollId(this);
+      } else {
+        // Не наш ход, просто рисуем статический текст
+        if (_active) _draw();
+        return;
+      }
     }
-    // Slot is free and we're not the last scroller (or enough time passed) - claim it
-    dsp.setScrollId(this);
   }
   
   // Original behavior: use startscrolldelay when at start position, scrolltime otherwise
@@ -387,8 +467,8 @@ void ScrollWidget::loop() {
     if (_scrollPx >= (_textWidth + _sepWidth)) {
       _scrollPx = 0; // Reset to start of cycle
       _scrollAcc10 = 0; // Reset accumulator
-      // Round-robin: mark this widget as last scroller before releasing slot
-      dsp.setLastScroller(this);
+      // Увеличиваем индекс последнего скроллившегося виджета (логическая очередь)
+      dsp.advanceScrollIndex();
       dsp.setScrollId(NULL);
     }
   }
@@ -432,19 +512,19 @@ void ScrollWidget::_rebuildCycleIfNeeded() {
     _line->setTextWrap(false);
   }
   
-  // Measure text width - _text is already processed through utf8Rus in setText()
+  // Конвертируем UTF-8 в 1-byte локально (один раз) для измерения ширины
+  const char* convertedText = utf8Rus(_text, _uppercase);
   int16_t x1, y1;
   uint16_t w, h;
-  measureCanvas->getTextBounds(_text, 0, 0, &x1, &y1, &w, &h);
+  measureCanvas->getTextBounds(convertedText, 0, 0, &x1, &y1, &w, &h);
   _textWidth = w;
   
-  // Measure separator width
+  // Measure separator width (separator is already 1-byte)
   measureCanvas->getTextBounds(_sep, 0, 0, &x1, &y1, &w, &h);
   _sepWidth = w;
   
-  // Build cycle string: _text + separator + _text
-  // Use existing _sep separator (configured in init)
-  _cycle = String(_text) + String(_sep) + String(_text);
+  // Build cycle string: convertedText + separator + convertedText (all 1-byte)
+  _cycle = String(convertedText) + String(_sep) + String(convertedText);
   
   // Measure cycle width (for reference, can be calculated as _textWidth + _sepWidth + _textWidth)
   measureCanvas->getTextBounds(_cycle.c_str(), 0, 0, &x1, &y1, &w, &h);
@@ -517,8 +597,9 @@ void ScrollWidget::_draw() {
     int16_t drawX = -_scrollPx;
     
     // Render cycle into line-canvas (no alignment, text scrolls from left)
+    // _cycle already contains 1-byte string (from _rebuildCycleIfNeeded)
     // Wrapping is disabled, text will be clipped by canvas bounds
-    gfxDrawText(_line, drawX, 0, _cycle.c_str(), _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
+    gfxDrawText1b(_line, drawX, 0, _cycle.c_str(), _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
   } else {
     // Non-scrolling mode: draw text with alignment within line-canvas
     int16_t drawX = 0;
@@ -540,10 +621,12 @@ void ScrollWidget::_draw() {
     // This ensures text doesn't start before canvas boundary
     if (drawX < 0) drawX = 0;
     
+    // Конвертируем UTF-8 в 1-byte локально (один раз) и используем gfxDrawText1b()
+    const char* convertedText = utf8Rus(_text, _uppercase);
     // Render text into line-canvas (clipped by canvas bounds, no wrapping)
     // Wrapping is disabled, long text will be clipped at right edge (_width)
     // Arduino_GFX automatically clips text that extends beyond canvas bounds
-    gfxDrawText(_line, drawX, 0, _text, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
+    gfxDrawText1b(_line, drawX, 0, convertedText, _fgcolor, _bgcolor, _config.textsize, nullptr, _uppercase);
   }
   
   // Always blit line-canvas framebuffer into main canvas

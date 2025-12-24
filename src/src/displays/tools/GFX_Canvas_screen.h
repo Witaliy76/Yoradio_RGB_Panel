@@ -4,6 +4,11 @@
 #include "utf8RusGFX.h"
 
 // Текст
+// UTF-8 input: конвертирует через utf8Rus() и печатает
+void gfxDrawTextUtf8(Arduino_Canvas* gfx, int x, int y, const char* text, uint16_t color, uint16_t bgcolor, uint8_t size, const GFXfont* font = nullptr, bool uppercase = false);
+// 1-byte input: печатает уже сконвертированную строку без повторной конвертации
+void gfxDrawText1b(Arduino_Canvas* gfx, int x, int y, const char* text, uint16_t color, uint16_t bgcolor, uint8_t size, const GFXfont* font = nullptr, bool uppercase = false);
+// Legacy wrapper: вызывает gfxDrawTextUtf8() для обратной совместимости
 void gfxDrawText(Arduino_Canvas* gfx, int x, int y, const char* text, uint16_t color, uint16_t bgcolor, uint8_t size, const GFXfont* font = nullptr, bool uppercase = false);
 void gfxDrawNumber(Arduino_Canvas* gfx, int x, int y, int num, uint16_t color, uint16_t bgcolor, uint8_t size, const GFXfont* font = nullptr);
 void gfxDrawFormatted(Arduino_Canvas* gfx, int x, int y, const char* fmt, uint16_t color, uint16_t bgcolor, uint8_t size, const GFXfont* font, ...);

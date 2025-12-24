@@ -19,6 +19,8 @@ class Page {
     bool removePage(Page* page);
     void setActive(bool act);
     bool isActive();
+    int16_t getScrollWidgetIndex(void* widget) const; // Получить порядковый индекс ScrollWidget'а среди всех ScrollWidget'ов
+    int16_t getScrollableCount(); // Получить количество ScrollWidget'ов, которые могут скроллиться (не const, т.к. вызывает canParticipateInScroll)
 };
 
 class Pager{
@@ -29,6 +31,7 @@ class Pager{
     Page& addPage(Page* page, bool setNow = false);
     bool removePage(Page* page);
     void setPage(Page* page, bool black=false);
+    Page* getActivePage() const; // Получить активную страницу
   private:
     LinkedList<Page*> _pages;
     

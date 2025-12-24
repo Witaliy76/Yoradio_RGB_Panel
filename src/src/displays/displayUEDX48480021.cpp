@@ -118,6 +118,7 @@ DspCore::DspCore() {
   _scrollid = nullptr;
   _lastScroller = nullptr;
   _lastReleaseTime = 0;
+  _lastScrollIndex = -1;
 }
 
 #include "tools/utf8RusGFX.h"
@@ -818,6 +819,55 @@ void DspCore::readBattery() {
 
 Arduino_G* DspCore::getOutputDisplay() {
   return output_display;
+}
+
+// Получить порядковый индекс ScrollWidget'а среди всех ScrollWidget'ов в активной странице
+int16_t DspCore::getScrollWidgetIndex(void* widget) {
+  extern Display display;
+  Page* activePage = display.getActivePage();
+  if (activePage) {
+    return activePage->getScrollWidgetIndex(widget);
+  }
+  return -1; // Активная страница не найдена
+}
+
+// Нормализовать lastIndex при изменении состава scrollable-виджетов
+void DspCore::normalizeScrollIndex() {
+  extern Display display;
+  Page* activePage = display.getActivePage();
+  if (activePage) {
+    int16_t totalScrollable = activePage->getScrollableCount();
+    if (totalScrollable > 0) {
+      // Нормализуем lastIndex если он стал больше totalScrollable
+      if (_lastScrollIndex >= totalScrollable) {
+        _lastScrollIndex = totalScrollable - 1;
+      }
+    } else {
+      _lastScrollIndex = -1;
+    }
+  } else {
+    _lastScrollIndex = -1;
+  }
+}
+
+// Увеличить индекс последнего скроллившегося виджета
+void DspCore::advanceScrollIndex() {
+  extern Display display;
+  Page* activePage = display.getActivePage();
+  if (activePage) {
+    int16_t totalScrollable = activePage->getScrollableCount();
+    if (totalScrollable > 0) {
+      // Нормализуем lastIndex если он стал больше totalScrollable (защита при изменении состава)
+      if (_lastScrollIndex >= totalScrollable) {
+        _lastScrollIndex = totalScrollable - 1;
+      }
+      _lastScrollIndex = (_lastScrollIndex + 1) % totalScrollable;
+    } else {
+      _lastScrollIndex = -1;
+    }
+  } else {
+    _lastScrollIndex = -1;
+  }
 }
 
 #endif

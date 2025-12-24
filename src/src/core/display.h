@@ -83,6 +83,8 @@ class Display {
     void _layoutChange(bool played);
     void _setRSSI(int rssi);
     void _deactivateAllMeters();
+  public:
+    Page* getActivePage() const { return _pager.getActivePage(); } // Получить активную страницу для доступа из DspCore
 };
 
 #else

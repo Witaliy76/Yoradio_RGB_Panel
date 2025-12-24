@@ -72,6 +72,11 @@ public:
     void setLastScroller(void * lastScroller) { _lastScroller = lastScroller; _lastReleaseTime = millis(); }
     void * getLastScroller() { return _lastScroller; }
     uint32_t getLastReleaseTime() { return _lastReleaseTime; }
+    int16_t getScrollWidgetIndex(void* widget); // Получить порядковый индекс ScrollWidget'а в активной странице
+    void advanceScrollIndex(); // Увеличить индекс последнего скроллившегося виджета
+    int16_t getLastScrollIndex() const { return _lastScrollIndex; } // Получить индекс последнего скроллившегося
+    void normalizeScrollIndex(); // Нормализовать lastIndex при изменении состава scrollable-виджетов
+    void resetScrollIndex() { _lastScrollIndex = -1; } // Сбросить индекс для немедленного перехода к следующему виджету
     Arduino_G* getOutputDisplay(); // Get output display for line-canvas creation
     void setNumFont();
     uint16_t textWidth(const char *txt);
@@ -93,6 +98,7 @@ private:
     void * _scrollid;
     void * _lastScroller; // Last widget that finished scrolling (for round-robin fairness)
     uint32_t _lastReleaseTime; // Time when slot was last released (for single-widget timeout)
+    int16_t _lastScrollIndex; // Индекс последнего скроллившегося виджета в порядке добавления
     void _getTimeBounds();
     void _clockSeconds();
     void _clockDate();

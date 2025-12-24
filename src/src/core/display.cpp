@@ -9,6 +9,13 @@
 #include "../core/spidog.h"
 extern Arduino_Canvas* gfx;
 
+// Глобальный флаг "кадр грязный" для dirty-based flush
+static volatile bool g_frameDirty = false;
+
+// Helper-функция для установки флага dirty (вызывается из функций рисования)
+void markFrameDirty() {
+    g_frameDirty = true;
+}
 
 Display display;
 #ifdef USE_NEXTION
@@ -659,11 +666,17 @@ void Display::loop() {
       }
   }
   _pager.loop();
-  // Упрощенное условие - без хака _bootStep==1 / Simplified condition without _bootStep==1 hack
+  // Dirty-based flush: flush только если был реальный рендеринг и прошло >=16мс
   if(!_suspendFlush){
-    sdog.takeMutex();
-    gfxFlushScreen(gfx);
-    sdog.giveMutex();
+    static uint32_t lastFlushMs = 0;
+    // Flush только если кадр грязный И прошло >=16мс (throttle ~60 FPS)
+    if(g_frameDirty && (millis() - lastFlushMs >= 16)){
+      sdog.takeMutex();
+      gfxFlushScreen(gfx);
+      sdog.giveMutex();
+      g_frameDirty = false; // Сбрасываем флаг после flush
+      lastFlushMs = millis();
+    }
   }
 #ifdef USE_NEXTION
   nextion.loop();

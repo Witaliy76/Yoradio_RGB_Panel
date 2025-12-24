@@ -69,6 +69,8 @@ class Widget{
     Widget(){ _active   = false; }
     virtual ~Widget(){}
     virtual void loop(){}
+    // Проверка типа виджета (для безопасного приведения без RTTI)
+    virtual bool isScrollWidget() const { return false; }
     virtual void init(WidgetConfig conf, uint16_t fgcolor, uint16_t bgcolor){
       _config = conf;
       _fgcolor  = fgcolor;
@@ -81,7 +83,7 @@ class Widget{
     void setAlign(WidgetAlign align){
       _config.align = align;
     }
-    void setActive(bool act, bool clr=false) { _active = act; if(_active && !_locked) _draw(); if(clr && !_locked) _clear(); }
+    virtual void setActive(bool act, bool clr=false) { _active = act; if(_active && !_locked) _draw(); if(clr && !_locked) _clear(); }
     void lock(bool lck=true) { _locked = lck; if(_locked) _reset(); if(_locked && _active) _clear();  }
     void unlock() { _locked = false; }
     bool locked() { return _locked; }
@@ -177,6 +179,10 @@ class ScrollWidget: public TextWidget {
     void loop();
     void setText(const char* txt);
     void setText(const char* txt, const char *format);
+    void setActive(bool act, bool clr=false) override; // Переопределяем для освобождения слота при деактивации
+    void ensureScrollMetrics(); // Гарантирует актуальность _textWidth и _doscroll (без рисования)
+    bool canParticipateInScroll(); // Проверка eligibility для скролла (убрали const для вызова ensureScrollMetrics)
+    bool isScrollWidget() const override { return true; } // Переопределяем для безопасной проверки типа
   private:
     char *_sep;
     char *_window;

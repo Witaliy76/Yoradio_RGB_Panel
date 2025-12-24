@@ -19,8 +19,8 @@ char* utf8Rus(const char* str, bool uppercase) {
                 i += 2;
                 continue;
             }
-            // Другие C2-символы пропускаем (не поддерживаются) / Other C2 chars skipped (not supported)
-            i++;
+            // Другие C2-символы пропускаем целиком (оба байта) без мусора / Other C2 chars skipped (both bytes) without artifacts
+            i += 2;
             continue;
         }
         // UTF-8: кириллица
@@ -28,11 +28,16 @@ char* utf8Rus(const char* str, bool uppercase) {
             uint8_t next = (uint8_t)str[i+1];
             if (next >= 0x90 && next <= 0xBF) { // А-Я, а-п
                 char ch = next + 0x30; // 0xC0–0xDF
+                // Применяем uppercase для кириллицы если нужно
+                if (uppercase) {
+                    if ((unsigned char)ch >= 0xE0 && (unsigned char)ch <= 0xFF)
+                        ch = ch - 0x20;
+                }
                 strn[j++] = ch;
                 i += 2;
                 continue;
             } else if (next == 0x81) { // Ё
-                strn[j++] = 0xA8;
+                strn[j++] = 0xA8; // Ё всегда в верхнем регистре в CP1251
                 i += 2;
                 continue;
             }
@@ -40,27 +45,38 @@ char* utf8Rus(const char* str, bool uppercase) {
             uint8_t next = (uint8_t)str[i+1];
             if (next >= 0x80 && next <= 0x8F) { // р-я
                 char ch = next + 0x70; // 0xE0–0xEF
+                // Применяем uppercase для кириллицы если нужно
+                if (uppercase) {
+                    if ((unsigned char)ch >= 0xE0 && (unsigned char)ch <= 0xFF)
+                        ch = ch - 0x20;
+                }
                 strn[j++] = ch;
                 i += 2;
                 continue;
             } else if (next == 0x91) { // ё
-                strn[j++] = 0xB8;
+                char ch = 0xB8; // ё в нижнем регистре
+                // Применяем uppercase для ё
+                if (uppercase) {
+                    ch = 0xA8; // Ё в верхнем регистре
+                }
+                strn[j++] = ch;
                 i += 2;
                 continue;
             }
         }
-        // Не кириллица — копируем как есть
+        // Не кириллица (ASCII и другие символы) — обрабатываем как есть
         char ch = str[i];
         if (uppercase) {
-            // латиница
+            // Английские буквы: строчные a-z → заглавные A-Z
             if (ch >= 'a' && ch <= 'z') ch = ch - 'a' + 'A';
-            // кириллица (строчные)
+            // Кириллица (строчные в CP1251): 0xE0-0xFF → заглавные (вычитание 0x20)
             else if ((unsigned char)ch >= 0xE0 && (unsigned char)ch <= 0xFF)
                 ch = ch - 0x20;
-            // ё
+            // ё → Ё
             else if ((unsigned char)ch == 0xB8)
                 ch = 0xA8;
         }
+        // Если uppercase == false, все символы остаются без изменений
         strn[j++] = ch;
         i++;
     }

@@ -83,7 +83,7 @@ class Widget{
     void setAlign(WidgetAlign align){
       _config.align = align;
     }
-    virtual void setActive(bool act, bool clr=false) { _active = act; if(_active && !_locked) _draw(); if(clr && !_locked) _clear(); }
+    virtual void setActive(bool act, bool clr=false) { if(clr && !_locked) _clear(); _active = act; if(_active && !_locked) _draw(); }
     void lock(bool lck=true) { _locked = lck; if(_locked) _reset(); if(_locked && _active) _clear();  }
     void unlock() { _locked = false; }
     bool locked() { return _locked; }

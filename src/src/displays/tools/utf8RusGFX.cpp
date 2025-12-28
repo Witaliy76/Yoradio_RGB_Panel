@@ -4,7 +4,10 @@
 #include <Arduino.h>
 
 char* utf8Rus(const char* str, bool uppercase) {
-    static char strn[BUFLEN];
+    // Ring-buffer на 3 буфера для безопасных множественных вызовов / Ring-buffer with 3 buffers for safe multiple calls
+    static char buf[3][BUFLEN];
+    static uint8_t idx = 0;
+    char* strn = buf[idx = (idx + 1) % 3];
     int i = 0, j = 0;
     while (str[i] && j < BUFLEN - 1) {
         // UTF-8: специальные символы (кавычки и т.д.) / Special characters (quotes etc.)
@@ -18,8 +21,12 @@ char* utf8Rus(const char* str, bool uppercase) {
                 strn[j++] = '"';
                 i += 2;
                 continue;
+            } else if (next == 0xA0) { // NBSP (U+00A0) - неразрывный пробел / non-breaking space
+                strn[j++] = ' ';
+                i += 2;
+                continue;
             }
-            // Другие C2-символы пропускаем целиком (оба байта) без мусора / Other C2 chars skipped (both bytes) without artifacts
+            // Другие C2-символы: пропускаем оба байта без добавления символов / Other C2 chars: skip both bytes without adding to output
             i += 2;
             continue;
         }

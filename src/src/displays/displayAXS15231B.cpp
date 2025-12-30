@@ -697,6 +697,20 @@ void DspCore::normalizeScrollIndex() {
   extern Display display;
   Page* activePage = display.getActivePage();
   if (activePage) {
+    // If a widget currently owns the scroll slot and is still eligible,
+    // pin lastScrollIndex to that owner to avoid repeating the same widget
+    // after the eligible queue changes (on lock/unlock/active toggles).
+    // Если виджет владеет слотом скролла и всё ещё eligible,
+    // привязываем lastScrollIndex к этому владельцу, чтобы избежать повторения того же виджета
+    // после изменения eligible-очереди (при lock/unlock/active переключениях).
+    void* owner = dsp.getScrollId();
+    if (owner) {
+      int16_t ownerIndex = activePage->getScrollWidgetIndex(owner);
+      if (ownerIndex >= 0) {
+        _lastScrollIndex = ownerIndex;
+      }
+    }
+
     int16_t totalScrollable = activePage->getScrollableCount();
     if (totalScrollable > 0) {
       // Нормализуем lastIndex если он стал больше totalScrollable

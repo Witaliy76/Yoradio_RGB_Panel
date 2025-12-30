@@ -313,8 +313,9 @@ bool ScrollWidget::canParticipateInScroll() {
   // Возвращает true ТОЛЬКО если виджет может участвовать в скролле
   // Сначала гарантируем актуальность метрик (независимо от loop())
   ensureScrollMetrics();
-  // Проверяем eligibility
-  return _active && _doscroll && _config.textsize > 0 && _text && strlen(_text) > 0;
+  // Проверяем eligibility: активен, не заблокирован, может скроллиться, имеет текст
+  // Check eligibility: active, not locked, can scroll, has text
+  return _active && !_locked && _doscroll && _config.textsize > 0 && _text && strlen(_text) > 0;
 }
 
 void ScrollWidget::setText(const char* txt) {
@@ -391,6 +392,19 @@ void ScrollWidget::setActive(bool act, bool clr) {
   }
 }
 
+void ScrollWidget::lock(bool lck) {
+  // Если виджет блокируется и имеет слот скролла - освобождаем слот немедленно
+  // If widget is being locked and has scroll slot - free the slot immediately
+  if (lck && dsp.getScrollId() == this) {
+    dsp.setScrollId(NULL);
+    dsp.resetScrollIndex(); // Сбрасываем индекс для немедленного перехода к следующему / Reset index for immediate transition to next
+  }
+  
+  // Вызываем базовую реализацию (устанавливает _locked и очищает виджет)
+  // Call base implementation (sets _locked and clears widget)
+  Widget::lock(lck);
+}
+
 void ScrollWidget::loop() {
   if(_locked) return;
   
@@ -417,6 +431,16 @@ void ScrollWidget::loop() {
   
   // If another widget is scrolling, we still need to draw (but don't update position)
   if (dsp.getScrollId() != NULL && dsp.getScrollId() != this) {
+    // Если слот занят, но владелец больше не участвует в очереди — освободить слот
+    // If slot is occupied but owner is no longer in eligible queue — free the slot
+    extern Display display;
+    Page* activePage = display.getActivePage();
+    void* slotOwner = dsp.getScrollId();
+    if (!activePage || activePage->getScrollWidgetIndex(slotOwner) < 0) {
+      dsp.setScrollId(NULL);
+      dsp.resetScrollIndex(); // стартуем очередь заново / restart queue
+    }
+
     if (_active) _draw();
     return;
   }

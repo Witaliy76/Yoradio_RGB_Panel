@@ -84,7 +84,7 @@ class Widget{
       _config.align = align;
     }
     virtual void setActive(bool act, bool clr=false) { if(clr && !_locked) _clear(); _active = act; if(_active && !_locked) _draw(); }
-    void lock(bool lck=true) { _locked = lck; if(_locked) _reset(); if(_locked && _active) _clear();  }
+    virtual void lock(bool lck=true) { _locked = lck; if(_locked) _reset(); if(_locked && _active) _clear();  }
     void unlock() { _locked = false; }
     bool locked() { return _locked; }
     void moveTo(MoveConfig mv){
@@ -107,6 +107,9 @@ class Widget{
       _reset();
       _draw();
     }
+    // Геттеры для координат виджета / Widget coordinates getters
+    uint16_t top() const { return _config.top; }
+    uint16_t left() const { return _config.left; }
   protected:
     bool _active, _moved, _locked;
     uint16_t _fgcolor, _bgcolor, _width;
@@ -180,6 +183,7 @@ class ScrollWidget: public TextWidget {
     void setText(const char* txt);
     void setText(const char* txt, const char *format);
     void setActive(bool act, bool clr=false) override; // Переопределяем для освобождения слота при деактивации
+    void lock(bool lck) override; // Переопределяем для освобождения слота при блокировке
     void ensureScrollMetrics(); // Гарантирует актуальность _textWidth и _doscroll (без рисования)
     bool canParticipateInScroll(); // Проверка eligibility для скролла (убрали const для вызова ensureScrollMetrics)
     bool isScrollWidget() const override { return true; } // Переопределяем для безопасной проверки типа

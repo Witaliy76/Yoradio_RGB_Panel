@@ -523,6 +523,16 @@ void Display::setAIInterpretation(const String& text) {
   // Draw only on PG_PLAYER page, otherwise save to pending
   if (!_ai_interpretation) return;
   
+  // Runtime gate: если AI выключен, очищаем виджет и выходим до записи pending
+  // Runtime gate: if AI is disabled, clear widget and exit before writing pending
+  if (!config.store.ai_enabled) {
+    _ai_interpretation->setText("");
+    _ai_interpretation->setActive(false, true);
+    _aiPending = false;
+    _aiPendingText[0] = '\0';
+    return;
+  }
+  
   // Always update pending buffer
   const char* txt = (text.isEmpty() || text.c_str() == nullptr) ? "" : text.c_str();
   strlcpy(_aiPendingText, txt, sizeof(_aiPendingText));

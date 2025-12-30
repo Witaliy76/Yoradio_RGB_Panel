@@ -122,6 +122,11 @@ DspCore::DspCore() {
 #include "tools/utf8RusGFX.h"
 ///////////////////////////////////////////////////////////////
 
+// Day of week uppercase (can be overridden in myoptions.h)
+#ifndef DOW_UPPERCASE
+#define DOW_UPPERCASE true
+#endif
+
 // Use standard init sequence from Arduino_GFX
 extern const uint8_t st7701_type1_init_operations[];
 
@@ -466,12 +471,12 @@ void DspCore::_clockDate(){
     gfx,
     width() - clockRightSpace - CHARWIDTH*4*2+13-20,
     clockTop-CHARHEIGHT+44,
-    utf8Rus(dow[network.timeinfo.tm_wday], true),
+    dow[network.timeinfo.tm_wday],
     config.theme.dow,
     config.theme.background,
     3,
     nullptr,
-    true
+    DOW_UPPERCASE
   );
 }
 

@@ -59,6 +59,9 @@ class Display {
     VuWidget *_vuwidget;
     SpectrumWidget *_spectrumwidget;
     bool _usingSpectrum;
+    // AI interpretation pending state (when not on PG_PLAYER page)
+    bool _aiPending = false;
+    char _aiPendingText[256];
     NumWidget _nums;
     ProgressWidget _testprogress;
     ClockWidget _clock;
@@ -83,6 +86,7 @@ class Display {
     void _layoutChange(bool played);
     void _setRSSI(int rssi);
     void _deactivateAllMeters();
+    void _applyPendingAI();  // Apply pending AI interpretation when returning to PG_PLAYER
   public:
     Page* getActivePage() const { return _pager.getActivePage(); } // Получить активную страницу для доступа из DspCore
 };

@@ -112,6 +112,11 @@ DspCore::DspCore(): Arduino_AXS15231B(bus, GFX_NOT_DEFINED /* RST */, 0 /* rotat
 #include "tools/utf8RusGFX.h"
 ///////////////////////////////////////////////////////////////
 
+// Day of week uppercase (can be overridden in myoptions.h)
+#ifndef DOW_UPPERCASE
+#define DOW_UPPERCASE false
+#endif
+
 void DspCore::initDisplay() {
   Serial.println("[AXS15231B] initDisplay start");
   
@@ -364,10 +369,12 @@ void DspCore::_clockDate(){
     gfx,
     width() - clockRightSpace - CHARWIDTH*4*2+13-20,
     clockTop-CHARHEIGHT+44,
-    utf8Rus(dow[network.timeinfo.tm_wday], false),
+    dow[network.timeinfo.tm_wday],
     config.theme.dow,
     config.theme.background,
-    3
+    3,
+    nullptr,
+    DOW_UPPERCASE
   );
 }
 

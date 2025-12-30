@@ -119,6 +119,22 @@ void Display::init() {
   
   Serial.println("done");
 }
+void Display::_applyPendingAI() {
+  // Apply pending AI interpretation when returning to PG_PLAYER page
+  if (!_aiPending || !_ai_interpretation) return;
+  
+  if (strlen(_aiPendingText) == 0) {
+    // Empty text - hide widget
+    _ai_interpretation->setText("");
+    _ai_interpretation->setActive(false, true);
+  } else {
+    // Non-empty text - show widget
+    _ai_interpretation->setText(_aiPendingText);
+    _ai_interpretation->setActive(true);
+  }
+  _aiPending = false;  // Clear pending flag after applying
+}
+
 void Display::_deactivateAllMeters(){
   sdog.takeMutex();
   if(_spectrumwidget) _spectrumwidget->setActive(false, true);
@@ -370,6 +386,8 @@ void Display::_start() {
     if(_volip) _volip->setText(WiFi.localIP().toString().c_str(), iptxtFmt);
   #endif
   _pager.setPage( pages[PG_PLAYER]);
+  // Применяем pending AI интерпретацию при старте на странице плейера
+  _applyPendingAI();
   // Применяем состояние метров ТОЛЬКО после установки страницы, чтобы Pager не переактивировал виджеты
   _deactivateAllMeters();
   // На старте активируем/деактивируем метры строго по состоянию плеера
@@ -385,6 +403,10 @@ void Display::_start() {
 void Display::_showDialog(const char *title){
   dsp.setScrollId(NULL);
   _pager.setPage( pages[PG_DIALOG]);
+  // Принудительно перерисовываем фон мета ПОСЛЕ переключения страницы (чтобы не затерся clearDsp)
+  if (_metabackground) {
+    _metabackground->setActive(true, true); // true, true означает очистку и перерисовку
+  }
   #ifdef META_MOVE
     _meta.moveTo(metaMove);
   #endif
@@ -408,11 +430,6 @@ void Display::_swichMode(displayMode_e newmode) {
   _isStationsChanging = false;
   _isVolumeChanging = false;
   
-  // Очищаем область метаданных при любой смене режима
-  if (_metabackground) {
-    _metabackground->setActive(true, true); // true, true означает очистку и перерисовку
-  }
-  
   _mode = newmode;
   dsp.setScrollId(NULL);
   if (newmode == PLAYER) {
@@ -429,12 +446,19 @@ void Display::_swichMode(displayMode_e newmode) {
       _meta.moveBack();
     #endif
     _meta.setAlign(metaConf.widget.align);
-    _meta.setText(config.station.name);
     _nums.setText("");
     config.isScreensaver = false;
     _pager.setPage( pages[PG_PLAYER]);
+    // Принудительно перерисовываем фон мета ПОСЛЕ переключения страницы (чтобы не затерся clearDsp)
+    if (_metabackground) {
+      _metabackground->setActive(true, true); // true, true означает очистку и перерисовку
+    }
+    // Устанавливаем текст META ПОСЛЕ перерисовки фона, чтобы текст рисовался поверх фона
+    _meta.setText(config.station.name);
     config.setDspOn(config.store.dspon, false);
     pm.on_display_player();
+    // Применяем pending AI интерпретацию при возврате на страницу плейера
+    _applyPendingAI();
     // Восстанавливаем правильное состояние виджетов при возврате на страницу плейера
     _layoutChange(player.isRunning());
   }
@@ -496,18 +520,33 @@ void Display::printPLitem(uint8_t pos, const char* item, bool uppercase){
 
 void Display::setAIInterpretation(const String& text) {
   // AI interpretation widget / Виджет AI интерпретации
-  // MVP-1: просто показываем/скрываем виджет в зависимости от наличия текста
-  // MVP-1: simply show/hide widget based on text presence
+  // Draw only on PG_PLAYER page, otherwise save to pending
   if (!_ai_interpretation) return;
   
+  // Always update pending buffer
+  const char* txt = (text.isEmpty() || text.c_str() == nullptr) ? "" : text.c_str();
+  strlcpy(_aiPendingText, txt, sizeof(_aiPendingText));
+  _aiPending = true;
+  
+  // Check if we're on PG_PLAYER page
+  Page* activePage = _pager.getActivePage();
+  bool isOnPlayerPage = (activePage == pages[PG_PLAYER]);
+  
+  if (!isOnPlayerPage) {
+    // Not on player page - just save to pending, don't draw
+    return;
+  }
+  
+  // On player page - apply text
   if (text.isEmpty()) {
-    // Очищаем текст и скрываем виджет / Clear text and hide widget
+    // Clear text and hide widget
     _ai_interpretation->setText("");
-    _ai_interpretation->setActive(false, true);  // clr=true для явной очистки области / clr=true for explicit area clearing
+    _ai_interpretation->setActive(false, true);  // clr=true for explicit area clearing
   } else {
     _ai_interpretation->setText(text.c_str());
     _ai_interpretation->setActive(true);
   }
+  _aiPending = false;  // Clear pending flag after applying
 }
 
 void Display::putRequest(displayRequestType_e type, int payload){

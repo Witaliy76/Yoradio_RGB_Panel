@@ -241,6 +241,7 @@ class VuWidget: public Widget {
     ~VuWidget();
     void init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumincolor, uint16_t bgcolor);
     void loop();
+    void setActive(bool act, bool clr=false) override;
   protected:
     Arduino_Canvas *_canvas;
     VUBandsConfig _bands;
@@ -252,6 +253,10 @@ class VuWidget: public Widget {
     uint8_t _prevL = 0xFF;
     uint8_t _prevR = 0xFF;
     bool _needsFullRedraw = true;
+    // Для предотвращения мерцания - проверка изменений перед отрисовкой
+    int _lastLevelL = -1;
+    int _lastLevelR = -1;
+    uint32_t _lastDrawMs = 0;
     void _draw();
     void _clear();
 };

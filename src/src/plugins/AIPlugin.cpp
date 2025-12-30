@@ -589,8 +589,8 @@ void AIPlugin::on_ticker() {
         }
     }
     
-    // MomentLayer: обрабатываем только если нет валидного трека
-    // MomentLayer: process only if no valid track
+        // MomentLayer: обрабатываем только если нет валидного трека
+        // MomentLayer: process only if no valid track
     // MomentLayer автономен: НЕ зависит от LLM (llm_provider/api_key/model)
     // MomentLayer is autonomous: does NOT depend on LLM (llm_provider/api_key/model)
     // Latch: если решение уже принято для трека - MomentLayer не должен вытеснять текст

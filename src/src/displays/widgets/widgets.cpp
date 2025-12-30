@@ -86,8 +86,9 @@ void FillWidget::_draw() {
 
 void FillWidget::_clear() {
     if (!gfx) return;
-    _fastFillRect(_config.left, _config.top, _width, _height, _bgcolor);
+    // Сбрасываем кэш перед очисткой, чтобы гарантировать перерисовку
     _lastDraw.valid = false;
+    _fastFillRect(_config.left, _config.top, _width, _height, _bgcolor);
 }
 
 void FillWidget::setHeight(uint16_t newHeight) {
@@ -163,14 +164,16 @@ void TextWidget::setText(const char* txt) {
         return;
     }
     
+    // Early exit: compare input text with current _text (not _oldtext)
+    if (!txt) txt = "";
+    if (strcmp(txt, _text) == 0) return;
+    
     // Храним UTF-8 как есть (без конвертации)
     strlcpy(_text, txt, _buffsize);
     
     // Пересчитываем ширину по 1-byte представлению (для выравнивания)
     const char* converted = utf8Rus(_text, _uppercase);
     _textwidth = strlen(converted) * _charWidth;
-    
-    if (strcmp(_oldtext, _text) == 0) return;
     
     if (_active) {
         gfxFillRect(gfx, _oldleft == 0 ? _realLeft() : std::min(_oldleft, _realLeft()),  
@@ -316,18 +319,25 @@ bool ScrollWidget::canParticipateInScroll() {
 
 void ScrollWidget::setText(const char* txt) {
   if (!gfx) return;
+  // Early exit: compare input text with current _text (not _oldtext)
+  if (!txt) txt = "";
+  if (strcmp(txt, _text) == 0) return;
+  
   // Храним UTF-8 как есть (без конвертации)
   strlcpy(_text, txt, _buffsize - 1);
-  if (strcmp(_oldtext, _text) == 0) return;
-  // Keep fallback width calculation (will be recalculated in _rebuildCycleIfNeeded)
-  const char* converted = utf8Rus(_text, _uppercase);
-  _textwidth = strlen(converted) * _charWidth; // Keep for fallback
+  
+  // Reset scroll positions
   _x = _config.left;
   _fx = _config.left;
   _scrollPx = 0; // MVP-2: Reset pixel scroll position
   _scrollAcc10 = 0; // Reset fixed-point accumulator
   _lastPix = -1; // Reset last drawn position to force redraw
-  _cycleDirty = true; // MVP-2: Mark cycle as dirty
+  _cycleDirty = true; // MVP-2: Mark cycle as dirty - MUST be set before _rebuildCycleIfNeeded
+  
+  // Keep fallback width calculation (will be recalculated in _rebuildCycleIfNeeded)
+  const char* converted = utf8Rus(_text, _uppercase);
+  _textwidth = strlen(converted) * _charWidth; // Keep for fallback
+  
   // MVP-2: Rebuild cycle to get accurate measurement before checking scroll
   _rebuildCycleIfNeeded();
   // Now check scroll with accurate measurement
@@ -356,7 +366,19 @@ void ScrollWidget::setActive(bool act, bool clr) {
     dsp.resetScrollIndex(); // Сбрасываем индекс для немедленного перехода к следующему
   }
   
-  // Вызываем базовую реализацию (устанавливает _active)
+  // Если виджет активируется - сбрасываем состояние для гарантированной перерисовки
+  if (act) {
+    _lastPix = -1; // Reset last drawn position to force redraw on activation
+    _scrollPx = 0; // Reset scroll position to start
+    _scrollAcc10 = 0; // Reset accumulator
+    _cycleDirty = true; // Mark cycle as dirty to ensure _draw() will render
+    // Пересобираем цикл сейчас, чтобы метрики были актуальны для ensureScrollMetrics()
+    if (strlen(_text) > 0) {
+      _rebuildCycleIfNeeded();
+    }
+  }
+  
+  // Вызываем базовую реализацию (устанавливает _active и вызывает _draw() если active)
   TextWidget::setActive(act, clr);
   
   // Если виджет активируется - обновляем метрики и нормализуем индекс очереди
@@ -713,6 +735,9 @@ void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor
   _prevL = 0xFF;
   _prevR = 0xFF;
   _needsFullRedraw = true;
+  _lastLevelL = -1;
+  _lastLevelR = -1;
+  _lastDrawMs = 0;
   _clear();
 }
 
@@ -774,8 +799,10 @@ void VuWidget::_draw() {
   auto bandWidth = (_bands.width - (numBands-1)*_bands.space) / numBands;
   uint8_t redBands = std::max(3, numBands / 4);
 
-  // Полная инициализационная отрисовка (первый кадр/после очистки)
-  if (_needsFullRedraw || _prevL == 0xFF || _prevR == 0xFF) {
+  // Полная инициализационная отрисовка (первый кадр/после очистки) - ВСЕГДА выполняется если _needsFullRedraw
+  bool needFullRedraw = _needsFullRedraw || _prevL == 0xFF || _prevR == 0xFF;
+  if (needFullRedraw) {
+    // Полная отрисовка всех полос
     for (uint8_t i = 0; i < numBands; ++i) {
       int x = _config.left + i * bandWidth + i * _bands.space;
       uint16_t color = (i >= numBands - redBands) ? _vumaxcolor : _vumincolor;
@@ -787,198 +814,230 @@ void VuWidget::_draw() {
     }
     _prevL = currL;
     _prevR = currR;
-    _needsFullRedraw = false;
-  }
 
-  // Левая шкала: дорисовать новые сегменты или стереть лишние
-  if (currL != _prevL) {
-    uint8_t from = std::min(currL, _prevL);
-    uint8_t to   = std::max(currL, _prevL);
-    bool grow = currL > _prevL;
-    for (uint8_t i = from; i < to; ++i) {
-      int x = _config.left + i * bandWidth + i * _bands.space;
-      int yL = _config.top;
-      uint16_t color = (i >= numBands - redBands) ? _vumaxcolor : _vumincolor;
-      gfxFillRect(gfx, x, yL, bandWidth, _bands.height, grow ? color : _bgcolor);
-    }
-    _prevL = currL;
-  }
-  // Правая шкала
-  if (currR != _prevR) {
-    uint8_t from = std::min(currR, _prevR);
-    uint8_t to   = std::max(currR, _prevR);
-    bool grow = currR > _prevR;
-    for (uint8_t i = from; i < to; ++i) {
-      int x = _config.left + i * bandWidth + i * _bands.space;
-      int yR = _config.top + _bands.height + vuChannelGap;
-      uint16_t color = (i >= numBands - redBands) ? _vumaxcolor : _vumincolor;
-      gfxFillRect(gfx, x, yR, bandWidth, _bands.height, grow ? color : _bgcolor);
-    }
-    _prevR = currR;
-  }
-  // --- Peak Hold: обновление и отрисовка ---
-    static uint8_t prevPeakPosL = 0;
-    static uint8_t prevPeakPosR = 0;
-
-    if (_needsFullRedraw || _prevL == 0xFF || _prevR == 0xFF) {
-      prevPeakPosL = 0;
-      prevPeakPosR = 0;
-      peakHoldL = 0;
-      peakHoldR = 0;
-    }
-
-    // Обновление позиций пиков в "экранном" пространстве (после инверсии)
-    if (currL > 0 && currL >= peakHoldL) { peakHoldL = currL; peakHoldTimeL = millis(); }
-    else if (millis() - peakHoldTimeL > holdTimeL && peakHoldL > 0) { peakHoldL = 0; }
-
-    if (currR > 0 && currR >= peakHoldR) { peakHoldR = currR; peakHoldTimeR = millis(); }
-    else if (millis() - peakHoldTimeR > holdTimeR && peakHoldR > 0) { peakHoldR = 0; }
-
-    // Стираем предыдущие маркеры, если позиция изменилась или маркер исчез
-    auto erasePeakAt = [&](bool isRight, uint8_t pos){
-      if (pos == 0 || pos > numBands) return;
-      int x = _config.left + (pos-1) * (bandWidth + _bands.space);
-      int y = isRight ? (_config.top + _bands.height + vuChannelGap) : _config.top;
-      bool coveredByBar = (pos <= (isRight ? currR : currL));
-      uint16_t color = coveredByBar ? ((pos-1 >= numBands - redBands) ? _vumaxcolor : _vumincolor) : _bgcolor;
-      gfxFillRect(gfx, x, y, bandWidth, _bands.height, color);
+    // Шкала рисуется только при полной перерисовке (статическая часть)
+    const int scaleLength = _bands.width -10;    // Общая длина ШКАЛЫ в пикселях (максимальная длина виджета + 1)
+    int scaleX0 = _config.left; // начальная позиция шкалы (левый край)
+    int scaleX1 = scaleX0 + scaleLength; // расчетная конечная позиция шкалы (правый край)
+    int redX = scaleX0 + redZonePos * scaleLength; // расчетная позиция начала красной зоны (деление 0)
+    // ===== ДОБАВЛЕНО: ОТРИСОВКА ШКАЛЫ МЕЖДУ КАНАЛАМИ  =====
+    // Параметры шкалы
+    // Подписи и позиции (в процентах от длины шкалы)
+    struct Mark {
+      int value; // значение для подписи
+      float pos; // позиция (0..1)
+      const char* label;
     };
-
-    if (prevPeakPosL != 0 && prevPeakPosL != peakHoldL) erasePeakAt(false, prevPeakPosL);
-    if (prevPeakPosR != 0 && prevPeakPosR != peakHoldR) erasePeakAt(true, prevPeakPosR);
-
-    // Цвет пиков с учётом зоны и затухания за время удержания
-    auto fadeColor = [](uint16_t color, float fade) -> uint16_t {
-      uint8_t r = ((color >> 11) & 0x1F) * fade;
-      uint8_t g = ((color >> 5) & 0x3F) * fade;
-      uint8_t b = (color & 0x1F) * fade;
-      return ((r & 0x1F) << 11) | ((g & 0x3F) << 5) | (b & 0x1F);
+    // --- Новая логика построения шкалы с двумя зонами ---
+    // Метки для зелёной зоны
+    const Mark marksGreen[] = {
+      { -30, 0.00f, "-30" },
+      { -20, 0.18f, "-20" },
+      { -10, 0.36f, "-10" },
+      {  -5, 0.54f,  "-5" },
+      {  -1, 0.72f,  "-1" }
     };
+    const int numGreenMarks = sizeof(marksGreen)/sizeof(marksGreen[0]);
+    // Метки для красной зоны
+    const Mark marksRed[] = {
+      { 0, 0.0f, "0" },
+      { 1, 0.5f, "+1" },
+      { 3, 1.0f, "+3" }
+    };
+    const int numRedMarks = sizeof(marksRed)/sizeof(marksRed[0]);
 
-    if (peakHoldL > 0 && peakHoldL <= numBands) {
-      float fadeL = 1.0f - float(millis() - peakHoldTimeL) / holdTimeL; if (fadeL < vuPeakMinFade) fadeL = vuPeakMinFade;
-      uint16_t base = (peakHoldL >= numBands - redBands + 1) ? _vumaxcolor : _vumincolor;
-      uint16_t col = fadeColor(base, fadeL);
-      int x = _config.left + (peakHoldL-1) * (bandWidth + _bands.space);
-      int y = _config.top;
-      gfxFillRect(gfx, x, y, bandWidth, _bands.height, col);
-    }
-    if (peakHoldR > 0 && peakHoldR <= numBands) {
-      float fadeR = 1.0f - float(millis() - peakHoldTimeR) / holdTimeR; if (fadeR < vuPeakMinFade) fadeR = vuPeakMinFade;
-      uint16_t base = (peakHoldR >= numBands - redBands + 1) ? _vumaxcolor : _vumincolor;
-      uint16_t col = fadeColor(base, fadeR);
-      int x = _config.left + (peakHoldR-1) * (bandWidth + _bands.space);
-      int y = _config.top + _bands.height + vuChannelGap;
-      gfxFillRect(gfx, x, y, bandWidth, _bands.height, col);
-    }
-
-    prevPeakPosL = peakHoldL;
-    prevPeakPosR = peakHoldR;
-
-
-  // === НАСТРОЙКА ПАРАМЕТРОВ VU-МЕТРА ===
-  const int scaleLength = _bands.width -10;    // Общая длина ШКАЛЫ в пикселях (максимальная длина виджета + 1)
-  int scaleX0 = _config.left; // начальная позиция шкалы (левый край)
-  int scaleX1 = scaleX0 + scaleLength; // расчетная конечная позиция шкалы (правый край)
-  int redX = scaleX0 + redZonePos * scaleLength; // расчетная позиция начала красной зоны (деление 0)
-  // ===== ДОБАВЛЕНО: ОТРИСОВКА ШКАЛЫ МЕЖДУ КАНАЛАМИ  =====
-  // Параметры шкалы
-  // Подписи и позиции (в процентах от длины шкалы)
-  struct Mark {
-    int value; // значение для подписи
-    float pos; // позиция (0..1)
-    const char* label;
-  };
-  // --- Новая логика построения шкалы с двумя зонами ---
-  // Метки для зелёной зоны
-  const Mark marksGreen[] = {
-    { -30, 0.00f, "-30" },
-    { -20, 0.18f, "-20" },
-    { -10, 0.36f, "-10" },
-    {  -5, 0.54f,  "-5" },
-    {  -1, 0.72f,  "-1" }
-  };
-  const int numGreenMarks = sizeof(marksGreen)/sizeof(marksGreen[0]);
-  // Метки для красной зоны
-  const Mark marksRed[] = {
-    { 0, 0.0f, "0" },
-    { 1, 0.5f, "+1" },
-    { 3, 1.0f, "+3" }
-  };
-  const int numRedMarks = sizeof(marksRed)/sizeof(marksRed[0]);
-
-  // --- Зелёная часть шкалы ---
-  for (int m = 0; m < numGreenMarks; ++m) {
-    float frac = marksGreen[m].pos; // логарифмически или вручную подобрано
-    int x = scaleX0 + frac * (redX - scaleX0);
-    int h = scaleHeightLong;
-    uint16_t color = _vumincolor;
-    // Деление
-    for(int i = 0; i < scaleThickness; i++) {
-      gfxDrawLine(gfx, x+i, _config.top + _bands.height + (vuChannelGap / 2) - h/2, x+i, _config.top + _bands.height + (vuChannelGap / 2) + h/2, color);
-    }
-    // Подписи
-    int textY = _config.top + _bands.height + (vuChannelGap / 2) + h/2 + labelOffsetBottom;
-    int textX = x - strlen(marksGreen[m].label)*3;
-    int textYtop = _config.top + _bands.height + (vuChannelGap / 2) - h/2 + labelOffsetTop;
-    int textXtop = textX;
-    if (strcmp(marksGreen[m].label, "-30") == 0) {
-      textX += labelLeftmostOffset;
-      textXtop += labelLeftmostOffset;
-    }
-    gfxDrawText(gfx, textX, textY, marksGreen[m].label, color, _bgcolor, fontSize);
-    gfxDrawText(gfx, textXtop, textYtop, marksGreen[m].label, color, _bgcolor, fontSize);
-  }
-  // --- Красная часть шкалы ---
-  for (int m = 0; m < numRedMarks; ++m) {
-    float frac = marksRed[m].pos;
-    int x = redX + frac * (scaleX1 - redX);
-    int h = scaleHeightLong;
-    uint16_t color = _vumaxcolor;
-    // Деление
-    for(int i = 0; i < scaleThickness; i++) {
-      gfxDrawLine(gfx, x+i, _config.top + _bands.height + (vuChannelGap / 2) - h/2, x+i, _config.top + _bands.height + (vuChannelGap / 2) + h/2, color);
-    }
-    // Подписи
-    int textY = _config.top + _bands.height + (vuChannelGap / 2) + h/2 + labelOffsetBottom;
-    int textX = x - strlen(marksRed[m].label)*3;
-    int textYtop = _config.top + _bands.height + (vuChannelGap / 2) - h/2 + labelOffsetTop;
-    int textXtop = textX;
-    gfxDrawText(gfx, textX, textY, marksRed[m].label, color, _bgcolor, fontSize);
-    gfxDrawText(gfx, textXtop, textYtop, marksRed[m].label, color, _bgcolor, fontSize);
-  }
-  // --- Короткие деления (зелёная зона) ---
-  for (int i = 0; i < 20; ++i) {
-    float frac = (float)i / 20.0f;
-    int x = scaleX0 + frac * (redX - scaleX0);
-    // Проверяем, не совпадает ли с длинным делением
-    bool isLong = false;
+    // --- Зелёная часть шкалы ---
     for (int m = 0; m < numGreenMarks; ++m) {
-      if (fabs(frac - marksGreen[m].pos) < 0.025f) { isLong = true; break; }
+      float frac = marksGreen[m].pos; // логарифмически или вручную подобрано
+      int x = scaleX0 + frac * (redX - scaleX0);
+      int h = scaleHeightLong;
+      uint16_t color = _vumincolor;
+      // Деление
+      for(int i = 0; i < scaleThickness; i++) {
+        gfxDrawLine(gfx, x+i, _config.top + _bands.height + (vuChannelGap / 2) - h/2, x+i, _config.top + _bands.height + (vuChannelGap / 2) + h/2, color);
+      }
+      // Подписи
+      int textY = _config.top + _bands.height + (vuChannelGap / 2) + h/2 + labelOffsetBottom;
+      int textX = x - strlen(marksGreen[m].label)*3;
+      int textYtop = _config.top + _bands.height + (vuChannelGap / 2) - h/2 + labelOffsetTop;
+      int textXtop = textX;
+      if (strcmp(marksGreen[m].label, "-30") == 0) {
+        textX += labelLeftmostOffset;
+        textXtop += labelLeftmostOffset;
+      }
+      gfxDrawText(gfx, textX, textY, marksGreen[m].label, color, _bgcolor, fontSize);
+      gfxDrawText(gfx, textXtop, textYtop, marksGreen[m].label, color, _bgcolor, fontSize);
     }
-    if (!isLong) {
-      int h = scaleHeightShort;
-      for(int j = 0; j < scaleThickness; j++) {
-        gfxDrawLine(gfx, x+j, _config.top + _bands.height + (vuChannelGap / 2) - h/2, x+j, _config.top + _bands.height + (vuChannelGap / 2) + h/2, _vumincolor);
+    // --- Красная часть шкалы ---
+    for (int m = 0; m < numRedMarks; ++m) {
+      float frac = marksRed[m].pos;
+      int x = redX + frac * (scaleX1 - redX);
+      int h = scaleHeightLong;
+      uint16_t color = _vumaxcolor;
+      // Деление
+      for(int i = 0; i < scaleThickness; i++) {
+        gfxDrawLine(gfx, x+i, _config.top + _bands.height + (vuChannelGap / 2) - h/2, x+i, _config.top + _bands.height + (vuChannelGap / 2) + h/2, color);
+      }
+      // Подписи
+      int textY = _config.top + _bands.height + (vuChannelGap / 2) + h/2 + labelOffsetBottom;
+      int textX = x - strlen(marksRed[m].label)*3;
+      int textYtop = _config.top + _bands.height + (vuChannelGap / 2) - h/2 + labelOffsetTop;
+      int textXtop = textX;
+      gfxDrawText(gfx, textX, textY, marksRed[m].label, color, _bgcolor, fontSize);
+      gfxDrawText(gfx, textXtop, textYtop, marksRed[m].label, color, _bgcolor, fontSize);
+    }
+    // --- Короткие деления (зелёная зона) ---
+    for (int i = 0; i < 20; ++i) {
+      float frac = (float)i / 20.0f;
+      int x = scaleX0 + frac * (redX - scaleX0);
+      // Проверяем, не совпадает ли с длинным делением
+      bool isLong = false;
+      for (int m = 0; m < numGreenMarks; ++m) {
+        if (fabs(frac - marksGreen[m].pos) < 0.025f) { isLong = true; break; }
+      }
+      if (!isLong) {
+        int h = scaleHeightShort;
+        for(int j = 0; j < scaleThickness; j++) {
+          gfxDrawLine(gfx, x+j, _config.top + _bands.height + (vuChannelGap / 2) - h/2, x+j, _config.top + _bands.height + (vuChannelGap / 2) + h/2, _vumincolor);
+        }
       }
     }
-  }
-  // --- Короткие деления (красная зона) ---
-  // Только по одному между длинными делениями
-  for (int m = 0; m < numRedMarks - 1; ++m) {
-    float frac1 = marksRed[m].pos;
-    float frac2 = marksRed[m+1].pos;
-    float midFrac = (frac1 + frac2) / 2.0f;
-    int x = redX + midFrac * (scaleX1 - redX);
-    int h = scaleHeightShort;
-    for(int i = 0; i < scaleThickness; i++) {
-      gfxDrawLine(gfx, x+i, _config.top + _bands.height + (vuChannelGap / 2) - h/2, x+i, _config.top + _bands.height + (vuChannelGap / 2) + h/2, _vumaxcolor);
+    // --- Короткие деления (красная зона) ---
+    // Только по одному между длинными делениями
+    for (int m = 0; m < numRedMarks - 1; ++m) {
+      float frac1 = marksRed[m].pos;
+      float frac2 = marksRed[m+1].pos;
+      float midFrac = (frac1 + frac2) / 2.0f;
+      int x = redX + midFrac * (scaleX1 - redX);
+      int h = scaleHeightShort;
+      for(int i = 0; i < scaleThickness; i++) {
+        gfxDrawLine(gfx, x+i, _config.top + _bands.height + (vuChannelGap / 2) - h/2, x+i, _config.top + _bands.height + (vuChannelGap / 2) + h/2, _vumaxcolor);
+      }
+    }
+
+    // Сбрасываем флаг полной перерисовки после завершения шкалы и полос
+    _needsFullRedraw = false;
+  } // конец блока needFullRedraw
+
+  // Дельта-отрисовка полос (только если НЕ full redraw)
+  if (!needFullRedraw) {
+    // Левая шкала: дорисовать новые сегменты или стереть лишние
+    if (currL != _prevL) {
+      uint8_t from = std::min(currL, _prevL);
+      uint8_t to   = std::max(currL, _prevL);
+      bool grow = currL > _prevL;
+      for (uint8_t i = from; i < to; ++i) {
+        int x = _config.left + i * bandWidth + i * _bands.space;
+        int yL = _config.top;
+        uint16_t color = (i >= numBands - redBands) ? _vumaxcolor : _vumincolor;
+        gfxFillRect(gfx, x, yL, bandWidth, _bands.height, grow ? color : _bgcolor);
+      }
+      _prevL = currL;
+    }
+    // Правая шкала
+    if (currR != _prevR) {
+      uint8_t from = std::min(currR, _prevR);
+      uint8_t to   = std::max(currR, _prevR);
+      bool grow = currR > _prevR;
+      for (uint8_t i = from; i < to; ++i) {
+        int x = _config.left + i * bandWidth + i * _bands.space;
+        int yR = _config.top + _bands.height + vuChannelGap;
+        uint16_t color = (i >= numBands - redBands) ? _vumaxcolor : _vumincolor;
+        gfxFillRect(gfx, x, yR, bandWidth, _bands.height, grow ? color : _bgcolor);
+      }
+      _prevR = currR;
     }
   }
+
+  // --- Peak Hold: обновление и отрисовка (всегда) ---
+  static uint8_t prevPeakPosL = 0;
+  static uint8_t prevPeakPosR = 0;
+
+  if (needFullRedraw) {
+    prevPeakPosL = 0;
+    prevPeakPosR = 0;
+    peakHoldL = 0;
+    peakHoldR = 0;
+  }
+
+  // Обновление позиций пиков в "экранном" пространстве (после инверсии)
+  if (currL > 0 && currL >= peakHoldL) { peakHoldL = currL; peakHoldTimeL = millis(); }
+  else if (millis() - peakHoldTimeL > holdTimeL && peakHoldL > 0) { peakHoldL = 0; }
+
+  if (currR > 0 && currR >= peakHoldR) { peakHoldR = currR; peakHoldTimeR = millis(); }
+  else if (millis() - peakHoldTimeR > holdTimeR && peakHoldR > 0) { peakHoldR = 0; }
+
+  // Стираем предыдущие маркеры, если позиция изменилась или маркер исчез
+  auto erasePeakAt = [&](bool isRight, uint8_t pos){
+    if (pos == 0 || pos > numBands) return;
+    int x = _config.left + (pos-1) * (bandWidth + _bands.space);
+    int y = isRight ? (_config.top + _bands.height + vuChannelGap) : _config.top;
+    bool coveredByBar = (pos <= (isRight ? currR : currL));
+    uint16_t color = coveredByBar ? ((pos-1 >= numBands - redBands) ? _vumaxcolor : _vumincolor) : _bgcolor;
+    gfxFillRect(gfx, x, y, bandWidth, _bands.height, color);
+  };
+
+  if (prevPeakPosL != 0 && prevPeakPosL != peakHoldL) erasePeakAt(false, prevPeakPosL);
+  if (prevPeakPosR != 0 && prevPeakPosR != peakHoldR) erasePeakAt(true, prevPeakPosR);
+
+  // Цвет пиков с учётом зоны и затухания за время удержания
+  auto fadeColor = [](uint16_t color, float fade) -> uint16_t {
+    uint8_t r = ((color >> 11) & 0x1F) * fade;
+    uint8_t g = ((color >> 5) & 0x3F) * fade;
+    uint8_t b = (color & 0x1F) * fade;
+    return ((r & 0x1F) << 11) | ((g & 0x3F) << 5) | (b & 0x1F);
+  };
+
+  if (peakHoldL > 0 && peakHoldL <= numBands) {
+    float fadeL = 1.0f - float(millis() - peakHoldTimeL) / holdTimeL; if (fadeL < vuPeakMinFade) fadeL = vuPeakMinFade;
+    uint16_t base = (peakHoldL >= numBands - redBands + 1) ? _vumaxcolor : _vumincolor;
+    uint16_t col = fadeColor(base, fadeL);
+    int x = _config.left + (peakHoldL-1) * (bandWidth + _bands.space);
+    int y = _config.top;
+    gfxFillRect(gfx, x, y, bandWidth, _bands.height, col);
+  }
+  if (peakHoldR > 0 && peakHoldR <= numBands) {
+    float fadeR = 1.0f - float(millis() - peakHoldTimeR) / holdTimeR; if (fadeR < vuPeakMinFade) fadeR = vuPeakMinFade;
+    uint16_t base = (peakHoldR >= numBands - redBands + 1) ? _vumaxcolor : _vumincolor;
+    uint16_t col = fadeColor(base, fadeR);
+    int x = _config.left + (peakHoldR-1) * (bandWidth + _bands.space);
+    int y = _config.top + _bands.height + vuChannelGap;
+    gfxFillRect(gfx, x, y, bandWidth, _bands.height, col);
+  }
+
+  prevPeakPosL = peakHoldL;
+  prevPeakPosR = peakHoldR;
+
+  // Проверка изменений перед обычными обновлениями (анти-мерцание) - только если НЕ full redraw
+  const int THRESH = 2; // Порог изменения уровня (пиксели/единицы шкалы)
+  uint32_t now = millis();
+  if (!_needsFullRedraw && _prevL != 0xFF && _prevR != 0xFF) {
+    int diffL = abs((int)currL - (int)_lastLevelL);
+    int diffR = abs((int)currR - (int)_lastLevelR);
+    if (diffL < THRESH && diffR < THRESH && (now - _lastDrawMs) < 250) {
+      return; // Изменения слишком малы, не рисуем
+    }
+  }
+  _lastLevelL = currL;
+  _lastLevelR = currR;
+  _lastDrawMs = now;
 }
 
 void VuWidget::loop(){
   if(_active && !_locked) _draw();
+}
+
+void VuWidget::setActive(bool act, bool clr) {
+  if (act) {
+    // При активации гарантируем полную перерисовку
+    _needsFullRedraw = true;
+    _prevL = 0xFF;
+    _prevR = 0xFF;
+    _lastLevelL = -1;
+    _lastLevelR = -1;
+    _lastDrawMs = 0;
+  }
+  Widget::setActive(act, clr);
 }
 
 void VuWidget::_clear(){
@@ -989,6 +1048,10 @@ void VuWidget::_clear(){
   _prevL = 0xFF;
   _prevR = 0xFF;
   _needsFullRedraw = true;
+  // Сбрасываем состояние для следующей перерисовки
+  _lastLevelL = -1;
+  _lastLevelR = -1;
+  _lastDrawMs = 0;
 }
 /************************
       NUM WIDGET

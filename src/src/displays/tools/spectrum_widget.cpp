@@ -1,11 +1,12 @@
 #include "spectrum_widget.h"
 #include "../core/options.h"
 #include "GFX_Canvas_screen.h"
+#include <algorithm>
 
-// Виджет спектр-анализатора оптимизирован для RGB Panel ESP32-4848S040
+// Виджет спектр-анализатора оптимизирован для RGB Panel ESP32
 // Поддерживает 480x480 разрешение с плавной анимацией
 
-// Объявление глобальной переменной gfx из displayAXS15231B.cpp
+// Объявление глобальной переменной gfx из displayxxxxx.cpp
 extern Arduino_Canvas *gfx;
 
 SpectrumWidget::~SpectrumWidget() {
@@ -18,6 +19,13 @@ void SpectrumWidget::init(SpectrumWidgetConfig conf) {
     _peakColor = conf.peakColor;
     _showPeaks = conf.showPeaks;
     _showGrid = conf.showGrid;
+    _lastEnergy = -1;
+    _lastDrawMs = 0;
+    // Инициализируем предыдущие высоты как -1 (первый запуск)
+    for (uint8_t i = 0; i < 15; i++) {
+        _prevBarH[i] = -1;
+        _prevPeakH[i] = -1;
+    }
     
     // Инициализация базового виджета для RGB Panel
     Widget::init(conf.widget, conf.barColor, conf.bgColor);
@@ -31,6 +39,20 @@ void SpectrumWidget::init(SpectrumWidgetConfig conf) {
 void SpectrumWidget::loop() {
     if (!(_active && !_locked)) return;
     _draw(); // Отрисовка спектра для RGB Panel
+}
+
+void SpectrumWidget::setActive(bool act, bool clr) {
+    if (act) {
+        // При активации сбрасываем состояние для чистой перерисовки
+        _lastEnergy = -1;
+        _lastDrawMs = 0;
+        // Сбрасываем предыдущие высоты для принудительной перерисовки
+        for (uint8_t i = 0; i < 15; i++) {
+            _prevBarH[i] = -1;
+            _prevPeakH[i] = -1;
+        }
+    }
+    Widget::setActive(act, clr);
 }
 
 void SpectrumWidget::_draw() {
@@ -54,8 +76,23 @@ void SpectrumWidget::_draw() {
         }
     }
     
-    // Очищаем область виджета для RGB Panel
-    _clear();
+    // Вычисляем энергию спектра для проверки изменений (анти-мерцание)
+    float energy = 0.0f;
+    for (uint8_t i = 0; i < numBands && i < 15; i++) {
+        if (!isnan(spectrumCopy[i]) && !isinf(spectrumCopy[i])) {
+            energy += spectrumCopy[i];
+        }
+    }
+    int energyInt = (int)(energy * 1000.0f); // Преобразуем в int для сравнения
+    
+    // Проверка изменений перед отрисовкой (анти-мерцание)
+    const int THRESH_ENERGY = 50; // Порог изменения энергии (0.05 * 1000)
+    uint32_t now = millis();
+    if (_lastEnergy >= 0 && abs(energyInt - _lastEnergy) < THRESH_ENERGY && (now - _lastDrawMs) < 100) {
+        return; // Изменения слишком малы, не рисуем
+    }
+    _lastEnergy = energyInt;
+    _lastDrawMs = now;
     
     // Рисуем сетку если включена для RGB Panel
     if (_showGrid) {
@@ -69,6 +106,12 @@ void SpectrumWidget::_draw() {
     }
     
     uint16_t startX = _config.widget.left;
+    // pad для очистки по Y: 1px достаточно для тонкой линии,
+    // 2px если включена вторая линия толщины.
+    // +1px если включены боковины (там вертикали).
+    const uint16_t CAP_PAD =
+        (SPECTRUM_PEAK_THICKNESS >= 2 ? 2 : 1) +
+        (SPECTRUM_PEAK_SIDES ? 1 : 0);
     
     // Рисуем полосы спектра для RGB Panel
     for (uint16_t i = 0; i < totalBars && i < 15; i++) {
@@ -92,7 +135,41 @@ void SpectrumWidget::_draw() {
             barHeight = 2;
         }
         
+        // Вычисляем высоту пика ДО очистки, чтобы учесть её при очистке
+        uint16_t peakHeight = 0;
+        if (_showPeaks && peak > value) {
+            peakHeight = (uint16_t)(peak * _config.height);
+            if (peakHeight < 1) peakHeight = 1;
+            if (peakHeight > _config.height) peakHeight = _config.height;
+        }
+        
+        // Получаем предыдущие высоты (если -1, считаем равными 0 для первого запуска)
+        uint16_t oldBarH = (_prevBarH[i] < 0) ? 0 : (uint16_t)_prevBarH[i];
+        uint16_t oldPeakH = (_prevPeakH[i] < 0) ? 0 : (uint16_t)_prevPeakH[i];
+        
+        // Вычисляем максимальную высоту для очистки снизу: учитываем старые и новые значения баров и пиков
+        uint16_t oldPeakHWithPad = (oldPeakH > 0) ? (oldPeakH + CAP_PAD) : 0;
+        uint16_t peakHWithPad = (peakHeight > 0) ? (peakHeight + CAP_PAD) : 0;
+        uint16_t maxH = std::max(oldBarH, std::max(barHeight, std::max(oldPeakHWithPad, peakHWithPad)));
+        if (maxH > _config.height) maxH = _config.height;
+        
+        // Очищаем нижнюю область столбика от максимальной высоты до низа виджета
+        if (gfx && maxH > 0) {
+            uint16_t clearY = _config.widget.top + _config.height - maxH;
+            // Clamp: если clearY меньше top, устанавливаем в top
+            if (clearY < _config.widget.top) clearY = _config.widget.top;
+            // Вычисляем высоту очищаемой области
+            uint16_t clearH = (_config.widget.top + _config.height) - clearY;
+            if (clearH > 0) {
+                gfxFillRect(gfx, x, clearY, _config.barWidth, clearH, _config.bgColor);
+            }
+        }
+        
         _drawBar(x, _config.barWidth, barHeight, value, peak);
+        
+        // Сохраняем текущие высоты для следующего кадра
+        _prevBarH[i] = barHeight;
+        _prevPeakH[i] = peakHeight;
     }
     
     // NOTE: Removed local flush() to avoid mid-frame flush conflicts
@@ -110,6 +187,14 @@ void SpectrumWidget::_clear() {
         uint16_t extra = 10;
         gfxFillRect(gfx, _config.widget.left, _config.widget.top,
                     _config.width, (uint16_t)(_config.height + extra), _config.bgColor);//_config.bgColor
+    }
+    // Сбрасываем состояние для следующей перерисовки
+    _lastEnergy = -1;
+    _lastDrawMs = 0;
+    // Сбрасываем предыдущие высоты
+    for (uint8_t i = 0; i < 15; i++) {
+        _prevBarH[i] = -1;
+        _prevPeakH[i] = -1;
     }
 }
 
@@ -193,22 +278,36 @@ void SpectrumWidget::_drawBar(uint16_t x, uint16_t width, uint16_t barHeight, fl
 
             uint16_t peakY = _config.widget.top + _config.height - peakHeight;
 
-            // Рисуем толстую линию пика
-            gfxDrawLine(gfx, x, peakY, x + width, peakY, _peakColor);
+            // 1) Тонкая шапочка / Thin peak cap
+            // Всегда рисуем в пределах barWidth: x .. x+width-1
+            gfxDrawLine(gfx, x, peakY, x + width - 1, peakY, _peakColor);
 
-            // Дополнительные линии для толщины
-            if (peakY > 0) {
-                gfxDrawLine(gfx, x, peakY - 1, x + width, peakY - 1, _peakColor);
+#if SPECTRUM_PEAK_THICKNESS >= 2
+            // Вторая линия толщины (лучше вверх, чтобы не лезть вниз в столбик)
+            // Second thickness line (better upward to avoid going into the bar)
+            if (peakY > _config.widget.top) {
+                gfxDrawLine(gfx, x, peakY - 1, x + width - 1, peakY - 1, _peakColor);
             }
-            if (peakY < _config.height - 1) {
-                gfxDrawLine(gfx, x, peakY + 1, x + width, peakY + 1, _peakColor);
-            }
+#endif
 
-            // Вертикальные линии по краям для лучшей видимости
+#if SPECTRUM_PEAK_SIDES
+            // 2) Боковины (если нужны) / Vertical sides (if needed)
+            // Вертикальные линии, идущие ВНИЗ от верхней горизонтальной линии (визуально как скобка [ перевернутая)
             if (width > 2) {
-                gfxDrawLine(gfx, x, peakY - 1, x, peakY + 1, _peakColor);
-                gfxDrawLine(gfx, x + width - 1, peakY - 1, x + width - 1, peakY + 1, _peakColor);
+#if SPECTRUM_PEAK_THICKNESS >= 2
+                // Для THICKNESS=2: боковины идут вниз от верхней линии (peakY-1) на 2-3 пикселя
+                uint16_t topLineY = (peakY > _config.widget.top) ? (peakY - 1) : peakY;
+                uint16_t bottomY = (topLineY + 2 < (_config.widget.top + _config.height)) ? (topLineY + 2) : (_config.widget.top + _config.height - 1);
+                gfxDrawLine(gfx, x, topLineY, x, bottomY, _peakColor);
+                gfxDrawLine(gfx, x + width - 1, topLineY, x + width - 1, bottomY, _peakColor);
+#else
+                // Для THICKNESS=1: боковины идут вниз от основной линии (peakY) на 2-3 пикселя
+                uint16_t bottomY = (peakY + 2 < (_config.widget.top + _config.height)) ? (peakY + 2) : (_config.widget.top + _config.height - 1);
+                gfxDrawLine(gfx, x, peakY, x, bottomY, _peakColor);
+                gfxDrawLine(gfx, x + width - 1, peakY, x + width - 1, bottomY, _peakColor);
+#endif
             }
+#endif
         }
     }
 }

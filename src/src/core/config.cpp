@@ -9,6 +9,7 @@
 #include "sdmanager.h"
 #endif
 #include <cstddef>
+#include "../plugins/ai_runtime_config.h"
 
 Config config;
 
@@ -28,6 +29,34 @@ bool Config::_isFSempty() {
     if(!SPIFFS.exists(fullpath)) return true;
   }
   return false;
+}
+
+// Apply AI runtime configuration from ai_runtime_config.h
+// Применение runtime конфигурации AI из ai_runtime_config.h
+static void applyAiRuntimeConfig() {
+  auto rc = aiGetRuntimeConfig();
+  
+  // If AI is disabled in runtime config, force disable AI in store
+  // Если AI выключен в runtime config, принудительно выключаем AI в store
+  if (!rc.enabled) {
+    BOOTLOG("AI runtime config: enabled=false, forcing AI OFF");
+    config.saveValue(&config.store.ai_enabled, false, true, true);
+    return;
+  }
+  
+  // Validate minimum required fields / Проверка минимально необходимых полей
+  if (rc.api_key.length() == 0 || rc.model.length() == 0 || 
+      rc.host.length() == 0 || rc.port == 0) {
+    BOOTLOG("AI runtime config invalid (missing key/model/host/port), ignoring");
+    return;
+  }
+  
+  // Apply valid runtime config to store / Применяем валидную runtime config к store
+  BOOTLOG("Applying AI runtime config: host=%s, model=%s", rc.host.c_str(), rc.model.c_str());
+  config.saveValue(&config.store.ai_enabled, true, true, true);
+  config.saveValue(&config.store.llm_provider, rc.llm_provider, true, true);
+  config.saveValue(config.store.ai_api_key, rc.api_key.c_str(), AI_API_KEY_LENGTH, true, true);
+  config.saveValue(config.store.ai_model, rc.model.c_str(), AI_MODEL_LENGTH, true, true);
 }
 
 void Config::init() {
@@ -74,40 +103,10 @@ void Config::init() {
     saveValue(&store.ai_enableFiles, false, true, true);
   }
   
-  // Применяем настройки из myoptions.h если они определены (перезаписываем значения из EEPROM)
-  // Apply settings from myoptions.h if defined (overwrite values from EEPROM)
-  #ifdef AI_ENABLED
-    if (!store.ai_enabled) {
-      BOOTLOG("AI enabled from myoptions.h");
-      saveValue(&store.ai_enabled, true, true, true);
-    }
-  #else
-    if (store.ai_enabled) {
-      BOOTLOG("AI disabled (not defined in myoptions.h)");
-      saveValue(&store.ai_enabled, false, true, true);
-    }
-  #endif
-  
-  #ifdef AI_LLM_PROVIDER
-    if (store.llm_provider != AI_LLM_PROVIDER) {
-      BOOTLOG("LLM provider set to %d from myoptions.h", AI_LLM_PROVIDER);
-      saveValue(&store.llm_provider, (uint8_t)AI_LLM_PROVIDER, true, true);
-    }
-  #endif
-  
-  #ifdef AI_API_KEY
-    if (strcmp(store.ai_api_key, AI_API_KEY) != 0) {
-      BOOTLOG("AI API key updated from myoptions.h");
-      saveValue(store.ai_api_key, AI_API_KEY, AI_API_KEY_LENGTH, true, true);
-    }
-  #endif
-  
-  #ifdef AI_MODEL
-    if (strcmp(store.ai_model, AI_MODEL) != 0) {
-      BOOTLOG("AI model set to %s from myoptions.h", AI_MODEL);
-      saveValue(store.ai_model, AI_MODEL, AI_MODEL_LENGTH, true, true);
-    }
-  #endif
+  // Apply AI runtime configuration (if valid) / Применение runtime конфигурации AI (если валидна)
+  // This runs after store is loaded and validated, but before AI-dependent logic starts
+  // Выполняется после загрузки и валидации store, но до запуска логики, зависящей от AI
+  applyAiRuntimeConfig();
   
   #ifdef AI_ENABLE_FILES
     bool files_enabled = (AI_ENABLE_FILES != 0);
@@ -459,26 +458,10 @@ void Config::setDefaults() {
   strlcpy(store.ai_model, "deepseek-chat", AI_MODEL_LENGTH);  // DeepSeek default model
   store.ai_enableFiles = false;
   
-  // Применяем настройки из myoptions.h если они определены / Apply settings from myoptions.h if defined
-  #ifdef AI_ENABLED
-    store.ai_enabled = true;
-  #endif
-  
-  #ifdef AI_LLM_PROVIDER
-    store.llm_provider = AI_LLM_PROVIDER;
-  #endif
-  
-  #ifdef AI_API_KEY
-    strlcpy(store.ai_api_key, AI_API_KEY, AI_API_KEY_LENGTH);
-  #endif
-  
-  #ifdef AI_MODEL
-    strlcpy(store.ai_model, AI_MODEL, AI_MODEL_LENGTH);
-  #endif
-  
-  #ifdef AI_ENABLE_FILES
-    store.ai_enableFiles = (AI_ENABLE_FILES != 0);
-  #endif
+  // AI settings migrated to runtime config / WebUI (see ai_runtime_config.h and applyAiRuntimeConfig())
+  // Настройки AI мигрированы на runtime config / WebUI (см. ai_runtime_config.h и applyAiRuntimeConfig())
+  // Runtime config will be applied in Config::init() after store is loaded
+  // Runtime config будет применена в Config::init() после загрузки store
   
   eepromWrite(EEPROM_START, store);
 }

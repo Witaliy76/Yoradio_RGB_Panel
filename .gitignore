@@ -14,3 +14,4 @@ docs/
 old/
 panel_vendor_files/
 .github/
+src/src/plugins/ai_runtime_config.h

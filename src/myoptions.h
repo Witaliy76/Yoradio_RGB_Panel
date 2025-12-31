@@ -160,20 +160,27 @@
    =============================================== */
 // AI включён / AI enabled
 // Раскомментируйте для включения AI / Uncomment to enable AI
-#define AI_ENABLED                              // Enable AI layer
+// MIGRATED: AI settings migrated to runtime config / WebUI
+// МИГРИРОВАНО: Настройки AI мигрированы на runtime config / WebUI
+// See: src/src/plugins/ai_runtime_config.h and Config::applyAiRuntimeConfig()
+// См.: src/src/plugins/ai_runtime_config.h и Config::applyAiRuntimeConfig()
+//#define AI_ENABLED                              // Enable AI layer
 
 // LLM провайдер / LLM provider
 // 0 = LLM_NONE (выключен / disabled)
 // 1 = LLM_DEEPSEEK
 // 2 = LLM_OPENAI (пока не реализовано / not implemented yet)
-#define AI_LLM_PROVIDER         1               // DeepSeek provider
+// MIGRATED: See ai_runtime_config.h / МИГРИРОВАНО: См. ai_runtime_config.h
+//#define AI_LLM_PROVIDER         1               // DeepSeek provider
 
 // API ключ провайдера / Provider API key
 // ВНИМАНИЕ: Не коммитить ключ в репозиторий! / WARNING: Don't commit key to repository!
-#define AI_API_KEY              "sk-437bf39b927c4cd1bab55ecd377ca694"
+// MIGRATED: See ai_runtime_config.h / МИГРИРОВАНО: См. ai_runtime_config.h
+//#define AI_API_KEY              "sk-437bf39b927c4cd1bab55ecd377ca694"
 
 // Модель для использования / Model to use
-#define AI_MODEL                "deepseek-chat" // DeepSeek default model
+// MIGRATED: See ai_runtime_config.h / МИГРИРОВАНО: См. ai_runtime_config.h
+//#define AI_MODEL                "deepseek-chat" // DeepSeek default model
 
 // Опция для файлов (если используется) / Files option (if used)
 //#define AI_ENABLE_FILES         0               // 0 = false, 1 = true

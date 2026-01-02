@@ -192,6 +192,30 @@ bool AITaskManager::getResult(AIRequestResult& result) {
     #endif
 }
 
+void AITaskManager::cancelAll() {
+    #ifdef ESP_PLATFORM
+    // Очистка очереди запросов / Clear request queue
+    if (_requestQueue) {
+        AIRequestJob dummy;
+        while (xQueueReceive(_requestQueue, &dummy, 0) == pdTRUE) {
+            // Удаляем все элементы из очереди / Remove all items from queue
+        }
+    }
+    
+    // Очистка очереди результатов / Clear result queue
+    if (_resultQueue) {
+        AIRequestResult dummy;
+        while (xQueueReceive(_resultQueue, &dummy, 0) == pdTRUE) {
+            // Удаляем все элементы из очереди / Remove all items from queue
+        }
+    }
+    
+    // Сброс флагов / Reset flags
+    _requestInProgress = false;
+    _lastRequestTime = 0;
+    #endif
+}
+
 #ifdef ESP_PLATFORM
 void AITaskManager::_taskWrapper(void* param) {
     AITaskManager* manager = static_cast<AITaskManager*>(param);

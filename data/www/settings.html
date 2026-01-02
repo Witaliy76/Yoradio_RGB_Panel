@@ -251,6 +251,47 @@
           <div class="flex-row last">
             <div class="button apply hlbutton" data-name="applyweather">Apply</div>
           </div>
+        </section><a name="ai"></a>
+        <section class="group group_ai hidden" id="group_ai">
+          <div class="title"><span>AI Layer</span></div><div class="reset" data-name="ai"></div>
+          <div class="flex-row center">
+            <div class="checkbox off nous" id="ai_enabled">AI enabled</div>
+          </div>
+          <div class="flex-row">
+            <div class="inputwrap">
+              <span class="inputtitle">API Host</span>
+              <input type="text" id="ai_host" class="textinput" name="ai_host" value="" maxlength="64" />
+            </div>
+            <div class="inputwrap">
+              <span class="inputtitle">API Port</span>
+              <input type="number" id="ai_port" class="textinput" name="ai_port" value="" min="1" max="65535" />
+            </div>
+          </div>
+          <div class="flex-row">
+            <div class="inputwrap">
+              <span class="inputtitle">API Path</span>
+              <input type="text" id="ai_path" class="textinput" name="ai_path" value="" maxlength="128" />
+            </div>
+            <div class="inputwrap">
+              <span class="inputtitle">Timeout (ms)</span>
+              <input type="number" id="ai_timeout" class="textinput" name="ai_timeout" value="" min="1000" max="60000" />
+            </div>
+          </div>
+          <div class="flex-row">
+            <div class="inputwrap">
+              <span class="inputtitle">API Key</span>
+              <input type="password" id="ai_key" class="textinput" name="ai_key" value="" maxlength="64" autocomplete="off" />
+            </div>
+          </div>
+          <div class="flex-row">
+            <div class="inputwrap">
+              <span class="inputtitle">Model</span>
+              <input type="text" id="ai_model" class="textinput" name="ai_model" value="" maxlength="32" />
+            </div>
+          </div>
+          <div class="flex-row last">
+            <div class="button apply hlbutton" data-name="applyai">Apply</div>
+          </div>
         </section><a name="controls"></a>
         <div class="hr">&nbsp;</div>
       </div>

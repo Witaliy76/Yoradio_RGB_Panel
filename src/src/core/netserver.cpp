@@ -11,6 +11,24 @@
 #include "controls.h"
 #include <Update.h>
 #include <ESPmDNS.h>
+#include <ArduinoJson.h>
+#include "../plugins/AIPlugin.h"
+
+// Forward declarations for AI config functions from config.cpp / Forward объявления для функций AI config из config.cpp
+struct AIConfig {
+  bool enabled;
+  char host[64];
+  uint16_t port;
+  char path[128];
+  uint32_t timeout_ms;
+  char api_key[64];
+  char model[32];
+};
+bool aiLoadFromFS(AIConfig& out);
+bool aiSaveToFS(const AIConfig& cfg);
+void aiSetDefaults(AIConfig& cfg);
+bool aiIsValidForEnable(const AIConfig& cfg);
+void aiApplyToStore(const AIConfig& cfg);
 #ifdef USE_SD
 #include "sdmanager.h"
 #endif
@@ -271,6 +289,7 @@ void NetServer::processQueue(){
             if (DSP_MODEL == DSP_NOKIA5110)                     act += F("\"group_nokia\",");
                                                                 act += F("\"group_timezone\",");
             if (SHOW_WEATHER || dbgact)                         act += F("\"group_weather\",");
+                                                                act += F("\"group_ai\",");
                                                                 act += F("\"group_controls\",");
             if (ENC_BTNL != 255 || ENC2_BTNL != 255 || dbgact)  act += F("\"group_encoder\",");
             if (IR_PIN != 255 || dbgact)                        act += F("\"group_ir\",");
@@ -331,6 +350,32 @@ void NetServer::processQueue(){
                                   config.store.weatherlon, 
                                   config.store.weatherkey); 
                                   break;
+      case GETAI: {
+                                  AIConfig aicfg;
+                                  aiLoadFromFS(aicfg);
+                                  // Simple JSON escaping: replace " with \", \ with \\ / Простое экранирование JSON
+                                  String host_esc = String(aicfg.host);
+                                  host_esc.replace("\\", "\\\\");
+                                  host_esc.replace("\"", "\\\"");
+                                  String path_esc = String(aicfg.path);
+                                  path_esc.replace("\\", "\\\\");
+                                  path_esc.replace("\"", "\\\"");
+                                  String key_esc = String(aicfg.api_key);
+                                  key_esc.replace("\\", "\\\\");
+                                  key_esc.replace("\"", "\\\"");
+                                  String model_esc = String(aicfg.model);
+                                  model_esc.replace("\\", "\\\\");
+                                  model_esc.replace("\"", "\\\"");
+                                  sprintf (wsbuf, "{\"aien\":%d,\"aihost\":\"%s\",\"aiport\":%d,\"aipath\":\"%s\",\"aitimeout\":%lu,\"aimodel\":\"%s\",\"aikey\":\"%s\"}", 
+                                  aicfg.enabled ? 1 : 0, 
+                                  host_esc.c_str(),
+                                  aicfg.port,
+                                  path_esc.c_str(),
+                                  aicfg.timeout_ms,
+                                  model_esc.c_str(),
+                                  key_esc.c_str()); 
+                                  break;
+                                }
       case GETCONTROLS:   sprintf (wsbuf, "{\"vols\":%d,\"enca\":%d,\"irtl\":%d,\"skipup\":%d}", 
                                   config.store.volsteps, 
                                   config.store.encacc, 
@@ -417,6 +462,7 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
       if (strcmp(cmd, "gettimezone") == 0 ) { requestOnChange(GETTIMEZONE, clientId); return; }
       if (strcmp(cmd, "getcontrols") == 0 ) { requestOnChange(GETCONTROLS, clientId); return; }
       if (strcmp(cmd, "getweather") == 0  ) { requestOnChange(GETWEATHER, clientId);  return; }
+      if (strcmp(cmd, "getai") == 0       ) { requestOnChange(GETAI, clientId);       return; }
       if (strcmp(cmd, "getactive") == 0   ) { requestOnChange(GETACTIVE, clientId);   return; }
       if (strcmp(cmd, "newmode") == 0     ) { newConfigMode = atoi(val); requestOnChange(CHANGEMODE, 0); return; }
       if (strcmp(cmd, "smartstart") == 0) {
@@ -635,6 +681,136 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
         display.putRequest(NEWMODE, CLEAR); display.putRequest(NEWMODE, PLAYER);
         return;
       }
+      // AI settings commands / Команды настроек AI
+      if (strcmp(cmd, "ai_enabled") == 0) {
+        AIConfig aicfg;
+        aiLoadFromFS(aicfg);
+        bool old_enabled = aicfg.enabled;  // Сохраняем старое состояние из SPIFFS / Save old state from SPIFFS
+        bool old_store_enabled = config.store.ai_enabled;  // Сохраняем старое состояние из store / Save old state from store
+        aicfg.enabled = (atoi(val) == 1);
+        // Validate: if enabling without valid config, force disable / Валидация: при включении без валидной конфигурации принудительно выключаем
+        if (aicfg.enabled && !aiIsValidForEnable(aicfg)) {
+          aicfg.enabled = false;
+        }
+        aiSaveToFS(aicfg);
+        // Notify AIPlugin BEFORE applying to store / Уведомляем AIPlugin ДО применения к store
+        // (чтобы функция могла сравнить с текущим состоянием / so function can compare with current state)
+        if (old_store_enabled != aicfg.enabled) {
+          extern AIPlugin aiPluginInstance;
+          aiPluginInstance.onAiEnabledChanged(aicfg.enabled);
+        }
+        aiApplyToStore(aicfg);
+        return;
+      }
+      if (strcmp(cmd, "ai_host") == 0) {
+        AIConfig aicfg;
+        aiLoadFromFS(aicfg);
+        strlcpy(aicfg.host, val, sizeof(aicfg.host));
+        // Revalidate enabled state / Перепроверка состояния enabled
+        bool was_enabled = aicfg.enabled;
+        bool old_store_enabled = config.store.ai_enabled;  // Сохраняем старое состояние из store / Save old state from store
+        if (aicfg.enabled && !aiIsValidForEnable(aicfg)) {
+          aicfg.enabled = false;
+        }
+        aiSaveToFS(aicfg);
+        // Notify AIPlugin BEFORE applying to store if enabled state changed / Уведомляем AIPlugin ДО применения к store если состояние enabled изменилось
+        if (was_enabled != aicfg.enabled || old_store_enabled != aicfg.enabled) {
+          extern AIPlugin aiPluginInstance;
+          aiPluginInstance.onAiEnabledChanged(aicfg.enabled);
+        }
+        aiApplyToStore(aicfg);
+        return;
+      }
+      if (strcmp(cmd, "ai_port") == 0) {
+        AIConfig aicfg;
+        aiLoadFromFS(aicfg);
+        uint16_t port_val = atoi(val);
+        if (port_val > 0 && port_val <= 65535) {
+          aicfg.port = port_val;
+        }
+        // Revalidate enabled state / Перепроверка состояния enabled
+        bool was_enabled = aicfg.enabled;
+        bool old_store_enabled = config.store.ai_enabled;  // Сохраняем старое состояние из store / Save old state from store
+        if (aicfg.enabled && !aiIsValidForEnable(aicfg)) {
+          aicfg.enabled = false;
+        }
+        aiSaveToFS(aicfg);
+        // Notify AIPlugin BEFORE applying to store if enabled state changed / Уведомляем AIPlugin ДО применения к store если состояние enabled изменилось
+        if (was_enabled != aicfg.enabled || old_store_enabled != aicfg.enabled) {
+          extern AIPlugin aiPluginInstance;
+          aiPluginInstance.onAiEnabledChanged(aicfg.enabled);
+        }
+        aiApplyToStore(aicfg);
+        return;
+      }
+      if (strcmp(cmd, "ai_path") == 0) {
+        AIConfig aicfg;
+        aiLoadFromFS(aicfg);
+        strlcpy(aicfg.path, val, sizeof(aicfg.path));
+        // Revalidate enabled state / Перепроверка состояния enabled
+        bool was_enabled = aicfg.enabled;
+        bool old_store_enabled = config.store.ai_enabled;  // Сохраняем старое состояние из store / Save old state from store
+        if (aicfg.enabled && !aiIsValidForEnable(aicfg)) {
+          aicfg.enabled = false;
+        }
+        aiSaveToFS(aicfg);
+        // Notify AIPlugin BEFORE applying to store if enabled state changed / Уведомляем AIPlugin ДО применения к store если состояние enabled изменилось
+        if (was_enabled != aicfg.enabled || old_store_enabled != aicfg.enabled) {
+          extern AIPlugin aiPluginInstance;
+          aiPluginInstance.onAiEnabledChanged(aicfg.enabled);
+        }
+        aiApplyToStore(aicfg);
+        return;
+      }
+      if (strcmp(cmd, "ai_timeout") == 0) {
+        AIConfig aicfg;
+        aiLoadFromFS(aicfg);
+        uint32_t timeout_val = atoi(val);
+        if (timeout_val >= 1000 && timeout_val <= 60000) {
+          aicfg.timeout_ms = timeout_val;
+        }
+        aiSaveToFS(aicfg);
+        aiApplyToStore(aicfg);
+        return;
+      }
+      if (strcmp(cmd, "ai_model") == 0) {
+        AIConfig aicfg;
+        aiLoadFromFS(aicfg);
+        strlcpy(aicfg.model, val, sizeof(aicfg.model));
+        // Revalidate enabled state / Перепроверка состояния enabled
+        bool was_enabled = aicfg.enabled;
+        bool old_store_enabled = config.store.ai_enabled;  // Сохраняем старое состояние из store / Save old state from store
+        if (aicfg.enabled && !aiIsValidForEnable(aicfg)) {
+          aicfg.enabled = false;
+        }
+        aiSaveToFS(aicfg);
+        // Notify AIPlugin BEFORE applying to store if enabled state changed / Уведомляем AIPlugin ДО применения к store если состояние enabled изменилось
+        if (was_enabled != aicfg.enabled || old_store_enabled != aicfg.enabled) {
+          extern AIPlugin aiPluginInstance;
+          aiPluginInstance.onAiEnabledChanged(aicfg.enabled);
+        }
+        aiApplyToStore(aicfg);
+        return;
+      }
+      if (strcmp(cmd, "ai_key") == 0) {
+        AIConfig aicfg;
+        aiLoadFromFS(aicfg);
+        strlcpy(aicfg.api_key, val, sizeof(aicfg.api_key));
+        // Revalidate enabled state / Перепроверка состояния enabled
+        bool was_enabled = aicfg.enabled;
+        bool old_store_enabled = config.store.ai_enabled;  // Сохраняем старое состояние из store / Save old state from store
+        if (aicfg.enabled && !aiIsValidForEnable(aicfg)) {
+          aicfg.enabled = false;
+        }
+        aiSaveToFS(aicfg);
+        // Notify AIPlugin BEFORE applying to store if enabled state changed / Уведомляем AIPlugin ДО применения к store если состояние enabled изменилось
+        if (was_enabled != aicfg.enabled || old_store_enabled != aicfg.enabled) {
+          extern AIPlugin aiPluginInstance;
+          aiPluginInstance.onAiEnabledChanged(aicfg.enabled);
+        }
+        aiApplyToStore(aicfg);
+        return;
+      }
       /*  RESETS  */
       if (strcmp(cmd, "reset") == 0) {
         if (strcmp(val, "system") == 0) {
@@ -687,6 +863,22 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
           network.trueWeather=false;
           display.putRequest(NEWMODE, CLEAR); display.putRequest(NEWMODE, PLAYER);
           requestOnChange(GETWEATHER, clientId);
+          return;
+        }
+        if (strcmp(val, "ai") == 0) {
+          // Reset AI config: delete file or write defaults / Сброс AI конфигурации: удалить файл или записать дефолты
+          bool old_store_enabled = config.store.ai_enabled;  // Сохраняем старое состояние из store / Save old state from store
+          AIConfig aicfg;
+          aiSetDefaults(aicfg);
+          aicfg.enabled = false;  // Принудительно выключаем AI / Force disable AI
+          aiSaveToFS(aicfg);
+          // Notify AIPlugin BEFORE applying to store if state changed / Уведомляем AIPlugin ДО применения к store если состояние изменилось
+          if (old_store_enabled != false) {
+            extern AIPlugin aiPluginInstance;
+            aiPluginInstance.onAiEnabledChanged(false);
+          }
+          aiApplyToStore(aicfg);
+          requestOnChange(GETAI, clientId);
           return;
         }
         if (strcmp(val, "controls") == 0) {

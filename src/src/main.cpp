@@ -22,9 +22,9 @@ SPIClass  SPI2(HOOPSENb);
 
 extern __attribute__((weak)) void yoradio_on_setup();
 
-// Создаём экземпляр AI-плагина
-// Create AI plugin instance
-static AIPlugin aiPluginInstance;
+// Создаём экземпляр AI-плагина (не static для доступа из netserver.cpp)
+// Create AI plugin instance (not static for access from netserver.cpp)
+AIPlugin aiPluginInstance;
 
 void setup() {
   Serial.begin(115200);

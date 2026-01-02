@@ -371,6 +371,10 @@ void Display::_start() {
   _buildPager();
   _mode = PLAYER;
   config.setTitle(const_PlReady);
+  // Perform deferred AI widget clear if needed (after widgets are initialized)
+  // Выполнить отложенную очистку AI виджета если нужно (после инициализации виджетов)
+  extern void aiPerformDeferredClearIfNeeded();
+  aiPerformDeferredClearIfNeeded();
   // Перед первой отрисовкой гарантированно погасим оба виджета
   _deactivateAllMeters();
   // Перед первой отрисовкой гарантированно погасим оба виджета

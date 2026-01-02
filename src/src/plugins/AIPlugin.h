@@ -43,6 +43,10 @@ public:
     // Периодическая обработка результатов (вызывается из on_ticker())
     // Periodic result processing (called from on_ticker())
     void _pumpResults();
+    
+    // Публичный метод для уведомления об изменении состояния AI
+    // Public method to notify about AI state change
+    void onAiEnabledChanged(bool enabled);
 
 private:
     bool _initialized;

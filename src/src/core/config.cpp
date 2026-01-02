@@ -10,8 +10,135 @@
 #endif
 #include <cstddef>
 #include "../plugins/ai_runtime_config.h"
+#include <ArduinoJson.h>
 
 Config config;
+
+// Deferred AI widget clear flag / Флаг отложенной очистки AI виджета
+// Set to true when AI is disabled during init (before display is ready)
+// Устанавливается в true когда AI выключен во время init (до готовности display)
+static bool g_aiNeedsClear = false;
+
+// AI configuration structure for SPIFFS storage / Структура конфигурации AI для хранения в SPIFFS
+struct AIConfig {
+  bool enabled;
+  char host[64];
+  uint16_t port;
+  char path[128];
+  uint32_t timeout_ms;
+  char api_key[64];
+  char model[32];
+};
+
+// AI configuration file path / Путь к файлу конфигурации AI
+#define AI_CONFIG_PATH "/ai.json"
+
+// Set AI configuration defaults / Установить значения по умолчанию для AI конфигурации
+void aiSetDefaults(AIConfig& cfg) {
+  cfg.enabled = false;
+  strlcpy(cfg.host, "api.deepseek.com", sizeof(cfg.host));
+  cfg.port = 443;
+  strlcpy(cfg.path, "/v1", sizeof(cfg.path));
+  cfg.timeout_ms = 6000;
+  cfg.api_key[0] = '\0';
+  strlcpy(cfg.model, "deepseek-chat", sizeof(cfg.model));
+}
+
+// Check if AI configuration is valid for enabling / Проверить валидность AI конфигурации для включения
+bool aiIsValidForEnable(const AIConfig& cfg) {
+  return (strlen(cfg.host) > 0 && cfg.port > 0 && strlen(cfg.path) > 0 && 
+          strlen(cfg.api_key) > 0 && strlen(cfg.model) > 0);
+}
+
+// Load AI configuration from SPIFFS / Загрузить конфигурацию AI из SPIFFS
+bool aiLoadFromFS(AIConfig& out) {
+  if (!SPIFFS.exists(AI_CONFIG_PATH)) {
+    aiSetDefaults(out);
+    return false;  // File doesn't exist, using defaults
+  }
+  
+  File file = SPIFFS.open(AI_CONFIG_PATH, "r");
+  if (!file || file.isDirectory()) {
+    aiSetDefaults(out);
+    return false;
+  }
+  
+  size_t size = file.size();
+  if (size > 1024) {
+    file.close();
+    aiSetDefaults(out);
+    return false;  // File too large
+  }
+  
+  DynamicJsonDocument doc(1024);
+  DeserializationError error = deserializeJson(doc, file);
+  file.close();
+  
+  if (error) {
+    aiSetDefaults(out);
+    return false;  // JSON parse error
+  }
+  
+  out.enabled = doc["enabled"] | false;
+  strlcpy(out.host, doc["host"] | "api.deepseek.com", sizeof(out.host));
+  out.port = doc["port"] | 443;
+  strlcpy(out.path, doc["path"] | "/v1", sizeof(out.path));
+  out.timeout_ms = doc["timeout_ms"] | 6000;
+  strlcpy(out.api_key, doc["api_key"] | "", sizeof(out.api_key));
+  strlcpy(out.model, doc["model"] | "deepseek-chat", sizeof(out.model));
+  
+  return true;
+}
+
+// Save AI configuration to SPIFFS / Сохранить конфигурацию AI в SPIFFS
+bool aiSaveToFS(const AIConfig& cfg) {
+  File file = SPIFFS.open(AI_CONFIG_PATH, "w");
+  if (!file) {
+    return false;
+  }
+  
+  DynamicJsonDocument doc(1024);
+  doc["enabled"] = cfg.enabled;
+  doc["host"] = cfg.host;
+  doc["port"] = cfg.port;
+  doc["path"] = cfg.path;
+  doc["timeout_ms"] = cfg.timeout_ms;
+  doc["api_key"] = cfg.api_key;
+  doc["model"] = cfg.model;
+  
+  serializeJson(doc, file);
+  file.close();
+  
+  return true;
+}
+
+// Apply AI configuration to runtime store / Применить конфигурацию AI к runtime store
+void aiApplyToStore(const AIConfig& cfg) {
+  // Validate before applying / Валидация перед применением
+  bool should_enable = cfg.enabled && aiIsValidForEnable(cfg);
+  
+  config.saveValue(&config.store.ai_enabled, should_enable, true, true);
+  config.saveValue(&config.store.llm_provider, (uint8_t)1, true, true);  // LLM_DEEPSEEK for now
+  config.saveValue(config.store.ai_api_key, cfg.api_key, AI_API_KEY_LENGTH, true, true);
+  config.saveValue(config.store.ai_model, cfg.model, AI_MODEL_LENGTH, true, true);
+  
+  // If AI disabled, set deferred clear flag / Если AI выключен, устанавливаем флаг отложенной очистки
+  // Don't call display.setAIInterpretation() here - it may be called before display is ready
+  // Не вызываем display.setAIInterpretation() здесь - может быть вызван до готовности display
+  if (!should_enable) {
+    g_aiNeedsClear = true;
+  }
+}
+
+// Perform deferred AI widget clear if needed / Выполнить отложенную очистку AI виджета если нужно
+// Call this after display widgets are initialized (after _buildPager())
+// Вызывать после инициализации виджетов display (после _buildPager())
+void aiPerformDeferredClearIfNeeded() {
+  if (g_aiNeedsClear) {
+    display.setAIInterpretation("");
+    g_aiNeedsClear = false;
+  }
+}
 
 void u8fix(char *src){
   char last = src[strlen(src)-1]; 
@@ -124,6 +251,21 @@ void Config::init() {
     return;
   }
   BOOTLOG("SPIFFS mounted");
+  
+  // Load AI configuration from SPIFFS and apply to store / Загрузить конфигурацию AI из SPIFFS и применить к store
+  // SPIFFS config has priority over runtime config (WebUI settings override dev config)
+  // Конфигурация SPIFFS имеет приоритет над runtime config (настройки WebUI перезаписывают dev config)
+  // IMPORTANT: Must be called AFTER SPIFFS.begin() / ВАЖНО: Вызывать ПОСЛЕ SPIFFS.begin()
+  // Additional safety check: verify SPIFFS is mounted / Дополнительная проверка: убедиться что SPIFFS смонтирован
+  if (SPIFFS.exists("/")) {  // Simple check that SPIFFS is mounted / Простая проверка что SPIFFS смонтирован
+    AIConfig aicfg;
+    if (aiLoadFromFS(aicfg)) {
+      // File exists, apply it / Файл существует, применяем его
+      aiApplyToStore(aicfg);
+    }
+  } else {
+    BOOTLOG("SPIFFS not mounted, skipping AI config load");
+  }
   emptyFS = _isFSempty();
   if(emptyFS) BOOTLOG("SPIFFS is empty!");
   ssidsCount = 0;

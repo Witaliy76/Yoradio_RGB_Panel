@@ -106,6 +106,10 @@ public:
     // Проверка, можно ли отправить запрос (rate limiting + проверка занятости)
     // Check if request can be sent (rate limiting + busy check)
     bool canSendRequest() const;
+    
+    // Очистка всех очередей и сброс флагов (thread-safe)
+    // Clear all queues and reset flags (thread-safe)
+    void cancelAll();
 };
 
 #endif // AI_TASK_H

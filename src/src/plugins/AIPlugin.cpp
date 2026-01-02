@@ -124,6 +124,13 @@ void AIPlugin::_pumpResults() {
     
     AIRequestResult result;
     while (_aiTaskManager.getResult(result)) {
+        // LAST GUARD: проверяем, не был ли AI выключен после dequeue
+        // LAST GUARD: check if AI was disabled after dequeue
+        if (!config.store.ai_enabled) {
+            Serial.println("[AIPlugin] Dropping result because AI disabled");
+            continue;  // Не обрабатываем результат если AI выключен / Don't process result if AI disabled
+        }
+        
         // Диагностический лог: результат получен из очереди (показываем raw данные)
         // Diagnostic log: result dequeued (show raw data)
         Serial.printf("[AIPlugin] Dequeued result: ok=%d mode=%s track_id=%u current=%u conf=%.2f\n",
@@ -285,6 +292,13 @@ void AIPlugin::_pumpResults() {
         bool should_show = _coordinator.shouldShow(&candidate, current_time);
         
         if (should_show) {
+            // LAST GUARD: проверяем, не был ли AI выключен перед показом
+            // LAST GUARD: check if AI was disabled before showing
+            if (!config.store.ai_enabled) {
+                Serial.println("[AIPlugin] Dropping result because AI disabled (before show)");
+                continue;  // Не показываем результат если AI выключен / Don't show result if AI disabled
+            }
+            
             _coordinator.markAsShown(&candidate, current_time);
             
             // MVP-1: Вывод интерпретации на экран / MVP-1: Display interpretation on screen
@@ -628,3 +642,36 @@ void AIPlugin::on_ticker() {
 // IMPORTANT: To integrate into main loop, add call to network.ticks() or main loop()
 // Пока вызывается только из _processLayers() при смене трека
 // Currently called only from _processLayers() on track change
+
+void AIPlugin::onAiEnabledChanged(bool enabled) {
+    // Проверяем, не изменилось ли состояние на самом деле / Check if state actually changed
+    // Избегаем повторных вызовов для одного и того же состояния / Avoid repeated calls for the same state
+    if (enabled == config.store.ai_enabled) {
+        // Состояние уже соответствует - пропускаем / State already matches - skip
+        return;
+    }
+    
+    if (!enabled) {
+        // AI выключен - отменяем все операции / AI disabled - cancel all operations
+        Serial.println("[AIPlugin] AI disabled: canceling timers, clearing queues, clearing display");
+        
+        // Сбрасываем внутренние флаги / Reset internal flags
+        _enqueue_at_ms = 0;  // Отменяем debounce timer / Cancel debounce timer
+        _enqueued_for_track_id = 0;  // Сбрасываем флаг отправки запроса / Reset enqueue flag
+        _ai_decided_for_track = false;  // Сбрасываем флаг принятия решения / Reset decision flag
+        _last_ai_activated_state = false;  // Сбрасываем кеш состояния активации / Reset activation state cache
+        
+        // Очищаем очереди менеджера задач / Clear task manager queues
+        _aiTaskManager.cancelAll();
+        
+        // Очищаем отображение / Clear display
+        if (display.ready()) {
+            display.setAIInterpretation("");
+        }
+        
+        Serial.println("[AIPlugin] AI disabled: canceled timers, cleared queues, cleared display");
+    } else {
+        // AI включён - логируем / AI enabled - log
+        Serial.println("[AIPlugin] AI enabled");
+    }
+}

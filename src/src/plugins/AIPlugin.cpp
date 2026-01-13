@@ -820,7 +820,9 @@ bool AIPlugin::_isValidTrackTitleForAI(const String& t) {
             breakdown += score;
             String breakdown_msg = "[AIPlugin] TT score details: ";
             breakdown_msg += breakdown;
-            Serial.println(breakdown_msg.c_str());
+            // Используем _logOncePerTrack вместо Serial.println чтобы избежать переполнения WebSocket очереди
+            // Use _logOncePerTrack instead of Serial.println to avoid WebSocket queue overflow
+            _logOncePerTrack(_current_track_id, breakdown_msg.c_str());
         }
         last_breakdown_track_id = _current_track_id;
     }
@@ -1037,8 +1039,10 @@ void AIPlugin::on_ticker() {
         }
         
         // Диагностический лог перед enqueue / Diagnostic log before enqueue
-        Serial.printf("[AIPlugin] Debounce check: track_title_len=%d llm_ready=%d ai_activated=%d\n",
-                      context.track_title.length(), llm_ready ? 1 : 0, ai_activated ? 1 : 0);
+        char debounce_msg[128];
+        snprintf(debounce_msg, sizeof(debounce_msg), "[AIPlugin] Debounce check: track_title_len=%d llm_ready=%d ai_activated=%d",
+                 context.track_title.length(), llm_ready ? 1 : 0, ai_activated ? 1 : 0);
+        _logOncePerTrack(_current_track_id, debounce_msg);
         
         // Debounce прошел, отправляем запрос один раз для текущего трека
         // Debounce passed, send request once for current track
@@ -1101,7 +1105,7 @@ void AIPlugin::on_ticker() {
             // Логируем напрямую (не через _logOncePerTrack) чтобы избежать конфликтов с другими логами
             // Log directly (not via _logOncePerTrack) to avoid conflicts with other logs
             if (!_moment_decided || _moment_decided_track_id != _current_track_id) {
-                Serial.println("[AIPlugin] Moment fallback: LLM silent, showing moment");
+                _logOncePerTrack(_current_track_id, "[AIPlugin] Moment fallback: LLM silent, showing moment");
             }
             AICandidate moment_candidate;
             if (_momentLayer.process(context, moment_candidate)) {
@@ -1116,16 +1120,17 @@ void AIPlugin::on_ticker() {
                     display.setAIInterpretation(moment_candidate.text);
                     Serial.print("##AI.MOMENT#: ");
                     Serial.println(moment_candidate.text);
-                    Serial.printf("[AIPlugin] Moment displayed in widget: track_id=%u text_len=%d\n", 
-                                  _current_track_id, moment_candidate.text.length());
+                    // Убираем дополнительное диагностическое логирование чтобы избежать переполнения WebSocket очереди
+                    // Remove additional diagnostic logging to avoid WebSocket queue overflow
                 } else {
                     // Текст пустой - логируем и не показываем / Text empty - log and don't show
-                    Serial.printf("[MomentLayer] ERROR: empty moment text, track_id=%u\n", _current_track_id);
+                    _logOncePerTrack(_current_track_id, "[MomentLayer] ERROR: empty moment text");
                 }
             } else {
                 // MomentLayer.process() вернул false - не готов / MomentLayer.process() returned false - not ready
-                Serial.printf("[MomentLayer] process() returned false, track_id=%u track_title=\"%s\"\n", 
-                              _current_track_id, context.track_title.c_str());
+                // Убираем диагностическое логирование track_title чтобы избежать переполнения
+                // Remove track_title diagnostic logging to avoid overflow
+                _logOncePerTrack(_current_track_id, "[MomentLayer] process() returned false");
             }
             // Решение принято: Moment обработан (показан или нет) / Decision made: Moment processed (shown or not)
             _moment_decided = true;

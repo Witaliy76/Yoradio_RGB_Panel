@@ -24,7 +24,8 @@
 class MomentLayer : public AILayer {
 private:
     bool _enabled;
-    uint32_t _last_shown_ms;  // Время последнего показа (для интервала 60 минут) / Last show time (for 60 minute interval)
+    // ПРИМЕЧАНИЕ: _last_shown_ms удален - интервал контролируется в AIPlugin через _moment_decided
+    // NOTE: _last_shown_ms removed - interval is controlled in AIPlugin via _moment_decided
     
 public:
     MomentLayer();

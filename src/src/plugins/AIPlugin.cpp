@@ -40,7 +40,7 @@ void AIPlugin::on_setup() {
     
     // Инициализация AI Task Manager для асинхронного выполнения HTTPS запросов
     // Initialize AI Task Manager for asynchronous HTTPS request execution
-    if (!_aiTaskManager.begin(&_deepseekProvider)) {
+    if (!_aiTaskManager.begin(&_provider)) {
         Serial.println("[AIPlugin] WARNING: AI Task Manager initialization failed");
     }
     
@@ -53,6 +53,14 @@ void AIPlugin::on_setup() {
     _ai_decided_for_track = false;  // Инициализация флага принятия решения / Initialize decision flag
     _enqueue_at_ms = 0;  // Инициализация времени debounce / Initialize debounce time
     _enqueued_for_track_id = 0;  // Инициализация ID трека для enqueue / Initialize track ID for enqueue
+    _ai_output_shown = false;  // Инициализация флага показа AI вывода / Initialize AI output shown flag
+    _ai_output_track_id = 0;  // Инициализация ID трека для AI вывода / Initialize track ID for AI output
+    _moment_decided = false;  // Инициализация флага решения по Moment / Initialize Moment decision flag
+    _moment_decided_track_id = 0;  // Инициализация ID трека для решения по Moment / Initialize track ID for Moment decision
+    _ai_context_logged_track_id = 0;  // Инициализация ID трека для лога контекста / Initialize track ID for context log
+    _tt_validation_logged_track_id = 0;  // Инициализация ID трека для диагностического лога валидации / Initialize track ID for validation diagnostic log
+    _last_tt_reason = TrackTitleValidationReason::TT_EMPTY;  // Инициализация причины валидации / Initialize validation reason
+    _last_tt_score = 0;  // Инициализация score валидации / Initialize validation score
     _initialized = true;
 }
 
@@ -314,6 +322,9 @@ void AIPlugin::_pumpResults() {
             Serial.println("[AIPlugin] Coordinator: show");
             // Решение принято: текст показан / Decision made: text shown
             _ai_decided_for_track = true;
+            // Отмечаем что для этого трека показан AI.FACT или AI.LISTEN / Mark that AI.FACT or AI.LISTEN was shown for this track
+            _ai_output_shown = true;
+            _ai_output_track_id = _current_track_id;
         } else {
             // Coordinator отклонил - логируем причину (будет видно в shouldShow если добавим детализацию)
             // Coordinator rejected - log reason (will be visible in shouldShow if we add details)
@@ -328,6 +339,28 @@ void AIPlugin::_pumpResults() {
 
 bool AIPlugin::_processLayers(const AIContext& context) {
     Serial.println("[AIPlugin] _processLayers() entered");
+    
+    // СТРОГАЯ ПРОВЕРКА: не обрабатываем слои если AI не активирован
+    // STRICT CHECK: don't process layers if AI not activated
+    bool ai_activated = _isAIActivated(context, false);
+    if (!ai_activated) {
+        Serial.println("[AIPlugin] Skip AI: ai_activated=false");
+        return false;
+    }
+    
+    // СТРОГАЯ ПРОВЕРКА: не обрабатываем слои если track_title невалиден (пустой или системный)
+    // STRICT CHECK: don't process layers if track_title invalid (empty or system)
+    // Примечание: диагностическое логирование уже выполнено в _isAIActivated() или on_track_change()
+    // Note: diagnostic logging already done in _isAIActivated() or on_track_change()
+    if (!_isValidTrackTitleForAI(context.track_title)) {
+        // Логируем только если еще не залогировано / Log only if not already logged
+        _logTrackTitleValidation(_current_track_id, context.track_title, false);
+        return false;
+    }
+    
+    // Логируем валидный track_title только если еще не залогировано / Log valid track_title only if not already logged
+    _logTrackTitleValidation(_current_track_id, context.track_title, true);
+    
     uint32_t current_time = millis();
     
     // Обрабатываем результаты (также вызывается периодически через _pumpResults)
@@ -439,9 +472,10 @@ bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
     }
     
     // 4. API ключ и модель настроены / API key and model configured
-    String api_key = String(config.store.ai_api_key);
-    String model = String(config.store.ai_model);
-    if (api_key.isEmpty() || model.isEmpty()) {
+    // Унифицированная проверка через strlen() / Unified check via strlen()
+    bool has_api_key = (strlen(config.store.ai_api_key) > 0);
+    bool has_model = (strlen(config.store.ai_model) > 0);
+    if (!has_api_key || !has_model) {
         if (log_state_change) {
             Serial.println("[AIPlugin] _isAIActivated: API key or model empty");
         }
@@ -450,14 +484,40 @@ bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
     
     // 5. Валидный музыкальный контекст (реальный трек, не системный статус)
     // Valid music context (real track, not system status)
-    // Ослабляем требование: достаточно track_title, artist/song могут быть пустыми
-    // Relaxed requirement: track_title is enough, artist/song may be empty
-    if (context.track_title.isEmpty()) {
+    // СТРОГАЯ ПРОВЕРКА: track_title должен быть валидным (не пустой, не системный/ошибочный)
+    // STRICT CHECK: track_title must be valid (not empty, not system/error)
+    if (!_isValidTrackTitleForAI(context.track_title)) {
         if (log_state_change) {
-            Serial.print("[AIPlugin] _isAIActivated: Invalid context - track_title empty");
-            Serial.println();
+            // Диагностическое логирование невалидного track_title / Diagnostic logging of invalid track_title
+            _logTrackTitleValidation(_current_track_id, context.track_title, false);
+            
+            // Конкретная причина валидации / Specific validation reason
+            String msg = "[AIPlugin] _isAIActivated: Invalid context - ";
+            if (_last_tt_reason == TrackTitleValidationReason::TT_EMPTY) {
+                msg += "empty track_title";
+            } else if (_last_tt_reason == TrackTitleValidationReason::TT_HARD_DENY_URL) {
+                msg += "hard_deny (url)";
+            } else if (_last_tt_reason == TrackTitleValidationReason::TT_HARD_DENY_ERROR ||
+                       _last_tt_reason == TrackTitleValidationReason::TT_HARD_DENY_REQUEST_FAILED ||
+                       _last_tt_reason == TrackTitleValidationReason::TT_HARD_DENY_HASH_ERROR) {
+                msg += "hard_deny (error/request)";
+            } else if (_last_tt_reason == TrackTitleValidationReason::TT_STATION_LIKE) {
+                msg += "station_like (score=";
+                msg += _last_tt_score;
+                msg += ")";
+            } else {
+                msg += "non_track (score=";
+                msg += _last_tt_score;
+                msg += ")";
+            }
+            _logOncePerTrack(_current_track_id, msg.c_str());
         }
         return false;
+    }
+    
+    // Логируем валидный track_title / Log valid track_title
+    if (log_state_change) {
+        _logTrackTitleValidation(_current_track_id, context.track_title, true);
     }
     
     // Все условия выполнены / All conditions met
@@ -495,14 +555,350 @@ bool AIPlugin::_isLLMReady() const {
     }
     
     // 4. API ключ и модель настроены / API key and model configured
-    String api_key = String(config.store.ai_api_key);
-    String model = String(config.store.ai_model);
-    if (api_key.isEmpty() || model.isEmpty()) {
+    // Унифицированная проверка через strlen() / Unified check via strlen()
+    bool has_api_key = (strlen(config.store.ai_api_key) > 0);
+    bool has_model = (strlen(config.store.ai_model) > 0);
+    if (!has_api_key || !has_model) {
         return false;
     }
     
     // Все условия выполнены (без требования track_title) / All conditions met (without track_title requirement)
     return true;
+}
+
+// Helper: подсчёт количества слов в строке / Helper: count words in string
+static int _countWords(const String& s) {
+    int count = 0;
+    bool in_word = false;
+    for (size_t i = 0; i < s.length(); i++) {
+        char c = s.charAt(i);
+        bool is_space = (c == ' ' || c == '\t' || c == '\n' || c == '\r');
+        if (!is_space && !in_word) {
+            in_word = true;
+            count++;
+        } else if (is_space) {
+            in_word = false;
+        }
+    }
+    return count;
+}
+
+// Helper: проверка наличия букв (латиница или кириллица) / Helper: check for letters (latin or cyrillic)
+static bool _hasLetters(const String& s) {
+    for (size_t i = 0; i < s.length(); i++) {
+        char c = s.charAt(i);
+        // Латиница / Latin
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+            return true;
+        }
+        // Кириллица (UTF-8: 0xD0 0x80-0xBF или 0xD1 0x80-0x8F) / Cyrillic
+        if ((unsigned char)c == 0xD0 || (unsigned char)c == 0xD1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Helper: проверка на X - X (одинаковые части) / Helper: check for X - X (same parts)
+static bool _isSameParts(const String& s) {
+    int sep_pos = s.indexOf(" - ");
+    if (sep_pos < 0) {
+        return false;
+    }
+    String left = s.substring(0, sep_pos);
+    String right = s.substring(sep_pos + 3);
+    left.trim();
+    right.trim();
+    return left.equalsIgnoreCase(right);
+}
+
+// Helper: проверка является ли символ буквой или цифрой / Helper: check if character is letter or digit
+static bool _isWordChar(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || 
+           (c >= '0' && c <= '9') || (unsigned char)c == 0xD0 || (unsigned char)c == 0xD1;
+}
+
+// Helper: проверка слова с границами слов (word-boundary matching) / Helper: word-boundary matching
+// Проверяет что word найдено как отдельное слово, а не как подстрока внутри другого слова
+// Checks that word is found as a standalone word, not as substring inside another word
+static bool _hasWordBoundary(const String& text_lower, const char* word) {
+    int word_len = strlen(word);
+    int pos = text_lower.indexOf(word);
+    
+    while (pos >= 0) {
+        // Проверяем границу перед словом / Check boundary before word
+        bool boundary_before = (pos == 0) || !_isWordChar(text_lower.charAt(pos - 1));
+        // Проверяем границу после слова / Check boundary after word
+        bool boundary_after = (pos + word_len >= text_lower.length()) || 
+                             !_isWordChar(text_lower.charAt(pos + word_len));
+        
+        if (boundary_before && boundary_after) {
+            return true;  // Найдено как отдельное слово / Found as standalone word
+        }
+        
+        // Ищем следующее вхождение / Search for next occurrence
+        pos = text_lower.indexOf(word, pos + 1);
+    }
+    
+    return false;  // Не найдено как отдельное слово / Not found as standalone word
+}
+
+bool AIPlugin::_isValidTrackTitleForAI(const String& t) {
+    // Score-based валидация track_title для AI / Score-based validation of track_title for AI
+    // Проверка валидности track_title (фильтрация системных/станционных/мусорных строк)
+    // Check if track_title is valid (filter system/station/garbage strings)
+    // Устанавливает _last_tt_reason и _last_tt_score / Sets _last_tt_reason and _last_tt_score
+    
+    // ЖЁСТКИЕ DENY-ПРАВИЛА (возвращаем false сразу) / HARD DENY RULES (return false immediately)
+    // Пустой track_title - невалиден / Empty track_title - invalid
+    if (t.isEmpty()) {
+        _last_tt_reason = TrackTitleValidationReason::TT_EMPTY;
+        _last_tt_score = 0;
+        return false;
+    }
+    
+    // Системные/ошибочные строки - невалидны / System/error strings - invalid
+    if (t.startsWith("Error connecting to ")) {
+        _last_tt_reason = TrackTitleValidationReason::TT_HARD_DENY_ERROR;
+        _last_tt_score = 0;
+        return false;
+    }
+    
+    if (t.indexOf("Request ") >= 0 && t.indexOf(" failed") >= 0) {
+        _last_tt_reason = TrackTitleValidationReason::TT_HARD_DENY_REQUEST_FAILED;
+        _last_tt_score = 0;
+        return false;
+    }
+    
+    if (t.startsWith("##ERROR#")) {
+        _last_tt_reason = TrackTitleValidationReason::TT_HARD_DENY_HASH_ERROR;
+        _last_tt_score = 0;
+        return false;
+    }
+    
+    // URL всегда невалиден (больше НЕ спасается дефисом) / URL always invalid (no longer saved by dash)
+    if (t.indexOf("http://") >= 0 || t.indexOf("https://") >= 0) {
+        _last_tt_reason = TrackTitleValidationReason::TT_HARD_DENY_URL;
+        _last_tt_score = 0;
+        return false;
+    }
+    
+    // SCORE-BASED ВАЛИДАЦИЯ / SCORE-BASED VALIDATION
+    int score = 0;
+    String t_lower = t;
+    t_lower.toLowerCase();
+    String breakdown;  // Для логирования breakdown / For breakdown logging
+    
+    // ПОЗИТИВНЫЕ ПРИЗНАКИ (увеличивают score) / POSITIVE SIGNS (increase score)
+    
+    // Разделители / Separators
+    int sep_count = 0;
+    if (t.indexOf(" - ") >= 0) { score++; sep_count++; }
+    if (t.indexOf(" — ") >= 0) { score++; sep_count++; }
+    if (t.indexOf(" – ") >= 0) { score++; sep_count++; }
+    if (t.indexOf(": ") >= 0) { score++; sep_count++; }
+    if (t.indexOf(" | ") >= 0) { score++; sep_count++; }
+    if (t.indexOf(" / ") >= 0) { score++; sep_count++; }
+    if (t.indexOf(" • ") >= 0) { score++; sep_count++; }
+    if (sep_count > 0) {
+        breakdown += "+sep(";
+        breakdown += sep_count;
+        breakdown += ") ";
+    }
+    
+    // feat / ft / featuring (любой регистр) / feat / ft / featuring (any case)
+    if (t_lower.indexOf("feat") >= 0 || t_lower.indexOf(" ft ") >= 0 || t_lower.indexOf("featuring") >= 0) {
+        score++;
+        breakdown += "+feat ";
+    }
+    
+    // Скобки с ключевыми словами / Brackets with keywords
+    int open_brace = t.indexOf('(');
+    int close_brace = t.indexOf(')');
+    if (open_brace >= 0 && close_brace > open_brace) {
+        String in_braces = t.substring(open_brace + 1, close_brace);
+        in_braces.toLowerCase();
+        if (in_braces.indexOf("remix") >= 0 || in_braces.indexOf("live") >= 0 ||
+            in_braces.indexOf("edit") >= 0 || in_braces.indexOf("acoustic") >= 0) {
+            score++;
+            breakdown += "+brackets ";
+        }
+    }
+    
+    // Количество слов >= 3 / Word count >= 3
+    int word_count = _countWords(t);
+    if (word_count >= 3) {
+        score++;
+        breakdown += "+words ";
+    }
+    
+    // Наличие букв (латиница или кириллица) / Presence of letters (latin or cyrillic)
+    if (_hasLetters(t)) {
+        score++;
+        breakdown += "+letters ";
+    }
+    
+    // НЕГАТИВНЫЕ ПРИЗНАКИ (уменьшают score) / NEGATIVE SIGNS (decrease score)
+    
+    // X - X (левая и правая часть одинаковы) / X - X (left and right parts are same)
+    if (_isSameParts(t)) {
+        score -= 2;
+        breakdown += "-same_parts(-2) ";
+    }
+    
+    // Station-слова (word-boundary matching) / Station words (word-boundary matching)
+    // Используем word-boundary matching чтобы не находить слова внутри других слов
+    // Use word-boundary matching to avoid finding words inside other words
+    if (_hasWordBoundary(t_lower, "radio")) {
+        score--;
+        breakdown += "-station(radio) ";
+    }
+    if (_hasWordBoundary(t_lower, "fm")) {
+        score--;
+        breakdown += "-station(fm) ";
+    }
+    if (_hasWordBoundary(t_lower, "am")) {
+        score--;
+        breakdown += "-station(am) ";
+    }
+    if (_hasWordBoundary(t_lower, "mix")) {
+        score--;
+        breakdown += "-station(mix) ";
+    }
+    if (_hasWordBoundary(t_lower, "hits")) {
+        score--;
+        breakdown += "-station(hits) ";
+    }
+    if (_hasWordBoundary(t_lower, "top")) {
+        score--;
+        breakdown += "-station(top) ";
+    }
+    if (_hasWordBoundary(t_lower, "playlist")) {
+        score--;
+        breakdown += "-station(playlist) ";
+    }
+    // "live" как station-слово (не в скобках, с word-boundary) / "live" as station word (not in brackets, with word-boundary)
+    if (_hasWordBoundary(t_lower, "live")) {
+        // Проверяем, не в скобках ли "live" / Check if "live" not in brackets
+        int live_pos = t_lower.indexOf("live");
+        if (live_pos >= 0) {
+            int brace_level = 0;
+            for (int i = 0; i < live_pos; i++) {
+                if (t.charAt(i) == '(') brace_level++;
+                else if (t.charAt(i) == ')') brace_level--;
+            }
+            // Если "live" не в скобках (brace_level == 0) - это station-слово / If "live" not in brackets - station word
+            if (brace_level == 0) {
+                score--;
+                breakdown += "-station(live) ";
+            }
+        }
+    }
+    if (_hasWordBoundary(t_lower, "stream")) {
+        score--;
+        breakdown += "-station(stream) ";
+    }
+    if (_hasWordBoundary(t_lower, "channel")) {
+        score--;
+        breakdown += "-station(channel) ";
+    }
+    
+    // Длина строки < 6 / String length < 6
+    if (t.length() < 6) {
+        score--;
+        breakdown += "-short ";
+    }
+    
+    // Логирование breakdown score (один раз на track_id) / Breakdown score logging (once per track_id)
+    // Используем статическую переменную для отслеживания последнего залогированного track_id
+    // Use static variable to track last logged track_id
+    static uint32_t last_breakdown_track_id = 0;
+    if (last_breakdown_track_id != _current_track_id) {
+        if (breakdown.length() > 0) {
+            breakdown.trim();
+            breakdown += " => ";
+            breakdown += score;
+            String breakdown_msg = "[AIPlugin] TT score details: ";
+            breakdown_msg += breakdown;
+            Serial.println(breakdown_msg.c_str());
+        }
+        last_breakdown_track_id = _current_track_id;
+    }
+    
+    // ПОРОГИ ПРИНЯТИЯ РЕШЕНИЯ / DECISION THRESHOLDS
+    // score >= 3 → VALID track / score >= 3 → VALID track
+    if (score >= 3) {
+        _last_tt_reason = TrackTitleValidationReason::TT_VALID;
+        _last_tt_score = score;
+        return true;
+    }
+    
+    // score <= -2 → INVALID track (station-like) / score <= -2 → INVALID track (station-like)
+    if (score <= -2) {
+        _last_tt_reason = TrackTitleValidationReason::TT_STATION_LIKE;
+        _last_tt_score = score;
+        return false;
+    }
+    
+    // иначе → INVALID (score слишком низкий) / otherwise → INVALID (score too low)
+    _last_tt_reason = TrackTitleValidationReason::TT_SCORE_TOO_LOW;
+    _last_tt_score = score;
+    return false;
+}
+
+// Helper: преобразование enum в строку для логов / Helper: convert enum to string for logs
+static const char* _ttReasonToString(TrackTitleValidationReason reason) {
+    switch (reason) {
+        case TrackTitleValidationReason::TT_VALID: return "TT_VALID";
+        case TrackTitleValidationReason::TT_EMPTY: return "TT_EMPTY";
+        case TrackTitleValidationReason::TT_HARD_DENY_ERROR: return "TT_HARD_DENY_ERROR";
+        case TrackTitleValidationReason::TT_HARD_DENY_REQUEST_FAILED: return "TT_HARD_DENY_REQUEST_FAILED";
+        case TrackTitleValidationReason::TT_HARD_DENY_HASH_ERROR: return "TT_HARD_DENY_HASH_ERROR";
+        case TrackTitleValidationReason::TT_HARD_DENY_URL: return "TT_HARD_DENY_URL";
+        case TrackTitleValidationReason::TT_SCORE_TOO_LOW: return "TT_SCORE_TOO_LOW";
+        case TrackTitleValidationReason::TT_STATION_LIKE: return "TT_STATION_LIKE";
+        default: return "TT_UNKNOWN";
+    }
+}
+
+bool AIPlugin::_logOncePerTrack(uint32_t track_id, const char* message) {
+    // Helper для логов один раз на track_id / Helper for logs once per track_id
+    if (_ai_context_logged_track_id != track_id) {
+        Serial.println(message);
+        _ai_context_logged_track_id = track_id;
+        return true;  // Лог выведен / Log printed
+    }
+    return false;  // Лог уже был выведен для этого track_id / Log already printed for this track_id
+}
+
+// Helper: диагностическое логирование валидации track_title / Helper: diagnostic logging of track_title validation
+void AIPlugin::_logTrackTitleValidation(uint32_t track_id, const String& title, bool is_valid) {
+    // Логируем один раз на track_id / Log once per track_id
+    if (_tt_validation_logged_track_id == track_id) {
+        return;  // Уже залогировано / Already logged
+    }
+    
+    String title_short = title;
+    if (title_short.length() > 64) {
+        title_short = title_short.substring(0, 64);
+    }
+    
+    if (is_valid) {
+        // Валидный track_title / Valid track_title
+        char msg[256];
+        snprintf(msg, sizeof(msg), "[AIPlugin] TrackTitle valid: score=%d title=\"%s\"", 
+                 _last_tt_score, title_short.c_str());
+        Serial.println(msg);
+        _tt_validation_logged_track_id = track_id;
+    } else {
+        // Невалидный track_title / Invalid track_title
+        const char* reason_str = _ttReasonToString(_last_tt_reason);
+        char msg[256];
+        snprintf(msg, sizeof(msg), "[AIPlugin] TrackTitle invalid: reason=%s score=%d title=\"%s\"", 
+                 reason_str, _last_tt_score, title_short.c_str());
+        Serial.println(msg);
+        _tt_validation_logged_track_id = track_id;
+    }
 }
 
 void AIPlugin::on_track_change() {
@@ -514,6 +910,21 @@ void AIPlugin::on_track_change() {
     // Сбрасываем флаг принятия решения для нового трека
     // Reset decision flag for new track
     _ai_decided_for_track = false;
+    
+    // Сбрасываем флаг показа AI вывода при смене трека
+    // Reset AI output shown flag on track change
+    _ai_output_shown = false;
+    _ai_output_track_id = _current_track_id;
+    
+    // Сбрасываем флаг решения по Moment при смене трека (one-shot логика)
+    // Reset Moment decision flag on track change (one-shot logic)
+    _moment_decided = false;
+    _moment_decided_track_id = _current_track_id;
+    
+    // Сбрасываем флаг лога контекста при смене трека (антиспам логов)
+    // Reset context log flag on track change (log anti-spam)
+    _ai_context_logged_track_id = 0;
+    _tt_validation_logged_track_id = 0;  // Сбрасываем флаг диагностического лога валидации / Reset validation diagnostic log flag
     
     // Устанавливаем время debounce: запрос можно отправить через 4 секунды
     // Set debounce time: request can be sent after 4 seconds
@@ -535,15 +946,38 @@ void AIPlugin::on_track_change() {
     _buildContext(context);
     
     // Временное логирование для отладки / Temporary logging for debugging
+    // Унифицированная проверка через strlen() / Unified check via strlen()
+    bool has_api_key = (strlen(config.store.ai_api_key) > 0);
+    bool has_model = (strlen(config.store.ai_model) > 0);
     Serial.print("[AIPlugin] on_track_change() - ai_enabled=");
     Serial.print(config.store.ai_enabled);
     Serial.print(", llm_provider=");
     Serial.print(config.store.llm_provider);
     Serial.print(", has_api_key=");
-    Serial.print(strlen(config.store.ai_api_key) > 0);
+    Serial.print(has_api_key ? 1 : 0);
+    Serial.print(", has_model=");
+    Serial.print(has_model ? 1 : 0);
     Serial.print(", track_title=\"");
     Serial.print(context.track_title);
     Serial.println("\"");
+    
+    // РАННИЙ ABORT: проверяем валидность track_title до активации AI
+    // EARLY ABORT: check track_title validity before AI activation
+    if (!_isValidTrackTitleForAI(context.track_title)) {
+        // Диагностическое логирование невалидного track_title / Diagnostic logging of invalid track_title
+        _logTrackTitleValidation(_current_track_id, context.track_title, false);
+        
+        // Отменяем debounce таймер / Cancel debounce timer
+        _enqueue_at_ms = 0;
+        _enqueued_for_track_id = _current_track_id;  // Помечаем что попытка была / Mark attempt as made
+        
+        // AI молчит для невалидного track_title / AI silent for invalid track_title
+        Serial.println("[AIPlugin] TrackTitle invalid - aborting, AI silent");
+        return;
+    }
+    
+    // Логируем валидный track_title / Log valid track_title
+    _logTrackTitleValidation(_current_track_id, context.track_title, true);
     
     // Runtime Manifest: AI активируется только при выполнении всех условий
     // Runtime Manifest: AI activates only when all conditions are met
@@ -577,11 +1011,31 @@ void AIPlugin::on_ticker() {
     
     // ИСКЛЮЧЕНИЕ: отправка LLM запроса после debounce (единственный случай enqueue из тикера)
     // EXCEPTION: send LLM request after debounce (only case of enqueue from ticker)
-    // Используем _isLLMReady() вместо _isAIActivated() - не требует track_title
-    // Use _isLLMReady() instead of _isAIActivated() - doesn't require track_title
+    // STRICT MODE: проверяем все условия перед обработкой / STRICT MODE: check all conditions before processing
     bool llm_ready = _isLLMReady();
     if (llm_ready && _enqueue_at_ms > 0 && now >= _enqueue_at_ms && 
         _enqueued_for_track_id != _current_track_id && !_ai_decided_for_track) {
+        
+        // СТРОГАЯ ПРОВЕРКА: debounce не должен проходить если ai_activated=false или track_title пустой
+        // STRICT CHECK: debounce should not pass if ai_activated=false or track_title empty
+        if (!ai_activated) {
+            Serial.println("[AIPlugin] Debounce aborted: ai_activated=false");
+            _enqueued_for_track_id = _current_track_id;  // Помечаем что попытка была / Mark attempt as made
+            _enqueue_at_ms = 0;  // Сбрасываем debounce таймер / Reset debounce timer
+            return;  // Не обрабатываем слои / Don't process layers
+        }
+        
+        // СТРОГАЯ ПРОВЕРКА: debounce не должен проходить если track_title невалиден (пустой или системный)
+        // STRICT CHECK: debounce should not pass if track_title invalid (empty or system)
+        if (!_isValidTrackTitleForAI(context.track_title)) {
+            // Диагностическое логирование невалидного track_title / Diagnostic logging of invalid track_title
+            _logTrackTitleValidation(_current_track_id, context.track_title, false);
+            _logOncePerTrack(_current_track_id, "[AIPlugin] Debounce aborted: invalid track_title");
+            _enqueued_for_track_id = _current_track_id;  // Помечаем что попытка была / Mark attempt as made
+            _enqueue_at_ms = 0;  // Сбрасываем debounce таймер / Reset debounce timer
+            return;  // Не обрабатываем слои / Don't process layers
+        }
+        
         // Диагностический лог перед enqueue / Diagnostic log before enqueue
         Serial.printf("[AIPlugin] Debounce check: track_title_len=%d llm_ready=%d ai_activated=%d\n",
                       context.track_title.length(), llm_ready ? 1 : 0, ai_activated ? 1 : 0);
@@ -599,39 +1053,87 @@ void AIPlugin::on_ticker() {
         if (enqueued) {
             Serial.println("[AIPlugin] LLM request enqueued successfully");
         } else {
+            // Различаем причины неудачного enqueue / Distinguish reasons for failed enqueue
+            // Если track_title пустой - это уже обработано выше, здесь только busy/rate limit
+            // If track_title empty - already handled above, here only busy/rate limit
             Serial.println("[AIPlugin] LLM enqueue attempt failed (rate limit/busy) -> silence for this track");
         }
     }
     
-        // MomentLayer: обрабатываем только если нет валидного трека
-        // MomentLayer: process only if no valid track
-    // MomentLayer автономен: НЕ зависит от LLM (llm_provider/api_key/model)
-    // MomentLayer is autonomous: does NOT depend on LLM (llm_provider/api_key/model)
-    // Latch: если решение уже принято для трека - MomentLayer не должен вытеснять текст
-    // Latch: if decision already made for track - MomentLayer should not replace text
-    if (context.track_title.isEmpty() && !_ai_decided_for_track) {
-        // Проверяем минимальные условия для MomentLayer (без LLM зависимостей)
-        // Check minimal conditions for MomentLayer (without LLM dependencies)
+    // MomentLayer: fallback-слой, срабатывает только после неуспешного LLM результата
+    // MomentLayer: fallback layer, triggers only after unsuccessful LLM result
+    // ONE-SHOT ЛОГИКА: решение по Moment принимается ровно один раз на track_id
+    // ONE-SHOT LOGIC: Moment decision made exactly once per track_id
+    // УСЛОВИЯ: валидный track_title + AI активирован + решение принято (LLM молчит)
+    // CONDITIONS: valid track_title + AI activated + decision made (LLM silent)
+    if (_isValidTrackTitleForAI(context.track_title) && ai_activated && _ai_decided_for_track) {
+        // ONE-SHOT: если решение по Moment уже принято для этого трека - пропускаем
+        // ONE-SHOT: if Moment decision already made for this track - skip
+        if (_moment_decided && _moment_decided_track_id == _current_track_id) {
+            return;  // Решение уже принято / Decision already made
+        }
+        
+        // Блокируем MomentLayer если для этого трека уже показан AI.FACT или AI.LISTEN
+        // Block MomentLayer if AI.FACT or AI.LISTEN already shown for this track
+        if (_ai_output_shown && _ai_output_track_id == _current_track_id) {
+            _logOncePerTrack(_current_track_id, "[AIPlugin] Moment blocked: AI output already shown for track");
+            _moment_decided = true;  // Решение принято: блокировка / Decision made: blocked
+            _moment_decided_track_id = _current_track_id;
+            return;  // Не показываем Moment / Don't show Moment
+        }
+        
+        // Проверяем минимальные условия для MomentLayer
+        // Check minimal conditions for MomentLayer
+        // СТРОГАЯ ПРОВЕРКА: MomentLayer тоже требует промпт (AI молчит полностью без промпта)
+        // STRICT CHECK: MomentLayer also requires prompt (AI is completely silent without prompt)
+        extern bool aiPromptIsAvailable();
         bool moment_ready = config.store.ai_enabled &&
                             (network.status == CONNECTED) &&
                             (WiFi.status() == WL_CONNECTED) &&
-                            (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+                            (WiFi.localIP() != IPAddress(0, 0, 0, 0)) &&
+                            aiPromptIsAvailable();  // Промпт должен быть доступен / Prompt must be available
         
         if (moment_ready) {
             // MomentLayer автономен: только локальные шаблоны, никаких LLM запросов
             // MomentLayer is autonomous: only local templates, no LLM requests
+            // Fallback: когда LLM решил молчать (ok=false, пустой текст, downgrade)
+            // Fallback: when LLM decided to stay silent (ok=false, empty text, downgrade)
+            // Логируем напрямую (не через _logOncePerTrack) чтобы избежать конфликтов с другими логами
+            // Log directly (not via _logOncePerTrack) to avoid conflicts with other logs
+            if (!_moment_decided || _moment_decided_track_id != _current_track_id) {
+                Serial.println("[AIPlugin] Moment fallback: LLM silent, showing moment");
+            }
             AICandidate moment_candidate;
             if (_momentLayer.process(context, moment_candidate)) {
                 // MomentLayer вернул кандидата - обрабатываем его
                 // MomentLayer returned candidate - process it
-                uint32_t current_time = millis();
-                if (_coordinator.shouldShow(&moment_candidate, current_time)) {
+                // ВАЖНО: MomentLayer - это fallback, обходим Coordinator (он должен показываться всегда при LLM silence)
+                // IMPORTANT: MomentLayer is fallback, bypass Coordinator (should always show on LLM silence)
+                if (!moment_candidate.text.isEmpty()) {
+                    uint32_t current_time = millis();
+                    // Обходим Coordinator для fallback-слоя / Bypass Coordinator for fallback layer
                     _coordinator.markAsShown(&moment_candidate, current_time);
                     display.setAIInterpretation(moment_candidate.text);
                     Serial.print("##AI.MOMENT#: ");
                     Serial.println(moment_candidate.text);
+                    Serial.printf("[AIPlugin] Moment displayed in widget: track_id=%u text_len=%d\n", 
+                                  _current_track_id, moment_candidate.text.length());
+                } else {
+                    // Текст пустой - логируем и не показываем / Text empty - log and don't show
+                    Serial.printf("[MomentLayer] ERROR: empty moment text, track_id=%u\n", _current_track_id);
                 }
+            } else {
+                // MomentLayer.process() вернул false - не готов / MomentLayer.process() returned false - not ready
+                Serial.printf("[MomentLayer] process() returned false, track_id=%u track_title=\"%s\"\n", 
+                              _current_track_id, context.track_title.c_str());
             }
+            // Решение принято: Moment обработан (показан или нет) / Decision made: Moment processed (shown or not)
+            _moment_decided = true;
+            _moment_decided_track_id = _current_track_id;
+        } else {
+            // Условия не выполнены - решение принято: Moment не нужен / Conditions not met - decision made: Moment not needed
+            _moment_decided = true;
+            _moment_decided_track_id = _current_track_id;
         }
     }
 }
@@ -660,6 +1162,12 @@ void AIPlugin::onAiEnabledChanged(bool enabled) {
         _enqueued_for_track_id = 0;  // Сбрасываем флаг отправки запроса / Reset enqueue flag
         _ai_decided_for_track = false;  // Сбрасываем флаг принятия решения / Reset decision flag
         _last_ai_activated_state = false;  // Сбрасываем кеш состояния активации / Reset activation state cache
+        _ai_output_shown = false;  // Сбрасываем флаг показа AI вывода / Reset AI output shown flag
+        _ai_output_track_id = 0;  // Сбрасываем ID трека для AI вывода / Reset track ID for AI output
+        _moment_decided = false;  // Сбрасываем флаг решения по Moment / Reset Moment decision flag
+        _moment_decided_track_id = 0;  // Сбрасываем ID трека для решения по Moment / Reset track ID for Moment decision
+        _ai_context_logged_track_id = 0;  // Сбрасываем флаг лога контекста / Reset context log flag
+        _tt_validation_logged_track_id = 0;  // Сбрасываем флаг диагностического лога валидации / Reset validation diagnostic log flag
         
         // Очищаем очереди менеджера задач / Clear task manager queues
         _aiTaskManager.cancelAll();

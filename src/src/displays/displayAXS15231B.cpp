@@ -360,7 +360,7 @@ void DspCore::_clockDate(){
   if (!gfx) { Serial.println("[AXS15231B] gfx is nullptr! (_clockDate)"); return; }
   if(_olddateleft>0)
     gfxFillRect(gfx, _olddateleft,  clockTop+78, _olddatewidth, CHARHEIGHT*2, config.theme.background); //очистка надписи даты
-  gfxDrawText(gfx, _dateleft, clockTop+78, _dateBuf, config.theme.date, config.theme.background, 2);
+  gfxDrawText1b(gfx, _dateleft, clockTop+78, _dateBuf, config.theme.date, config.theme.background, 2);
   strlcpy(_oldDateBuf, _dateBuf, sizeof(_dateBuf));
   _olddatewidth = _datewidth;
   _olddateleft = _dateleft;

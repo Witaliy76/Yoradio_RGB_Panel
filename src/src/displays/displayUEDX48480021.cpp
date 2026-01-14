@@ -470,7 +470,7 @@ void DspCore::_clockDate(){
   if (!gfx) { Serial.println("[UEDX48480021] gfx is nullptr! (_clockDate)"); return; }
   if(_olddateleft>0)
     gfxFillRect(gfx, _olddateleft,  clockTop+78, _olddatewidth, CHARHEIGHT*2, config.theme.background); // clear old date
-  gfxDrawText(gfx, _dateleft, clockTop+78, _dateBuf, config.theme.date, config.theme.background, 2, nullptr, true);
+  gfxDrawText1b(gfx, _dateleft, clockTop+78, _dateBuf, config.theme.date, config.theme.background, 2, nullptr, true);
   strlcpy(_oldDateBuf, _dateBuf, sizeof(_dateBuf));
   _olddatewidth = _datewidth;
   _olddateleft = _dateleft;

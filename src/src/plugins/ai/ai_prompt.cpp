@@ -1,0 +1,161 @@
+/**
+ * ai_prompt.cpp - AI prompt loader implementation
+ * Описание: Загрузчик промптов для AI из SPIFFS с кешированием в RAM
+ * Description: AI prompt loader from SPIFFS with RAM caching
+ * Автор: W76W, 4pda.to
+ * Дата: 02.01.2026
+ * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ */
+
+#include "ai_prompt.h"
+#include <SPIFFS.h>
+#include "../../core/config.h"   // Для fsIsReady() / For fsIsReady()
+
+// Maximum prompt file size in bytes / Максимальный размер файла промпта в байтах
+// Single source of truth for prompt size limit / Единый источник истины для лимита размера промпта
+#define AI_PROMPT_MAX_LEN 8192
+
+// Prompt file path / Путь к файлу промпта
+#define AI_PROMPT_PATH "/ai/ai_prompt.txt"
+
+// RAM cache for prompt / RAM кеш для промпта
+// Cache only successful loads from SPIFFS / Кешируются только успешные загрузки из SPIFFS
+static String g_prompt;
+static bool g_prompt_loaded = false;
+
+// Load prompt from SPIFFS / Загрузить промпт из SPIFFS
+// Returns true only if file successfully loaded / Возвращает true только если файл успешно загружен
+// No fallback - strict mode / Без fallback - строгий режим
+static bool loadPromptFromFS(String& outPrompt) {
+    // Проверка готовности SPIFFS / Check SPIFFS readiness
+    if (!fsIsReady()) {
+        return false;
+    }
+    
+    if (!SPIFFS.exists(AI_PROMPT_PATH)) {
+        Serial.printf("[AI] Prompt missing: %s\n", AI_PROMPT_PATH);
+        return false;
+    }
+    
+    File file = SPIFFS.open(AI_PROMPT_PATH, "r");
+    if (!file || file.isDirectory()) {
+        Serial.printf("[AI] Failed to open prompt: %s\n", AI_PROMPT_PATH);
+        return false;
+    }
+    
+    size_t size = file.size();
+    if (size == 0 || size > AI_PROMPT_MAX_LEN) {
+        Serial.printf("[AI] Prompt invalid size: %s size=%u max=%u\n", AI_PROMPT_PATH, size, AI_PROMPT_MAX_LEN);
+        file.close();
+        return false;
+    }
+    
+    outPrompt = file.readString();
+    size_t file_size = file.size();  // Save file size before close / Сохранить размер файла до закрытия
+    file.close();
+    
+    outPrompt.trim();
+    if (outPrompt.length() == 0) {
+        Serial.printf("[AI] Prompt empty after trim: %s\n", AI_PROMPT_PATH);
+        return false;
+    }
+    
+    // Log both file size and string length for diagnostics / Логировать и размер файла, и длину строки для диагностики
+    Serial.printf("[AI] Loaded prompt from %s (file=%u, text=%u)\n", AI_PROMPT_PATH, file_size, outPrompt.length());
+    return true;
+}
+
+// Get AI prompt from SPIFFS / Получить AI промпт из SPIFFS
+// STRICT MODE: returns true ONLY if loaded from file / СТРОГИЙ РЕЖИМ: возвращает true ТОЛЬКО если загружен из файла
+// If file not available, returns false and clears outPrompt / Если файл недоступен, возвращает false и очищает outPrompt
+bool aiPromptGet(String& outPrompt) {
+    outPrompt = "";  // Clear output / Очистить выход
+    
+    // Check cache / Проверяем кеш
+    if (g_prompt_loaded) {
+        outPrompt = g_prompt;
+        return true;
+    }
+    
+    // Try to load from SPIFFS / Пытаемся загрузить из SPIFFS
+    if (loadPromptFromFS(g_prompt)) {
+        g_prompt_loaded = true;
+        outPrompt = g_prompt;
+        return true;
+    } else {
+        // File not available / Файл недоступен
+        outPrompt = "";
+        return false;
+    }
+}
+
+// Reset prompt cache (forces reload from SPIFFS on next request) / Сбросить кеш промпта
+// Resets only successfully loaded prompts / Сбрасывает только успешно загруженные промпты
+void aiPromptResetCache() {
+    g_prompt_loaded = false;
+    g_prompt = "";
+    Serial.println("[AI] Prompt cache reset");
+}
+
+// Check if prompt file is available (strict mode, no fallback) / Проверить, доступен ли файл промпта (строгий режим, без fallback)
+// Returns true only if all conditions met: FS ready, file exists, valid size / Возвращает true только если все условия выполнены
+bool aiPromptIsAvailable() {
+    // Check SPIFFS readiness / Проверка готовности SPIFFS
+    if (!fsIsReady()) {
+        return false;
+    }
+    
+    // Check file existence / Проверяем существование файла
+    if (!SPIFFS.exists(AI_PROMPT_PATH)) {
+        return false;
+    }
+    
+    // Check file size / Проверяем размер файла
+    File file = SPIFFS.open(AI_PROMPT_PATH, "r");
+    if (!file || file.isDirectory()) {
+        return false;
+    }
+    
+    size_t size = file.size();
+    file.close();
+    
+    // File must be non-empty and within size limit / Файл должен быть непустым и в пределах лимита
+    if (size == 0 || size > AI_PROMPT_MAX_LEN) {
+        return false;
+    }
+    
+    return true;
+}
+
+// Get prompt file size in bytes / Получить размер файла промпта в байтах
+// Returns 0 if file not available or invalid / Возвращает 0 если файл недоступен или невалиден
+size_t aiPromptGetSize() {
+    if (!fsIsReady()) {
+        return 0;
+    }
+    
+    if (!SPIFFS.exists(AI_PROMPT_PATH)) {
+        return 0;
+    }
+    
+    File file = SPIFFS.open(AI_PROMPT_PATH, "r");
+    if (!file || file.isDirectory()) {
+        return 0;
+    }
+    
+    size_t size = file.size();
+    file.close();
+    
+    // Return size only if valid / Возвращаем размер только если валиден
+    if (size == 0 || size > AI_PROMPT_MAX_LEN) {
+        return 0;
+    }
+    
+    return size;
+}
+
+// Get maximum allowed prompt file size / Получить максимальный разрешённый размер файла промпта
+size_t aiPromptGetMaxLen() {
+    return AI_PROMPT_MAX_LEN;
+}
+

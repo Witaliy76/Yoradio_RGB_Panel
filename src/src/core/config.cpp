@@ -9,26 +9,28 @@
 #include "sdmanager.h"
 #endif
 #include <cstddef>
-#include "../plugins/ai_runtime_config.h"
+// Runtime AI config cache removed - using SPIFFS /ai.json as single source of truth
+// Runtime AI config кеш удалён - используем SPIFFS /ai.json как единственный источник истины
 #include <ArduinoJson.h>
 
 Config config;
+
+// SPIFFS ready flag (set after SPIFFS.begin() in Config::init()) / Флаг готовности SPIFFS (устанавливается после SPIFFS.begin() в Config::init())
+static bool g_spiffs_ready = false;
 
 // Deferred AI widget clear flag / Флаг отложенной очистки AI виджета
 // Set to true when AI is disabled during init (before display is ready)
 // Устанавливается в true когда AI выключен во время init (до готовности display)
 static bool g_aiNeedsClear = false;
 
-// AI configuration structure for SPIFFS storage / Структура конфигурации AI для хранения в SPIFFS
-struct AIConfig {
-  bool enabled;
-  char host[64];
-  uint16_t port;
-  char path[128];
-  uint32_t timeout_ms;
-  char api_key[64];
-  char model[32];
-};
+// AIConfig structure is now defined in config.h for public access
+// Структура AIConfig теперь определена в config.h для публичного доступа
+
+// Runtime AI configuration cache in RAM / Runtime кеш AI конфигурации в RAM
+// Populated from SPIFFS /ai.json on startup and after each save
+// Заполняется из SPIFFS /ai.json при старте и после каждого сохранения
+static AIConfig g_ai_cfg;
+static bool g_ai_cfg_loaded = false;
 
 // AI configuration file path / Путь к файлу конфигурации AI
 #define AI_CONFIG_PATH "/ai.json"
@@ -46,20 +48,38 @@ void aiSetDefaults(AIConfig& cfg) {
 
 // Check if AI configuration is valid for enabling / Проверить валидность AI конфигурации для включения
 bool aiIsValidForEnable(const AIConfig& cfg) {
-  return (strlen(cfg.host) > 0 && cfg.port > 0 && strlen(cfg.path) > 0 && 
-          strlen(cfg.api_key) > 0 && strlen(cfg.model) > 0);
+  // Проверяем базовые параметры / Check basic parameters
+  if (strlen(cfg.host) == 0 || cfg.port == 0 || strlen(cfg.path) == 0 || 
+      strlen(cfg.api_key) == 0 || strlen(cfg.model) == 0) {
+    return false;
+  }
+  
+  // СТРОГАЯ ПРОВЕРКА: промпт должен быть доступен / STRICT CHECK: prompt must be available
+  extern bool aiPromptIsAvailable();
+  if (!aiPromptIsAvailable()) {
+    return false;
+  }
+  
+  return true;
 }
 
 // Load AI configuration from SPIFFS / Загрузить конфигурацию AI из SPIFFS
+// Also updates runtime cache (g_ai_cfg) / Также обновляет runtime кеш (g_ai_cfg)
 bool aiLoadFromFS(AIConfig& out) {
   if (!SPIFFS.exists(AI_CONFIG_PATH)) {
     aiSetDefaults(out);
+    // Update cache with defaults / Обновляем кеш дефолтами
+    g_ai_cfg = out;
+    g_ai_cfg_loaded = true;
     return false;  // File doesn't exist, using defaults
   }
   
   File file = SPIFFS.open(AI_CONFIG_PATH, "r");
   if (!file || file.isDirectory()) {
     aiSetDefaults(out);
+    // Update cache with defaults / Обновляем кеш дефолтами
+    g_ai_cfg = out;
+    g_ai_cfg_loaded = true;
     return false;
   }
   
@@ -67,6 +87,9 @@ bool aiLoadFromFS(AIConfig& out) {
   if (size > 1024) {
     file.close();
     aiSetDefaults(out);
+    // Update cache with defaults / Обновляем кеш дефолтами
+    g_ai_cfg = out;
+    g_ai_cfg_loaded = true;
     return false;  // File too large
   }
   
@@ -76,6 +99,9 @@ bool aiLoadFromFS(AIConfig& out) {
   
   if (error) {
     aiSetDefaults(out);
+    // Update cache with defaults / Обновляем кеш дефолтами
+    g_ai_cfg = out;
+    g_ai_cfg_loaded = true;
     return false;  // JSON parse error
   }
   
@@ -87,10 +113,15 @@ bool aiLoadFromFS(AIConfig& out) {
   strlcpy(out.api_key, doc["api_key"] | "", sizeof(out.api_key));
   strlcpy(out.model, doc["model"] | "deepseek-chat", sizeof(out.model));
   
+  // Update runtime cache / Обновляем runtime кеш
+  g_ai_cfg = out;
+  g_ai_cfg_loaded = true;
+  
   return true;
 }
 
 // Save AI configuration to SPIFFS / Сохранить конфигурацию AI в SPIFFS
+// Also updates runtime cache (g_ai_cfg) / Также обновляет runtime кеш (g_ai_cfg)
 bool aiSaveToFS(const AIConfig& cfg) {
   File file = SPIFFS.open(AI_CONFIG_PATH, "w");
   if (!file) {
@@ -109,6 +140,10 @@ bool aiSaveToFS(const AIConfig& cfg) {
   serializeJson(doc, file);
   file.close();
   
+  // Update runtime cache after successful save / Обновляем runtime кеш после успешного сохранения
+  g_ai_cfg = cfg;
+  g_ai_cfg_loaded = true;
+  
   return true;
 }
 
@@ -116,6 +151,14 @@ bool aiSaveToFS(const AIConfig& cfg) {
 void aiApplyToStore(const AIConfig& cfg) {
   // Validate before applying / Валидация перед применением
   bool should_enable = cfg.enabled && aiIsValidForEnable(cfg);
+  
+  // STRICT MODE: если пытались включить, но промпт недоступен - логируем / STRICT MODE: if tried to enable but prompt unavailable - log
+  if (cfg.enabled && !should_enable) {
+    extern bool aiPromptIsAvailable();
+    if (!aiPromptIsAvailable()) {
+      Serial.println("[AI] Enable rejected: prompt missing (/ai/ai_prompt.txt)");
+    }
+  }
   
   config.saveValue(&config.store.ai_enabled, should_enable, true, true);
   config.saveValue(&config.store.llm_provider, (uint8_t)1, true, true);  // LLM_DEEPSEEK for now
@@ -158,32 +201,19 @@ bool Config::_isFSempty() {
   return false;
 }
 
-// Apply AI runtime configuration from ai_runtime_config.h
-// Применение runtime конфигурации AI из ai_runtime_config.h
-static void applyAiRuntimeConfig() {
-  auto rc = aiGetRuntimeConfig();
-  
-  // If AI is disabled in runtime config, force disable AI in store
-  // Если AI выключен в runtime config, принудительно выключаем AI в store
-  if (!rc.enabled) {
-    BOOTLOG("AI runtime config: enabled=false, forcing AI OFF");
-    config.saveValue(&config.store.ai_enabled, false, true, true);
-    return;
+// Get runtime AI configuration from cache (RAM, no SPIFFS access)
+// Получить runtime AI конфигурацию из кеша (RAM, без доступа к SPIFFS)
+// Returns true if cache is loaded, false if using defaults
+// Возвращает true если кеш загружен, false если используются дефолты
+bool aiGetRuntimeConfig(AIConfig& out) {
+  if (g_ai_cfg_loaded) {
+    out = g_ai_cfg;
+    return true;
+  } else {
+    // Cache not loaded yet - return defaults / Кеш ещё не загружен - возвращаем дефолты
+    aiSetDefaults(out);
+    return false;
   }
-  
-  // Validate minimum required fields / Проверка минимально необходимых полей
-  if (rc.api_key.length() == 0 || rc.model.length() == 0 || 
-      rc.host.length() == 0 || rc.port == 0) {
-    BOOTLOG("AI runtime config invalid (missing key/model/host/port), ignoring");
-    return;
-  }
-  
-  // Apply valid runtime config to store / Применяем валидную runtime config к store
-  BOOTLOG("Applying AI runtime config: host=%s, model=%s", rc.host.c_str(), rc.model.c_str());
-  config.saveValue(&config.store.ai_enabled, true, true, true);
-  config.saveValue(&config.store.llm_provider, rc.llm_provider, true, true);
-  config.saveValue(config.store.ai_api_key, rc.api_key.c_str(), AI_API_KEY_LENGTH, true, true);
-  config.saveValue(config.store.ai_model, rc.model.c_str(), AI_MODEL_LENGTH, true, true);
 }
 
 void Config::init() {
@@ -230,10 +260,9 @@ void Config::init() {
     saveValue(&store.ai_enableFiles, false, true, true);
   }
   
-  // Apply AI runtime configuration (if valid) / Применение runtime конфигурации AI (если валидна)
-  // This runs after store is loaded and validated, but before AI-dependent logic starts
-  // Выполняется после загрузки и валидации store, но до запуска логики, зависящей от AI
-  applyAiRuntimeConfig();
+  // AI runtime config removed - using SPIFFS /ai.json as single source of truth
+  // Runtime config удалён - используем SPIFFS /ai.json как единственный источник истины
+  // SPIFFS config is loaded later in init() after SPIFFS.begin()
   
   #ifdef AI_ENABLE_FILES
     bool files_enabled = (AI_ENABLE_FILES != 0);
@@ -246,7 +275,8 @@ void Config::init() {
   store.play_mode = store.play_mode & 0b11;
   if(store.play_mode>1) store.play_mode=PM_WEB;
   _initHW();
-  if (!SPIFFS.begin(true)) {
+  g_spiffs_ready = SPIFFS.begin(true);
+  if (!g_spiffs_ready) {
     Serial.println("##[ERROR]#\tSPIFFS Mount Failed");
     return;
   }
@@ -256,15 +286,31 @@ void Config::init() {
   // SPIFFS config has priority over runtime config (WebUI settings override dev config)
   // Конфигурация SPIFFS имеет приоритет над runtime config (настройки WebUI перезаписывают dev config)
   // IMPORTANT: Must be called AFTER SPIFFS.begin() / ВАЖНО: Вызывать ПОСЛЕ SPIFFS.begin()
-  // Additional safety check: verify SPIFFS is mounted / Дополнительная проверка: убедиться что SPIFFS смонтирован
-  if (SPIFFS.exists("/")) {  // Simple check that SPIFFS is mounted / Простая проверка что SPIFFS смонтирован
+  if (g_spiffs_ready) {
+    // Reset AI prompt cache after SPIFFS is ready / Сбросить кеш промптов AI после готовности SPIFFS
+    // This allows prompts to be loaded from files on first request / Это позволяет загрузить промпты из файлов при первом запросе
+    extern void aiPromptResetCache();
+    aiPromptResetCache();
+    
+    // Check prompt availability and log / Проверка наличия промпта и логирование
+    extern bool aiPromptIsAvailable();
+    if (!aiPromptIsAvailable()) {
+      BOOTLOG("[AI] Prompt missing: /ai/ai_prompt.txt");
+      BOOTLOG("[AI] AI disabled until prompt is uploaded to SPIFFS");
+      BOOTLOG("[AI] Please upload: /ai/ai_prompt.txt");
+    }
+    
     AIConfig aicfg;
     if (aiLoadFromFS(aicfg)) {
       // File exists, apply it / Файл существует, применяем его
+      // STRICT MODE: If enabled but prompt missing, force disable / СТРОГИЙ РЕЖИМ: Если включён но промпт отсутствует, принудительно выключаем
+      if (aicfg.enabled && !aiPromptIsAvailable()) {
+        aicfg.enabled = false;
+        aiSaveToFS(aicfg);  // Сохраняем исправленное состояние / Save corrected state
+        BOOTLOG("[AI] Enable rejected: prompt missing (/ai/ai_prompt.txt) - corrected /ai.json");
+      }
       aiApplyToStore(aicfg);
     }
-  } else {
-    BOOTLOG("SPIFFS not mounted, skipping AI config load");
   }
   emptyFS = _isFSempty();
   if(emptyFS) BOOTLOG("SPIFFS is empty!");
@@ -600,8 +646,8 @@ void Config::setDefaults() {
   strlcpy(store.ai_model, "deepseek-chat", AI_MODEL_LENGTH);  // DeepSeek default model
   store.ai_enableFiles = false;
   
-  // AI settings migrated to runtime config / WebUI (see ai_runtime_config.h and applyAiRuntimeConfig())
-  // Настройки AI мигрированы на runtime config / WebUI (см. ai_runtime_config.h и applyAiRuntimeConfig())
+  // AI settings migrated to SPIFFS /ai.json and runtime cache (see aiGetRuntimeConfig())
+  // Настройки AI мигрированы на SPIFFS /ai.json и runtime кеш (см. aiGetRuntimeConfig())
   // Runtime config will be applied in Config::init() after store is loaded
   // Runtime config будет применена в Config::init() после загрузки store
   
@@ -912,6 +958,11 @@ bool Config::saveWifiFromNextion(const char* post){
     ESP.restart();
     return true;
   }
+}
+
+// Check if SPIFFS is ready (mounted successfully) / Проверить готовность SPIFFS (успешно смонтирован)
+bool fsIsReady() {
+  return g_spiffs_ready;
 }
 
 bool Config::saveWifi() {

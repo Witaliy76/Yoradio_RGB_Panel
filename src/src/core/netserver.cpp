@@ -15,15 +15,8 @@
 #include "../plugins/AIPlugin.h"
 
 // Forward declarations for AI config functions from config.cpp / Forward объявления для функций AI config из config.cpp
-struct AIConfig {
-  bool enabled;
-  char host[64];
-  uint16_t port;
-  char path[128];
-  uint32_t timeout_ms;
-  char api_key[64];
-  char model[32];
-};
+// AIConfig structure is now defined in config.h (included above)
+// Структура AIConfig теперь определена в config.h (включена выше)
 bool aiLoadFromFS(AIConfig& out);
 bool aiSaveToFS(const AIConfig& cfg);
 void aiSetDefaults(AIConfig& cfg);
@@ -353,6 +346,8 @@ void NetServer::processQueue(){
       case GETAI: {
                                   AIConfig aicfg;
                                   aiLoadFromFS(aicfg);
+                                  // Use store.ai_enabled instead of aicfg.enabled to reflect validated state / Используем store.ai_enabled вместо aicfg.enabled для отражения валидированного состояния
+                                  // (store.ai_enabled may be false if prompt is missing, even if file says enabled=true) / (store.ai_enabled может быть false если промпт отсутствует, даже если в файле enabled=true)
                                   // Simple JSON escaping: replace " with \", \ with \\ / Простое экранирование JSON
                                   String host_esc = String(aicfg.host);
                                   host_esc.replace("\\", "\\\\");
@@ -366,14 +361,21 @@ void NetServer::processQueue(){
                                   String model_esc = String(aicfg.model);
                                   model_esc.replace("\\", "\\\\");
                                   model_esc.replace("\"", "\\\"");
-                                  sprintf (wsbuf, "{\"aien\":%d,\"aihost\":\"%s\",\"aiport\":%d,\"aipath\":\"%s\",\"aitimeout\":%lu,\"aimodel\":\"%s\",\"aikey\":\"%s\"}", 
-                                  aicfg.enabled ? 1 : 0, 
+                                  // Get prompt status / Получить статус промпта
+                                  extern bool aiPromptIsAvailable();
+                                  extern size_t aiPromptGetSize();
+                                  bool prompt_loaded = aiPromptIsAvailable();
+                                  size_t prompt_size = prompt_loaded ? aiPromptGetSize() : 0;
+                                  sprintf (wsbuf, "{\"aien\":%d,\"aihost\":\"%s\",\"aiport\":%d,\"aipath\":\"%s\",\"aitimeout\":%lu,\"aimodel\":\"%s\",\"aikey\":\"%s\",\"aiprompt_loaded\":%d,\"aiprompt_size\":%u}", 
+                                  config.store.ai_enabled ? 1 : 0, 
                                   host_esc.c_str(),
                                   aicfg.port,
                                   path_esc.c_str(),
                                   aicfg.timeout_ms,
                                   model_esc.c_str(),
-                                  key_esc.c_str()); 
+                                  key_esc.c_str(),
+                                  prompt_loaded ? 1 : 0,
+                                  prompt_size); 
                                   break;
                                 }
       case GETCONTROLS:   sprintf (wsbuf, "{\"vols\":%d,\"enca\":%d,\"irtl\":%d,\"skipup\":%d}", 
@@ -688,10 +690,20 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
         bool old_enabled = aicfg.enabled;  // Сохраняем старое состояние из SPIFFS / Save old state from SPIFFS
         bool old_store_enabled = config.store.ai_enabled;  // Сохраняем старое состояние из store / Save old state from store
         aicfg.enabled = (atoi(val) == 1);
-        // Validate: if enabling without valid config, force disable / Валидация: при включении без валидной конфигурации принудительно выключаем
-        if (aicfg.enabled && !aiIsValidForEnable(aicfg)) {
-          aicfg.enabled = false;
+        
+        // СТРОГАЯ ПРОВЕРКА: при попытке включить проверяем промпт / STRICT CHECK: when trying to enable, check prompt
+        extern bool aiPromptIsAvailable();
+        if (aicfg.enabled) {
+          if (!aiPromptIsAvailable()) {
+            // Промпт недоступен - принудительно выключаем / Prompt unavailable - force disable
+            aicfg.enabled = false;
+            Serial.println("[AI] Enable rejected: prompt missing (/ai/ai_prompt.txt)");
+          } else if (!aiIsValidForEnable(aicfg)) {
+            // Другие параметры невалидны / Other parameters invalid
+            aicfg.enabled = false;
+          }
         }
+        
         aiSaveToFS(aicfg);
         // Notify AIPlugin BEFORE applying to store / Уведомляем AIPlugin ДО применения к store
         // (чтобы функция могла сравнить с текущим состоянием / so function can compare with current state)
@@ -872,6 +884,11 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
           aiSetDefaults(aicfg);
           aicfg.enabled = false;  // Принудительно выключаем AI / Force disable AI
           aiSaveToFS(aicfg);
+          
+          // Reset prompt cache after reset / Сбросить кеш промптов после сброса
+          extern void aiPromptResetCache();
+          aiPromptResetCache();
+          
           // Notify AIPlugin BEFORE applying to store if state changed / Уведомляем AIPlugin ДО применения к store если состояние изменилось
           if (old_store_enabled != false) {
             extern AIPlugin aiPluginInstance;
@@ -1071,6 +1088,119 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 
 void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
   DBGVB("File: %s, size:%u bytes, index: %u, final: %s\n", filename.c_str(), len, index, final?"true":"false");
+  
+  // Handle AI prompt upload / Обработка загрузки AI промпта
+  // CONTRACT: Frontend MUST send file with name "ai_prompt.txt" (renamed in JavaScript)
+  // КОНТРАКТ: Frontend ДОЛЖЕН отправлять файл с именем "ai_prompt.txt" (переименован в JavaScript)
+  if (filename == "ai_prompt.txt") {
+    // Get max prompt size from ai_prompt module / Получить максимальный размер промпта из модуля ai_prompt
+    extern size_t aiPromptGetMaxLen();
+    size_t max_prompt_size = aiPromptGetMaxLen();
+    
+    if (!index) {
+      // First chunk - validate and prepare / Первый chunk - валидация и подготовка
+      // Check free space in SPIFFS / Проверка свободного места в SPIFFS
+      float freeSpace = (float)SPIFFS.totalBytes()/100*68 - SPIFFS.usedBytes();
+      if (freeSpace < max_prompt_size) {
+        Serial.printf("[AI] Upload rejected: insufficient SPIFFS space (free=%.0f, required=%u)\n", freeSpace, max_prompt_size);
+        request->send(413, "text/plain", "Insufficient SPIFFS space");
+        return;
+      }
+      
+      // Check if Content-Length header exists and validate size / Проверить заголовок Content-Length и валидировать размер
+      if (request->hasHeader("Content-Length")) {
+        size_t content_length = atoi(request->getHeader("Content-Length")->value().c_str());
+        if (content_length > max_prompt_size) {
+          Serial.printf("[AI] Upload rejected: prompt too large (%u > %u)\n", content_length, max_prompt_size);
+          request->send(413, "text/plain", "File too large");
+          return;
+        }
+      }
+      
+      // Save old file size for logging overwrite / Сохранить старый размер файла для логирования перезаписи
+      size_t old_size = 0;
+      if (SPIFFS.exists("/ai/ai_prompt.txt")) {
+        File old_file = SPIFFS.open("/ai/ai_prompt.txt", "r");
+        if (old_file) {
+          old_size = old_file.size();
+          old_file.close();
+        }
+      }
+      
+      // Remove old file if exists / Удалить старый файл если существует
+      if (SPIFFS.exists("/ai/ai_prompt.txt")) {
+        SPIFFS.remove("/ai/ai_prompt.txt");
+      }
+      
+      // Open file for writing / Открыть файл для записи
+      request->_tempFile = SPIFFS.open("/ai/ai_prompt.txt", "w");
+      if (!request->_tempFile) {
+        Serial.println("[AI] Upload failed: SPIFFS error (cannot open file)");
+        request->send(500, "text/plain", "SPIFFS error");
+        return;
+      }
+      
+      // Store old_size for logging overwrite (using request->_tempObject if available)
+      // Сохранить old_size для логирования перезаписи (используя request->_tempObject если доступен)
+      // Note: We'll use a static variable, but it's safe because uploads are sequential
+      // Примечание: Используем static переменную, но это безопасно, так как загрузки последовательны
+      static size_t g_upload_old_size = 0;
+      g_upload_old_size = old_size;
+    }
+    
+    if (len) {
+      // Check current file size during upload / Проверить текущий размер файла во время загрузки
+      if (request->_tempFile) {
+        size_t current_size = request->_tempFile.size();
+        if (current_size + len > max_prompt_size) {
+          Serial.printf("[AI] Upload rejected: prompt too large (current=%u + chunk=%u > max=%u)\n", current_size, len, max_prompt_size);
+          request->_tempFile.close();
+          SPIFFS.remove("/ai/ai_prompt.txt");
+          request->send(413, "text/plain", "File too large");
+          return;
+        }
+        request->_tempFile.write(data, len);
+      }
+    }
+    
+    if (final) {
+      if (request->_tempFile) {
+        size_t new_size = request->_tempFile.size();
+        request->_tempFile.close();
+        
+        // Validate final file size / Валидация итогового размера файла
+        if (new_size == 0 || new_size > max_prompt_size) {
+          Serial.printf("[AI] Upload failed: invalid file size (%u, max=%u)\n", new_size, max_prompt_size);
+          SPIFFS.remove("/ai/ai_prompt.txt");
+          request->send(400, "text/plain", "Invalid file size");
+          return;
+        }
+        
+        // Log upload event FIRST (before cache reset) / Залогировать событие загрузки ПЕРВЫМ (до сброса кеша)
+        static size_t g_upload_old_size = 0;
+        if (g_upload_old_size > 0) {
+          Serial.printf("[AI] Prompt overwritten: /ai/ai_prompt.txt (old_len=%u new_len=%u)\n", g_upload_old_size, new_size);
+        } else {
+          Serial.printf("[AI] Prompt uploaded: /ai/ai_prompt.txt (len=%u)\n", new_size);
+        }
+        g_upload_old_size = 0;
+        
+        // Reset prompt cache AFTER successful upload / Сбросить кеш промпта ПОСЛЕ успешной загрузки
+        // IMPORTANT: Reset only after file is written and validated / ВАЖНО: Сброс только после записи и валидации файла
+        extern void aiPromptResetCache();
+        aiPromptResetCache();
+        
+        request->send(200, "text/plain", "OK");
+      } else {
+        Serial.println("[AI] Upload failed: SPIFFS error (file not open)");
+        request->send(500, "text/plain", "SPIFFS error");
+      }
+      return;
+    }
+    return;  // Early return for prompt upload / Ранний возврат для загрузки промпта
+  }
+  
+  // Original logic for other files / Оригинальная логика для других файлов
   if (!index) {
     String spath = "/www/";
     if(filename=="playlist.csv" || filename=="wifi.csv") spath = "/data/";

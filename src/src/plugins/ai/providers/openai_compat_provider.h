@@ -1,34 +1,34 @@
-#ifndef DEEPSEEK_PROVIDER_H
-#define DEEPSEEK_PROVIDER_H
+#ifndef OPENAI_COMPAT_PROVIDER_H
+#define OPENAI_COMPAT_PROVIDER_H
 
 /**
- * deepseek_provider.h - Заголовочный файл провайдера DeepSeek
- * Описание: Реализация LLMProvider для DeepSeek API (Chat Completions)
+ * openai_compat_provider.h - OpenAI-compatible provider header
+ * Описание: Универсальный провайдер для OpenAI-compatible API (DeepSeek, OpenAI, Perplexity, etc.)
+ * Description: Universal provider for OpenAI-compatible API (DeepSeek, OpenAI, Perplexity, etc.)
  * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
+ * Дата: 02.01.2026
  * Версия: Yoradio RGB Panel v0.9.434m-alpha
  */
 
 #include "llm_provider.h"
 #include <WiFiClientSecure.h>
+#include <WiFiClient.h>
 #include <HTTPClient.h>
 
 /**
- * DeepSeekProvider - реализация LLMProvider для DeepSeek API
- * DeepSeekProvider - LLMProvider implementation for DeepSeek API
+ * OpenAICompatProvider - универсальный провайдер для OpenAI-compatible API
+ * OpenAICompatProvider - universal provider for OpenAI-compatible API
  * 
- * Использует Chat Completions API
- * Uses Chat Completions API
+ * Использует настройки из runtime cache (aiGetRuntimeConfig)
+ * Uses settings from runtime cache (aiGetRuntimeConfig)
+ * Поддерживает HTTP (port=80) и HTTPS (port=443)
+ * Supports HTTP (port=80) and HTTPS (port=443)
  */
-class DeepSeekProvider : public LLMProvider {
+class OpenAICompatProvider : public LLMProvider {
 private:
-    static const char* API_HOST;
-    static const int API_PORT;
-    static const char* API_PATH;
-    static const unsigned long REQUEST_TIMEOUT_MS;
-    
     HTTPClient _http;  // HTTP клиент / HTTP client
-    WiFiClientSecure _wifiClient;  // HTTPS клиент / HTTPS client
+    WiFiClientSecure _wifiSecureClient;  // HTTPS клиент / HTTPS client
+    WiFiClient _wifiClient;  // HTTP клиент / HTTP client (for port=80)
     
     // Вспомогательные методы / Helper methods
     bool _makeHTTPRequest(
@@ -57,9 +57,12 @@ private:
                            const String& transfer_encoding, const String& content_encoding);
     String _buildPrompt(const String& station_name, const String& artist, const String& song, const String& track_title);
     
+    // Нормализация пути к /chat/completions / Normalize path to /chat/completions
+    static String normalizeChatCompletionsPath(const char* basePath);
+    
 public:
-    DeepSeekProvider();
-    virtual ~DeepSeekProvider() {}
+    OpenAICompatProvider();
+    virtual ~OpenAICompatProvider() {}
     
     virtual bool isAvailable(const String& api_key) override;
     virtual bool requestInterpretation(
@@ -72,8 +75,8 @@ public:
         LLMResponse& response
     ) override;
     
-    virtual const char* getName() const override { return "DeepSeek"; }
+    virtual const char* getName() const override { return "OpenAI-Compatible"; }
 };
 
-#endif // DEEPSEEK_PROVIDER_H
+#endif // OPENAI_COMPAT_PROVIDER_H
 

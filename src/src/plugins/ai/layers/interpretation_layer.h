@@ -22,8 +22,8 @@
  * - Если есть общеизвестный факт -> mode="fact"
  * - Иначе -> mode="listen" (как слушать, нейтрально)
  * 
- * MVP-2: Интеграция с LLM провайдером (DeepSeek)
- * MVP-2: Integration with LLM provider (DeepSeek)
+ * MVP-2: Интеграция с LLM провайдером (OpenAI-compatible)
+ * MVP-2: Integration with LLM provider (OpenAI-compatible)
  */
 class InterpretationLayer : public AILayer {
 private:

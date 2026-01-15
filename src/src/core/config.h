@@ -323,4 +323,23 @@ extern Config config;
 extern SPIClass  SPI2;
 #endif
 
+// AI configuration structure for SPIFFS storage / Структура конфигурации AI для хранения в SPIFFS
+struct AIConfig {
+  bool enabled;
+  char host[64];
+  uint16_t port;
+  char path[128];
+  uint32_t timeout_ms;
+  char api_key[64];
+  char model[32];
+};
+
+// Get runtime AI configuration from cache (RAM, no SPIFFS access) / Получить runtime AI конфигурацию из кеша (RAM, без доступа к SPIFFS)
+// Returns true if cache is loaded, false if using defaults / Возвращает true если кеш загружен, false если используются дефолты
+bool aiGetRuntimeConfig(AIConfig& out);
+
+// Check if SPIFFS is ready (mounted successfully) / Проверить готовность SPIFFS (успешно смонтирован)
+// Returns true if SPIFFS.begin() was successful in Config::init() / Возвращает true если SPIFFS.begin() был успешным в Config::init()
+bool fsIsReady();
+
 #endif

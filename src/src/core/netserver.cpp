@@ -13,6 +13,7 @@
 #include <ESPmDNS.h>
 #include <ArduinoJson.h>
 #include "../plugins/AIPlugin.h"
+#include "../plugins/ai/ai_log.h"  // AI Layer logging macros
 
 // Forward declarations for AI config functions from config.cpp / Forward объявления для функций AI config из config.cpp
 // AIConfig structure is now defined in config.h (included above)
@@ -697,7 +698,7 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
           if (!aiPromptIsAvailable()) {
             // Промпт недоступен - принудительно выключаем / Prompt unavailable - force disable
             aicfg.enabled = false;
-            Serial.println("[AI] Enable rejected: prompt missing (/ai/ai_prompt.txt)");
+            AI_LOG("[AI] Enable rejected: prompt missing (/ai/ai_prompt.txt)");
           } else if (!aiIsValidForEnable(aicfg)) {
             // Другие параметры невалидны / Other parameters invalid
             aicfg.enabled = false;
@@ -1102,7 +1103,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
       // Check free space in SPIFFS / Проверка свободного места в SPIFFS
       float freeSpace = (float)SPIFFS.totalBytes()/100*68 - SPIFFS.usedBytes();
       if (freeSpace < max_prompt_size) {
-        Serial.printf("[AI] Upload rejected: insufficient SPIFFS space (free=%.0f, required=%u)\n", freeSpace, max_prompt_size);
+        AI_LOG("[AI] Upload rejected: insufficient SPIFFS space (free=%.0f, required=%u)", freeSpace, max_prompt_size);
         request->send(413, "text/plain", "Insufficient SPIFFS space");
         return;
       }
@@ -1111,7 +1112,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
       if (request->hasHeader("Content-Length")) {
         size_t content_length = atoi(request->getHeader("Content-Length")->value().c_str());
         if (content_length > max_prompt_size) {
-          Serial.printf("[AI] Upload rejected: prompt too large (%u > %u)\n", content_length, max_prompt_size);
+          AI_LOG("[AI] Upload rejected: prompt too large (%u > %u)", content_length, max_prompt_size);
           request->send(413, "text/plain", "File too large");
           return;
         }
@@ -1135,7 +1136,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
       // Open file for writing / Открыть файл для записи
       request->_tempFile = SPIFFS.open("/ai/ai_prompt.txt", "w");
       if (!request->_tempFile) {
-        Serial.println("[AI] Upload failed: SPIFFS error (cannot open file)");
+        AI_LOG("[AI] Upload failed: SPIFFS error (cannot open file)");
         request->send(500, "text/plain", "SPIFFS error");
         return;
       }
@@ -1153,7 +1154,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
       if (request->_tempFile) {
         size_t current_size = request->_tempFile.size();
         if (current_size + len > max_prompt_size) {
-          Serial.printf("[AI] Upload rejected: prompt too large (current=%u + chunk=%u > max=%u)\n", current_size, len, max_prompt_size);
+          AI_LOG("[AI] Upload rejected: prompt too large (current=%u + chunk=%u > max=%u)", current_size, len, max_prompt_size);
           request->_tempFile.close();
           SPIFFS.remove("/ai/ai_prompt.txt");
           request->send(413, "text/plain", "File too large");
@@ -1170,7 +1171,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         
         // Validate final file size / Валидация итогового размера файла
         if (new_size == 0 || new_size > max_prompt_size) {
-          Serial.printf("[AI] Upload failed: invalid file size (%u, max=%u)\n", new_size, max_prompt_size);
+          AI_LOG("[AI] Upload failed: invalid file size (%u, max=%u)", new_size, max_prompt_size);
           SPIFFS.remove("/ai/ai_prompt.txt");
           request->send(400, "text/plain", "Invalid file size");
           return;
@@ -1179,9 +1180,9 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         // Log upload event FIRST (before cache reset) / Залогировать событие загрузки ПЕРВЫМ (до сброса кеша)
         static size_t g_upload_old_size = 0;
         if (g_upload_old_size > 0) {
-          Serial.printf("[AI] Prompt overwritten: /ai/ai_prompt.txt (old_len=%u new_len=%u)\n", g_upload_old_size, new_size);
+          AI_LOG("[AI] Prompt overwritten: /ai/ai_prompt.txt (old_len=%u new_len=%u)", g_upload_old_size, new_size);
         } else {
-          Serial.printf("[AI] Prompt uploaded: /ai/ai_prompt.txt (len=%u)\n", new_size);
+          AI_LOG("[AI] Prompt uploaded: /ai/ai_prompt.txt (len=%u)", new_size);
         }
         g_upload_old_size = 0;
         
@@ -1192,7 +1193,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         
         request->send(200, "text/plain", "OK");
       } else {
-        Serial.println("[AI] Upload failed: SPIFFS error (file not open)");
+        AI_LOG("[AI] Upload failed: SPIFFS error (file not open)");
         request->send(500, "text/plain", "SPIFFS error");
       }
       return;

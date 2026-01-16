@@ -8,6 +8,7 @@
 
 #include "AIPlugin.h"
 #include "ai/utils/utf8_casefold_search.h"
+#include "ai/ai_log.h"  // AI Layer logging macros
 #include "../core/network.h"
 #include "../core/player.h"
 #include "../core/display.h"
@@ -34,14 +35,14 @@ void AIPlugin::init() {
 }
 
 void AIPlugin::on_setup() {
-    Serial.println("[AIPlugin] on_setup() called - AI plugin initialized");
-    Serial.println("[AIPlugin] MVP-2: Architecture ready with LLM provider integration");
-    Serial.println("[AIPlugin] Runtime Manifest: AI is optional, silence is valid");
+    AI_DLOG("[AIPlugin] on_setup() called - AI plugin initialized");
+    AI_DLOG("[AIPlugin] MVP-2: Architecture ready with LLM provider integration");
+    AI_DLOG("[AIPlugin] Runtime Manifest: AI is optional, silence is valid");
     
     // Инициализация AI Task Manager для асинхронного выполнения HTTPS запросов
     // Initialize AI Task Manager for asynchronous HTTPS request execution
     if (!_aiTaskManager.begin(&_provider)) {
-        Serial.println("[AIPlugin] WARNING: AI Task Manager initialization failed");
+        AI_LOG("[AIPlugin] WARNING: AI Task Manager initialization failed");
     }
     
     // Передаём Task Manager в InterpretationLayer
@@ -135,18 +136,18 @@ void AIPlugin::_pumpResults() {
         // LAST GUARD: проверяем, не был ли AI выключен после dequeue
         // LAST GUARD: check if AI was disabled after dequeue
         if (!config.store.ai_enabled) {
-            Serial.println("[AIPlugin] Dropping result because AI disabled");
+            AI_LOG("[AIPlugin] Dropping result because AI disabled");
             continue;  // Не обрабатываем результат если AI выключен / Don't process result if AI disabled
         }
         
         // Диагностический лог: результат получен из очереди (показываем raw данные)
         // Diagnostic log: result dequeued (show raw data)
-        Serial.printf("[AIPlugin] Dequeued result: ok=%d mode=%s track_id=%u current=%u conf=%.2f\n",
+        AI_DLOG("[AIPlugin] Dequeued result: ok=%d mode=%s track_id=%u current=%u conf=%.2f",
                       result.ok, result.mode, result.track_id, _current_track_id, result.confidence);
         
         // Проверяем, не устарел ли результат / Check if result is stale
         if (result.track_id != _current_track_id) {
-            Serial.printf("[AIPlugin] Stale result dropped: result_id=%u current_id=%u\n", 
+            AI_DLOG("[AIPlugin] Stale result dropped: result_id=%u current_id=%u", 
                           result.track_id, _current_track_id);
             continue;  // Пропускаем устаревший результат / Skip stale result
         }
@@ -154,12 +155,12 @@ void AIPlugin::_pumpResults() {
         // Latch: если решение уже принято для этого трека - игнорируем результат
         // Latch: if decision already made for this track - ignore result
         if (_ai_decided_for_track) {
-            Serial.println("[AIPlugin] Decision already made for this track, ignoring result");
+            AI_DLOG("[AIPlugin] Decision already made for this track, ignoring result");
             continue;
         }
         
         if (!result.ok) {
-            Serial.println("[AIPlugin] Coordinator reject reason: not_ok");
+            AI_LOG("[AIPlugin] Coordinator reject reason: not_ok");
             // ok=false - молчим, решение принято (silence is valid)
             // ok=false - silence, decision made (silence is valid)
             _ai_decided_for_track = true;
@@ -167,7 +168,7 @@ void AIPlugin::_pumpResults() {
         }
         
         if (strlen(result.text) == 0) {
-            Serial.println("[AIPlugin] Coordinator reject reason: empty");
+            AI_LOG("[AIPlugin] Coordinator reject reason: empty");
             // Пустой текст - молчим, решение принято (silence is valid)
             // Empty text - silence, decision made (silence is valid)
             _ai_decided_for_track = true;
@@ -253,20 +254,20 @@ void AIPlugin::_pumpResults() {
             // Apply downgrade only for "fact"
             if (confidence < required_conf) {
                 // Логируем с куском текста для диагностики
-                Serial.printf("[AIPlugin] RiskScore=%d (A=%d B1=%d B2=%d B3=%d) required_conf=%.2f, got=%.2f -> downgrade fact->listen text=\"%.100s\"\n",
+                AI_LOG("[AIPlugin] RiskScore=%d (A=%d B1=%d B2=%d B3=%d) required_conf=%.2f, got=%.2f -> downgrade fact->listen text=\"%.100s\"",
                               riskScore, hitA?1:0, hitB1?1:0, hitB2?1:0, hitB3?1:0, required_conf, confidence, result.text);
                 mode = "listen";
                 confidence = 0.5f;
                 was_downgraded = true;
             } else {
-                Serial.printf("[AIPlugin] RiskScore=%d required_conf=%.2f, got=%.2f -> fact allowed\n",
+                AI_DLOG("[AIPlugin] RiskScore=%d required_conf=%.2f, got=%.2f -> fact allowed",
                               riskScore, required_conf, confidence);
             }
         }
         
         // Расширенный диагностический лог с effective_mode и was_downgraded
         // Extended diagnostic log with effective_mode and was_downgraded
-        Serial.printf("[AIPlugin] Processed result: original_mode=%s effective_mode=%s was_downgraded=%d\n",
+        AI_DLOG("[AIPlugin] Processed result: original_mode=%s effective_mode=%s was_downgraded=%d",
                       result.mode, mode.c_str(), was_downgraded ? 1 : 0);
         
         // Если был downgrade fact → listen: не показываем (silence is valid по манифесту)
@@ -276,7 +277,7 @@ void AIPlugin::_pumpResults() {
             // Don't show downgraded listen to avoid spamming the same line
             // MVP-1: Очищаем виджет при downgrade / MVP-1: Clear widget on downgrade
             display.setAIInterpretation("");
-            Serial.println("[AIPlugin] Coordinator reject reason: downgraded_fact_to_listen (silence is valid)");
+            AI_LOG("[AIPlugin] Coordinator reject reason: downgraded_fact_to_listen (silence is valid)");
             // Решение принято: молчим / Decision made: silence
             _ai_decided_for_track = true;
             continue;  // Пропускаем этот результат / Skip this result
@@ -303,7 +304,7 @@ void AIPlugin::_pumpResults() {
             // LAST GUARD: проверяем, не был ли AI выключен перед показом
             // LAST GUARD: check if AI was disabled before showing
             if (!config.store.ai_enabled) {
-                Serial.println("[AIPlugin] Dropping result because AI disabled (before show)");
+                AI_LOG("[AIPlugin] Dropping result because AI disabled (before show)");
                 continue;  // Не показываем результат если AI выключен / Don't show result if AI disabled
             }
             
@@ -314,12 +315,11 @@ void AIPlugin::_pumpResults() {
             
             // Логируем с корректным префиксом в зависимости от mode / Log with correct prefix based on mode
             if (mode == "fact") {
-                Serial.print("##AI.FACT#: ");
+                AI_LOG("##AI.FACT#: %s", candidate.text.c_str());
             } else {
-                Serial.print("##AI.LISTEN#: ");  // mode == "listen"
+                AI_LOG("##AI.LISTEN#: %s", candidate.text.c_str());  // mode == "listen"
             }
-            Serial.println(candidate.text);
-            Serial.println("[AIPlugin] Coordinator: show");
+            AI_DLOG("[AIPlugin] Coordinator: show");
             // Решение принято: текст показан / Decision made: text shown
             _ai_decided_for_track = true;
             // Отмечаем что для этого трека показан AI.FACT или AI.LISTEN / Mark that AI.FACT or AI.LISTEN was shown for this track
@@ -328,7 +328,7 @@ void AIPlugin::_pumpResults() {
         } else {
             // Coordinator отклонил - логируем причину (будет видно в shouldShow если добавим детализацию)
             // Coordinator rejected - log reason (will be visible in shouldShow if we add details)
-            Serial.println("[AIPlugin] Coordinator reject reason: rate_limit_or_duplicate");
+            AI_DLOG("[AIPlugin] Coordinator reject reason: rate_limit_or_duplicate");
             // НЕ выставляем latch здесь - это может быть промежуточный результат
             // Если это финальный результат для трека, latch выставится при следующем невалидном результате
             // DON'T set latch here - this may be intermediate result
@@ -338,13 +338,11 @@ void AIPlugin::_pumpResults() {
 }
 
 bool AIPlugin::_processLayers(const AIContext& context) {
-    Serial.println("[AIPlugin] _processLayers() entered");
-    
     // СТРОГАЯ ПРОВЕРКА: не обрабатываем слои если AI не активирован
     // STRICT CHECK: don't process layers if AI not activated
     bool ai_activated = _isAIActivated(context, false);
     if (!ai_activated) {
-        Serial.println("[AIPlugin] Skip AI: ai_activated=false");
+        AI_LOG("[AIPlugin] Skip AI: ai_activated=false");
         return false;
     }
     
@@ -370,7 +368,7 @@ bool AIPlugin::_processLayers(const AIContext& context) {
     // Latch: если решение уже принято для текущего трека - не обрабатываем слои
     // Latch: if decision already made for current track - don't process layers
     if (_ai_decided_for_track) {
-        Serial.println("[AIPlugin] Decision already made for track, skipping layer processing");
+        AI_DLOG("[AIPlugin] Decision already made for track, skipping layer processing");
         return false;
     }
     
@@ -386,32 +384,16 @@ bool AIPlugin::_processLayers(const AIContext& context) {
     AILayer* layers[] = { &_interpretationLayer };
     const char* layer_names[] = { "Interpretation" };
     
-    Serial.print("[AIPlugin] Processing ");
-    Serial.print(1);
-    Serial.println(" layer");
-    
     for (size_t i = 0; i < 1; i++) {
-        Serial.print("[AIPlugin] Checking layer: ");
-        Serial.println(layer_names[i]);
-        
         if (!layers[i]->isEnabled()) {
-            Serial.print("[AIPlugin] Layer ");
-            Serial.print(layer_names[i]);
-            Serial.println(" disabled, skipping");
             continue;  // Слой выключен / Layer disabled
         }
-        
-        Serial.print("[AIPlugin] Calling layer->process() for ");
-        Serial.println(layer_names[i]);
         
         // Слой обрабатывает контекст / Layer processes context
         if (layers[i]->process(context, candidate)) {
             // InterpretationLayer возвращает true только при успешном enqueueRequest()
             // InterpretationLayer returns true only on successful enqueueRequest()
             enqueued_any = true;
-            Serial.print("[AIPlugin] Layer ");
-            Serial.print(layer_names[i]);
-            Serial.println(" enqueued LLM request");
             
             // Coordinator решает: показывать ли / Coordinator decides: show or not
             if (_coordinator.shouldShow(&candidate, current_time)) {
@@ -441,7 +423,7 @@ bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
     // 0. AI включён в настройках / AI enabled in settings
     if (!config.store.ai_enabled) {
         if (log_state_change) {
-            Serial.println("[AIPlugin] _isAIActivated: ai_enabled=false");
+            AI_LOG("[AIPlugin] _isAIActivated: ai_enabled=false");
         }
         return false;
     }
@@ -449,7 +431,7 @@ bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
     // 1. Wi‑Fi подключён / Wi‑Fi connected
     if (network.status != CONNECTED || WiFi.status() != WL_CONNECTED) {
         if (log_state_change) {
-            Serial.println("[AIPlugin] _isAIActivated: WiFi not connected");
+            AI_LOG("[AIPlugin] _isAIActivated: WiFi not connected");
         }
         return false;
     }
@@ -458,7 +440,7 @@ bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
     IPAddress ip = WiFi.localIP();
     if (ip == IPAddress(0, 0, 0, 0)) {
         if (log_state_change) {
-            Serial.println("[AIPlugin] _isAIActivated: No IP address");
+            AI_LOG("[AIPlugin] _isAIActivated: No IP address");
         }
         return false;
     }
@@ -466,7 +448,7 @@ bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
     // 3. Провайдер LLM настроен / LLM provider configured
     if (config.store.llm_provider == LLM_NONE) {
         if (log_state_change) {
-            Serial.println("[AIPlugin] _isAIActivated: llm_provider=LLM_NONE");
+            AI_LOG("[AIPlugin] _isAIActivated: llm_provider=LLM_NONE");
         }
         return false;
     }
@@ -477,7 +459,7 @@ bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
     bool has_model = (strlen(config.store.ai_model) > 0);
     if (!has_api_key || !has_model) {
         if (log_state_change) {
-            Serial.println("[AIPlugin] _isAIActivated: API key or model empty");
+            AI_LOG("[AIPlugin] _isAIActivated: API key or model empty");
         }
         return false;
     }
@@ -522,7 +504,7 @@ bool AIPlugin::_isAIActivated(const AIContext& context, bool log_state_change) {
     
     // Все условия выполнены / All conditions met
     if (log_state_change) {
-        Serial.println("[AIPlugin] _isAIActivated: All conditions met");
+        AI_DLOG("[AIPlugin] _isAIActivated: All conditions met");
     }
     return true;
 }
@@ -820,8 +802,8 @@ bool AIPlugin::_isValidTrackTitleForAI(const String& t) {
             breakdown += score;
             String breakdown_msg = "[AIPlugin] TT score details: ";
             breakdown_msg += breakdown;
-            // Используем _logOncePerTrack вместо Serial.println чтобы избежать переполнения WebSocket очереди
-            // Use _logOncePerTrack instead of Serial.println to avoid WebSocket queue overflow
+            // Используем _logOncePerTrack вместо AI_DLOG чтобы избежать переполнения WebSocket очереди
+            // Use _logOncePerTrack instead of AI_DLOG to avoid WebSocket queue overflow
             _logOncePerTrack(_current_track_id, breakdown_msg.c_str());
         }
         last_breakdown_track_id = _current_track_id;
@@ -866,7 +848,7 @@ static const char* _ttReasonToString(TrackTitleValidationReason reason) {
 bool AIPlugin::_logOncePerTrack(uint32_t track_id, const char* message) {
     // Helper для логов один раз на track_id / Helper for logs once per track_id
     if (_ai_context_logged_track_id != track_id) {
-        Serial.println(message);
+        AI_DLOG("%s", message);
         _ai_context_logged_track_id = track_id;
         return true;  // Лог выведен / Log printed
     }
@@ -887,18 +869,14 @@ void AIPlugin::_logTrackTitleValidation(uint32_t track_id, const String& title, 
     
     if (is_valid) {
         // Валидный track_title / Valid track_title
-        char msg[256];
-        snprintf(msg, sizeof(msg), "[AIPlugin] TrackTitle valid: score=%d title=\"%s\"", 
+        AI_LOG("[AIPlugin] TrackTitle valid: score=%d title=\"%s\"", 
                  _last_tt_score, title_short.c_str());
-        Serial.println(msg);
         _tt_validation_logged_track_id = track_id;
     } else {
         // Невалидный track_title / Invalid track_title
         const char* reason_str = _ttReasonToString(_last_tt_reason);
-        char msg[256];
-        snprintf(msg, sizeof(msg), "[AIPlugin] TrackTitle invalid: reason=%s score=%d title=\"%s\"", 
+        AI_LOG("[AIPlugin] TrackTitle invalid: reason=%s score=%d title=\"%s\"", 
                  reason_str, _last_tt_score, title_short.c_str());
-        Serial.println(msg);
         _tt_validation_logged_track_id = track_id;
     }
 }
@@ -907,7 +885,7 @@ void AIPlugin::on_track_change() {
     // Инкрементируем ID трека при валидной смене трека
     // Increment track ID on valid track change
     _current_track_id++;
-    Serial.printf("[AIPlugin] Track changed, new track_id: %u\n", _current_track_id);
+    AI_LOG("[AIPlugin] Track changed, new track_id: %u", _current_track_id);
     
     // Сбрасываем флаг принятия решения для нового трека
     // Reset decision flag for new track
@@ -938,7 +916,7 @@ void AIPlugin::on_track_change() {
     display.setAIInterpretation("");
     
     if (!_initialized) {
-        Serial.println("[AIPlugin] on_track_change() called but not initialized");
+        AI_DLOG("[AIPlugin] on_track_change() called but not initialized");
         return;
     }
 
@@ -951,17 +929,8 @@ void AIPlugin::on_track_change() {
     // Унифицированная проверка через strlen() / Unified check via strlen()
     bool has_api_key = (strlen(config.store.ai_api_key) > 0);
     bool has_model = (strlen(config.store.ai_model) > 0);
-    Serial.print("[AIPlugin] on_track_change() - ai_enabled=");
-    Serial.print(config.store.ai_enabled);
-    Serial.print(", llm_provider=");
-    Serial.print(config.store.llm_provider);
-    Serial.print(", has_api_key=");
-    Serial.print(has_api_key ? 1 : 0);
-    Serial.print(", has_model=");
-    Serial.print(has_model ? 1 : 0);
-    Serial.print(", track_title=\"");
-    Serial.print(context.track_title);
-    Serial.println("\"");
+    AI_DLOG("[AIPlugin] on_track_change() - ai_enabled=%d, llm_provider=%d, has_api_key=%d, has_model=%d, track_title=\"%s\"",
+            config.store.ai_enabled, config.store.llm_provider, has_api_key ? 1 : 0, has_model ? 1 : 0, context.track_title.c_str());
     
     // РАННИЙ ABORT: проверяем валидность track_title до активации AI
     // EARLY ABORT: check track_title validity before AI activation
@@ -974,7 +943,7 @@ void AIPlugin::on_track_change() {
         _enqueued_for_track_id = _current_track_id;  // Помечаем что попытка была / Mark attempt as made
         
         // AI молчит для невалидного track_title / AI silent for invalid track_title
-        Serial.println("[AIPlugin] TrackTitle invalid - aborting, AI silent");
+        AI_LOG("[AIPlugin] TrackTitle invalid - aborting, AI silent");
         return;
     }
     
@@ -983,12 +952,17 @@ void AIPlugin::on_track_change() {
     
     // Runtime Manifest: AI активируется только при выполнении всех условий
     // Runtime Manifest: AI activates only when all conditions are met
-    if (!_isAIActivated(context)) {
-        Serial.println("[AIPlugin] AI not activated - skipping");
+    bool ai_activated = _isAIActivated(context, true);  // Логируем состояние при track_change / Log state on track_change
+    if (!ai_activated) {
+        AI_LOG("[AIPlugin] AI not activated - skipping");
+        _last_ai_activated_state = false;  // Обновляем кеш состояния / Update state cache
         return;
     }
     
-    Serial.println("[AIPlugin] AI activated - debounce scheduled, will process layers after 4s");
+    // Обновляем кеш состояния активации чтобы избежать дубля в on_ticker / Update activation state cache to avoid duplicate in on_ticker
+    _last_ai_activated_state = true;
+    
+    AI_LOG("[AIPlugin] AI activated - debounce scheduled, will process layers after 4s");
     // НЕ вызываем _processLayers() сразу - запрос уйдет через тикер после debounce
     // DON'T call _processLayers() immediately - request will be sent via ticker after debounce
 }
@@ -1021,7 +995,7 @@ void AIPlugin::on_ticker() {
         // СТРОГАЯ ПРОВЕРКА: debounce не должен проходить если ai_activated=false или track_title пустой
         // STRICT CHECK: debounce should not pass if ai_activated=false or track_title empty
         if (!ai_activated) {
-            Serial.println("[AIPlugin] Debounce aborted: ai_activated=false");
+            AI_LOG("[AIPlugin] Debounce aborted: ai_activated=false");
             _enqueued_for_track_id = _current_track_id;  // Помечаем что попытка была / Mark attempt as made
             _enqueue_at_ms = 0;  // Сбрасываем debounce таймер / Reset debounce timer
             return;  // Не обрабатываем слои / Don't process layers
@@ -1038,15 +1012,13 @@ void AIPlugin::on_ticker() {
             return;  // Не обрабатываем слои / Don't process layers
         }
         
-        // Диагностический лог перед enqueue / Diagnostic log before enqueue
-        char debounce_msg[128];
-        snprintf(debounce_msg, sizeof(debounce_msg), "[AIPlugin] Debounce check: track_title_len=%d llm_ready=%d ai_activated=%d",
+        // Диагностический лог перед enqueue (вместо повторного "All conditions met") / Diagnostic log before enqueue (instead of repeated "All conditions met")
+        AI_DLOG("[AIPlugin] Debounce check: track_title_len=%d llm_ready=%d ai_activated=%d",
                  context.track_title.length(), llm_ready ? 1 : 0, ai_activated ? 1 : 0);
-        _logOncePerTrack(_current_track_id, debounce_msg);
         
         // Debounce прошел, отправляем запрос один раз для текущего трека
         // Debounce passed, send request once for current track
-        Serial.println("[AIPlugin] Debounce passed, processing layers to enqueue LLM request");
+        AI_LOG("[AIPlugin] Debounce passed, processing layers to enqueue LLM request");
         bool enqueued = _processLayers(context);
         
         // ВСЕГДА выставляем флаги после попытки (строго 1 attempt per track)
@@ -1055,12 +1027,12 @@ void AIPlugin::on_ticker() {
         _enqueue_at_ms = 0;  // Сбрасываем debounce таймер / Reset debounce timer
         
         if (enqueued) {
-            Serial.println("[AIPlugin] LLM request enqueued successfully");
+            AI_LOG("[AIPlugin] LLM request enqueued successfully");
         } else {
             // Различаем причины неудачного enqueue / Distinguish reasons for failed enqueue
             // Если track_title пустой - это уже обработано выше, здесь только busy/rate limit
             // If track_title empty - already handled above, here only busy/rate limit
-            Serial.println("[AIPlugin] LLM enqueue attempt failed (rate limit/busy) -> silence for this track");
+            AI_LOG("[AIPlugin] LLM enqueue attempt failed (rate limit/busy) -> silence for this track");
         }
     }
     
@@ -1080,7 +1052,7 @@ void AIPlugin::on_ticker() {
         // Блокируем MomentLayer если для этого трека уже показан AI.FACT или AI.LISTEN
         // Block MomentLayer if AI.FACT or AI.LISTEN already shown for this track
         if (_ai_output_shown && _ai_output_track_id == _current_track_id) {
-            _logOncePerTrack(_current_track_id, "[AIPlugin] Moment blocked: AI output already shown for track");
+            AI_DLOG("[AIPlugin] Moment blocked: AI output already shown for track");
             _moment_decided = true;  // Решение принято: блокировка / Decision made: blocked
             _moment_decided_track_id = _current_track_id;
             return;  // Не показываем Moment / Don't show Moment
@@ -1105,7 +1077,7 @@ void AIPlugin::on_ticker() {
             // Логируем напрямую (не через _logOncePerTrack) чтобы избежать конфликтов с другими логами
             // Log directly (not via _logOncePerTrack) to avoid conflicts with other logs
             if (!_moment_decided || _moment_decided_track_id != _current_track_id) {
-                _logOncePerTrack(_current_track_id, "[AIPlugin] Moment fallback: LLM silent, showing moment");
+                AI_LOG("[AIPlugin] Moment fallback: LLM silent, showing moment");
             }
             AICandidate moment_candidate;
             if (_momentLayer.process(context, moment_candidate)) {
@@ -1118,19 +1090,18 @@ void AIPlugin::on_ticker() {
                     // Обходим Coordinator для fallback-слоя / Bypass Coordinator for fallback layer
                     _coordinator.markAsShown(&moment_candidate, current_time);
                     display.setAIInterpretation(moment_candidate.text);
-                    Serial.print("##AI.MOMENT#: ");
-                    Serial.println(moment_candidate.text);
+                    AI_LOG("##AI.MOMENT#: %s", moment_candidate.text.c_str());
                     // Убираем дополнительное диагностическое логирование чтобы избежать переполнения WebSocket очереди
                     // Remove additional diagnostic logging to avoid WebSocket queue overflow
                 } else {
                     // Текст пустой - логируем и не показываем / Text empty - log and don't show
-                    _logOncePerTrack(_current_track_id, "[MomentLayer] ERROR: empty moment text");
+                    AI_DLOG("[MomentLayer] ERROR: empty moment text");
                 }
             } else {
                 // MomentLayer.process() вернул false - не готов / MomentLayer.process() returned false - not ready
                 // Убираем диагностическое логирование track_title чтобы избежать переполнения
                 // Remove track_title diagnostic logging to avoid overflow
-                _logOncePerTrack(_current_track_id, "[MomentLayer] process() returned false");
+                AI_DLOG("[MomentLayer] process() returned false");
             }
             // Решение принято: Moment обработан (показан или нет) / Decision made: Moment processed (shown or not)
             _moment_decided = true;
@@ -1160,7 +1131,7 @@ void AIPlugin::onAiEnabledChanged(bool enabled) {
     
     if (!enabled) {
         // AI выключен - отменяем все операции / AI disabled - cancel all operations
-        Serial.println("[AIPlugin] AI disabled: canceling timers, clearing queues, clearing display");
+        AI_LOG("[AIPlugin] AI disabled: canceling timers, clearing queues, clearing display");
         
         // Сбрасываем внутренние флаги / Reset internal flags
         _enqueue_at_ms = 0;  // Отменяем debounce timer / Cancel debounce timer
@@ -1181,10 +1152,8 @@ void AIPlugin::onAiEnabledChanged(bool enabled) {
         if (display.ready()) {
             display.setAIInterpretation("");
         }
-        
-        Serial.println("[AIPlugin] AI disabled: canceled timers, cleared queues, cleared display");
     } else {
         // AI включён - логируем / AI enabled - log
-        Serial.println("[AIPlugin] AI enabled");
+        AI_LOG("[AIPlugin] AI enabled");
     }
 }

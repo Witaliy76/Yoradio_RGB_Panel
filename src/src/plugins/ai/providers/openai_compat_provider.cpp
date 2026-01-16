@@ -8,6 +8,7 @@
  */
 
 #include "openai_compat_provider.h"
+#include "../ai_log.h"  // AI Layer logging macros
 #include "../../../core/config.h"  // Для aiGetRuntimeConfig / For aiGetRuntimeConfig
 #include "../ai_prompt.h"  // Для загрузки промптов из SPIFFS / For loading prompts from SPIFFS (aiPromptGet, aiPromptIsAvailable)
 #include <ArduinoJson.h>
@@ -65,12 +66,10 @@ String OpenAICompatProvider::_buildPrompt(
     const String& song,
     const String& track_title
 ) {
-    Serial.println("[OpenAICompatProvider] _buildPrompt() called");
-    
     // СТРОГАЯ ПРОВЕРКА: промпт должен быть доступен (строгий режим, без fallback) / STRICT CHECK: prompt must be available (strict mode, no fallback)
     extern bool aiPromptIsAvailable();
     if (!aiPromptIsAvailable()) {
-        Serial.println("[OpenAICompatProvider] Prompt not available, aborting request");
+        AI_LOG("[OpenAICompatProvider] Prompt not available, aborting request");
         return "";  // Пустой промпт → запрос не должен отправляться / Empty prompt → request should not be sent
     }
     
@@ -80,7 +79,7 @@ String OpenAICompatProvider::_buildPrompt(
     
     // Проверка: промпт должен быть загружен из файла / Check: prompt must be loaded from file
     if (!prompt_loaded || system_prompt.isEmpty()) {
-        Serial.println("[OpenAICompatProvider] Prompt not available, aborting request");
+        AI_LOG("[OpenAICompatProvider] Prompt not available, aborting request");
         return "";  // Пустой промпт → запрос не должен отправляться / Empty prompt → request should not be sent
     }
     
@@ -100,8 +99,6 @@ String OpenAICompatProvider::_buildPrompt(
 }
 
 String OpenAICompatProvider::_buildRequestJSON(const String& model, const String& prompt_full) {
-    Serial.println("[OpenAICompatProvider] _buildRequestJSON() called");
-    
     // Разделяем system и user prompt (prompt_full содержит оба через \n\n)
     // Split system and user prompt (prompt_full contains both separated by \n\n)
     int separator_pos = prompt_full.indexOf("\n\n");
@@ -111,15 +108,13 @@ String OpenAICompatProvider::_buildRequestJSON(const String& model, const String
     #ifdef ESP_PLATFORM
     #define WORDS_TO_BYTES(w) ((uint32_t)(w) * sizeof(StackType_t))
     UBaseType_t stack_before = uxTaskGetStackHighWaterMark(nullptr);
-    Serial.printf("[OpenAICompatProvider] Stack before JSON: %u words (~%u bytes)\n", stack_before, WORDS_TO_BYTES(stack_before));
+    AI_DLOG("[OpenAICompatProvider] Stack before JSON: %u words (~%u bytes)", stack_before, WORDS_TO_BYTES(stack_before));
     #undef WORDS_TO_BYTES
     #endif
     
     // Строим JSON запрос для OpenAI-compatible Chat Completions API
     // Build JSON request for OpenAI-compatible Chat Completions API
-    Serial.println("[OpenAICompatProvider] Creating DynamicJsonDocument");
     DynamicJsonDocument doc(1024);
-    Serial.println("[OpenAICompatProvider] DynamicJsonDocument created");
     
     doc["model"] = model;
     JsonArray messages = doc.createNestedArray("messages");
@@ -154,19 +149,19 @@ bool OpenAICompatProvider::_readHTTPResponse(String& response_body) {
     response_body = _http.getString();
     
     if (response_body.length() == 0) {
-        Serial.println("[OpenAICompatProvider] getString() returned empty, trying getStreamPtr()");
+        AI_DLOG("[OpenAICompatProvider] getString() returned empty, trying getStreamPtr()");
         WiFiClient* stream = _http.getStreamPtr();
         if (stream && stream->available()) {
             response_body = stream->readString();
-            Serial.printf("[OpenAICompatProvider] Read from stream, length: %u\n", response_body.length());
+            AI_DLOG("[OpenAICompatProvider] Read from stream, length: %u", response_body.length());
         } else {
-            Serial.println("[OpenAICompatProvider] Stream not available or empty");
+            AI_LOG("[OpenAICompatProvider] Stream not available or empty");
             return false;
         }
     }
     
     if (response_body.length() == 0) {
-        Serial.println("[OpenAICompatProvider] Empty response body after all attempts");
+        AI_LOG("[OpenAICompatProvider] Empty response body after all attempts");
         return false;
     }
     
@@ -187,8 +182,6 @@ bool OpenAICompatProvider::_makeHTTPRequest(
     String& transfer_encoding_out,
     String& content_encoding_out
 ) {
-    Serial.println("[OpenAICompatProvider] _makeHTTPRequest() entered");
-    
     // Получаем конфигурацию из runtime cache (без чтения SPIFFS)
     // Get configuration from runtime cache (without reading SPIFFS)
     AIConfig cfg;
@@ -196,7 +189,7 @@ bool OpenAICompatProvider::_makeHTTPRequest(
     
     // Валидация минимальных параметров / Validate minimum parameters
     if (strlen(cfg.host) == 0 || cfg.port == 0) {
-        Serial.println("[OpenAICompatProvider] Invalid config: host empty or port=0");
+        AI_LOG("[OpenAICompatProvider] Invalid config: host empty or port=0");
         return false;
     }
     
@@ -205,30 +198,26 @@ bool OpenAICompatProvider::_makeHTTPRequest(
     uint32_t timeout_ms = cfg.timeout_ms;
     if (timeout_ms < 1000) {
         timeout_ms = 1000;
-        Serial.println("[OpenAICompatProvider] Timeout clamped to 1000ms (was too low)");
+        AI_DLOG("[OpenAICompatProvider] Timeout clamped to 1000ms (was too low)");
     }
     if (timeout_ms > 30000) {
         timeout_ms = 30000;
-        Serial.println("[OpenAICompatProvider] Timeout clamped to 30000ms (was too high)");
+        AI_DLOG("[OpenAICompatProvider] Timeout clamped to 30000ms (was too high)");
     }
     
     // Закрываем предыдущее соединение если было
     // Close previous connection if exists
     _http.end();
     
-    Serial.println("[OpenAICompatProvider] Calling _buildPrompt()");
     String prompt = _buildPrompt(station_name, artist, song, track_title);
-    Serial.println("[OpenAICompatProvider] _buildPrompt() completed");
     
     // СТРОГАЯ ПРОВЕРКА: если промпт пустой (не загружен), abort / STRICT CHECK: if prompt empty (not loaded), abort
     if (prompt.isEmpty()) {
-        Serial.println("[OpenAICompatProvider] Prompt is empty, aborting request");
+        AI_LOG("[OpenAICompatProvider] Prompt is empty, aborting request");
         return false;
     }
     
-    Serial.println("[OpenAICompatProvider] Calling _buildRequestJSON()");
     String json_request = _buildRequestJSON(model, prompt);
-    Serial.println("[OpenAICompatProvider] _buildRequestJSON() completed");
     
     // Нормализация пути / Normalize path
     String normalized_path = normalizeChatCompletionsPath(cfg.path);
@@ -246,17 +235,17 @@ bool OpenAICompatProvider::_makeHTTPRequest(
         url = protocol + String(cfg.host) + ":" + String(cfg.port) + normalized_path;
     }
     
-    Serial.printf("[OpenAICompatProvider] URL: %s\n", url.c_str());
-    Serial.printf("[OpenAICompatProvider] Timeout: %u ms\n", timeout_ms);
+    AI_DLOG("[OpenAICompatProvider] URL: %s", url.c_str());
+    AI_DLOG("[OpenAICompatProvider] Timeout: %u ms", timeout_ms);
     
     // Выбор клиента (HTTP или HTTPS) / Select client (HTTP or HTTPS)
     if (cfg.port == 80) {
         // HTTP / HTTP
-        Serial.println("[OpenAICompatProvider] Using HTTP (port=80)");
+        AI_DLOG("[OpenAICompatProvider] Using HTTP (port=80)");
         _http.begin(_wifiClient, url);
     } else {
         // HTTPS / HTTPS
-        Serial.println("[OpenAICompatProvider] Using HTTPS");
+        AI_DLOG("[OpenAICompatProvider] Using HTTPS");
         _http.begin(_wifiSecureClient, url);
     }
     
@@ -267,17 +256,75 @@ bool OpenAICompatProvider::_makeHTTPRequest(
     // Отправляем POST запрос / Send POST request
     int httpCode = _http.POST(json_request);
     
-    Serial.printf("[OpenAICompatProvider] HTTP POST completed, code: %d\n", httpCode);
+    AI_LOG("[OpenAICompatProvider] HTTP POST completed, code: %d", httpCode);
     
     // Проверяем код ответа / Check response code
     if (httpCode <= 0) {
-        Serial.printf("[OpenAICompatProvider] HTTP POST failed, code: %d\n", httpCode);
+        AI_LOG("[OpenAICompatProvider] HTTP POST failed, code: %d", httpCode);
+        
+        // Debug summary для диагностики ошибок HTTP (только при debug=1) / Debug summary for HTTP error diagnostics (only at debug=1)
+        {
+            // Определяем stage и текст ошибки / Determine stage and error text
+            const char* stage = "unknown";
+            const char* err_text = "";
+            
+            // Mapping для определения stage по коду ошибки / Mapping to determine stage by error code
+            // HTTPClient error codes (ESP32 Arduino core 3.x):
+            // -1 = HTTPC_ERROR_CONNECTION_FAILED
+            // -2 = HTTPC_ERROR_SEND_HEADER_FAILED
+            // -3 = HTTPC_ERROR_SEND_PAYLOAD_FAILED
+            // -4 = HTTPC_ERROR_NOT_CONNECTED
+            // -5 = HTTPC_ERROR_CONNECTION_LOST
+            // -11 = HTTPC_ERROR_READ_TIMEOUT
+            switch (httpCode) {
+                case -1:  // HTTPC_ERROR_CONNECTION_FAILED
+                    stage = "connect";
+                    err_text = "connection_failed";
+                    break;
+                case -2:  // HTTPC_ERROR_SEND_HEADER_FAILED
+                    stage = "send_header";
+                    err_text = "send_header_failed";
+                    break;
+                case -3:  // HTTPC_ERROR_SEND_PAYLOAD_FAILED
+                    stage = "send_payload";
+                    err_text = "send_payload_failed";
+                    break;
+                case -4:  // HTTPC_ERROR_NOT_CONNECTED
+                    stage = "connect";
+                    err_text = "not_connected";
+                    break;
+                case -5:  // HTTPC_ERROR_CONNECTION_LOST
+                    stage = "connect";  // или send_header, но чаще connect
+                    err_text = "connection_lost";
+                    break;
+                case -6:  // HTTPC_ERROR_NO_STREAM
+                    stage = "read_body";
+                    err_text = "no_stream";
+                    break;
+                case -7:  // HTTPC_ERROR_NO_HTTP_SERVER
+                    stage = "connect";
+                    err_text = "no_http_server";
+                    break;
+                case -11:  // HTTPC_ERROR_READ_TIMEOUT
+                    stage = "read_body";
+                    err_text = "read_timeout";
+                    break;
+                default:
+                    stage = "unknown";
+                    err_text = "unknown_error";
+                    break;
+            }
+            
+            AI_DLOG("[OpenAICompatProvider] HTTP %d debug: https=%d timeout=%ums host=%s:%d path=%s stage=%s err=\"%s\"",
+                     httpCode, (cfg.port != 80) ? 1 : 0, timeout_ms, cfg.host, cfg.port, normalized_path.c_str(), stage, err_text);
+        }
+        
         _http.end();
         return false;
     }
     
     if (httpCode != HTTP_CODE_OK && httpCode != HTTP_CODE_CREATED) {
-        Serial.printf("[OpenAICompatProvider] HTTP error, code: %d\n", httpCode);
+        AI_LOG("[OpenAICompatProvider] HTTP error, code: %d", httpCode);
         response_body = _http.getString();
         _http.end();
         return false;
@@ -322,18 +369,16 @@ bool OpenAICompatProvider::_parseJSONResponse(const String& json_raw, LLMRespons
     // Парсинг JSON ответа от OpenAI-compatible API
     // Parse JSON response from OpenAI-compatible API
     
-    Serial.println("[OpenAICompatProvider] _parseJSONResponse() called");
-    
     // Удаляем BOM и пробелы / Remove BOM and whitespace
     String json = _removeBOM(json_raw);
     json.trim();
     
-    Serial.printf("[OpenAICompatProvider] JSON length: %u, starts with '{': %d\n", json.length(), json.startsWith("{"));
+    AI_DLOG("[OpenAICompatProvider] JSON length: %u, starts with '{': %d", json.length(), json.startsWith("{"));
     
     #ifdef ESP_PLATFORM
     #define WORDS_TO_BYTES(w) ((uint32_t)(w) * sizeof(StackType_t))
     UBaseType_t stack_before = uxTaskGetStackHighWaterMark(nullptr);
-    Serial.printf("[OpenAICompatProvider] Stack before parse: %u words (~%u bytes)\n", stack_before, WORDS_TO_BYTES(stack_before));
+    AI_DLOG("[OpenAICompatProvider] Stack before parse: %u words (~%u bytes)", stack_before, WORDS_TO_BYTES(stack_before));
     #undef WORDS_TO_BYTES
     #endif
     
@@ -342,94 +387,98 @@ bool OpenAICompatProvider::_parseJSONResponse(const String& json_raw, LLMRespons
     DeserializationError error = deserializeJson(doc, json);
     
     if (error) {
-        Serial.printf("[OpenAICompatProvider] JSON deserialize error: %s\n", error.c_str());
-        Serial.printf("[OpenAICompatProvider] HTTP code: %d\n", httpCode);
+        AI_LOG("[OpenAICompatProvider] JSON deserialize error: %s", error.c_str());
+        AI_LOG("[OpenAICompatProvider] HTTP code: %d", httpCode);
         
         if (!content_type.isEmpty()) {
-            Serial.printf("[OpenAICompatProvider] Content-Type: %s\n", content_type.c_str());
+            AI_DLOG("[OpenAICompatProvider] Content-Type: %s", content_type.c_str());
         }
         if (!content_length.isEmpty()) {
-            Serial.printf("[OpenAICompatProvider] Content-Length: %s\n", content_length.c_str());
+            AI_DLOG("[OpenAICompatProvider] Content-Length: %s", content_length.c_str());
         }
         if (!transfer_encoding.isEmpty()) {
-            Serial.printf("[OpenAICompatProvider] Transfer-Encoding: %s\n", transfer_encoding.c_str());
+            AI_DLOG("[OpenAICompatProvider] Transfer-Encoding: %s", transfer_encoding.c_str());
         }
         if (!content_encoding.isEmpty()) {
-            Serial.printf("[OpenAICompatProvider] Content-Encoding: %s\n", content_encoding.c_str());
+            AI_DLOG("[OpenAICompatProvider] Content-Encoding: %s", content_encoding.c_str());
         }
         
-        Serial.print("[OpenAICompatProvider] Body preview (first 120 chars): ");
-        Serial.println(json.length() > 120 ? json.substring(0, 120) : json);
+        AI_DLOG("[OpenAICompatProvider] Body preview (first 120 chars): %s", json.length() > 120 ? json.substring(0, 120).c_str() : json.c_str());
         
-        Serial.print("[OpenAICompatProvider] Body hex (first 16 bytes): ");
-        for (int i = 0; i < 16 && i < json.length(); i++) {
-            Serial.printf("%02X ", (unsigned char)json[i]);
+        char hex_buf[64] = {0};
+        for (int i = 0, j = 0; i < 16 && i < json.length() && j < 60; i++, j += 3) {
+            snprintf(hex_buf + j, 4, "%02X ", (unsigned char)json[i]);
         }
-        Serial.println();
+        AI_DLOG("[OpenAICompatProvider] Body hex (first 16 bytes): %s", hex_buf);
         
         return false;
     }
     
-    Serial.println("[OpenAICompatProvider] JSON deserialized successfully");
+    AI_DLOG("[OpenAICompatProvider] JSON deserialized successfully");
     
     // Извлекаем content из choices[0].message.content
     if (!doc.containsKey("choices")) {
-        Serial.println("[OpenAICompatProvider] No 'choices' key in JSON");
+        AI_LOG("[OpenAICompatProvider] No 'choices' key in JSON");
         return false;
     }
     if (!doc["choices"].is<JsonArray>()) {
-        Serial.println("[OpenAICompatProvider] 'choices' is not an array");
+        AI_LOG("[OpenAICompatProvider] 'choices' is not an array");
         return false;
     }
     if (doc["choices"].size() == 0) {
-        Serial.println("[OpenAICompatProvider] 'choices' array is empty");
+        AI_LOG("[OpenAICompatProvider] 'choices' array is empty");
         return false;
     }
     
-    Serial.println("[OpenAICompatProvider] Found choices array");
+    AI_DLOG("[OpenAICompatProvider] Found choices array");
     
     JsonObject choice = doc["choices"][0];
     if (!choice.containsKey("message")) {
-        Serial.println("[OpenAICompatProvider] No 'message' key in choice");
+        AI_LOG("[OpenAICompatProvider] No 'message' key in choice");
         return false;
     }
     if (!choice["message"].containsKey("content")) {
-        Serial.println("[OpenAICompatProvider] No 'content' key in message");
+        AI_LOG("[OpenAICompatProvider] No 'content' key in message");
         return false;
     }
     
     String content = choice["message"]["content"].as<String>();
     content.trim();
     
-    Serial.printf("[OpenAICompatProvider] Content length: %u\n", content.length());
-    Serial.print("[OpenAICompatProvider] Content preview (first 200 chars): ");
-    Serial.println(content.substring(0, 200));
+    AI_DLOG("[OpenAICompatProvider] Content length: %u", content.length());
+    AI_DLOG("[OpenAICompatProvider] Content preview (first 200 chars): %s", content.substring(0, 200).c_str());
     
     // Парсим внутренний JSON из content
     DynamicJsonDocument content_doc(1024);
     DeserializationError content_error = deserializeJson(content_doc, content);
     
     if (content_error) {
-        Serial.printf("[OpenAICompatProvider] Content JSON deserialize error: %s\n", content_error.c_str());
+        AI_LOG("[OpenAICompatProvider] Content JSON deserialize error: %s", content_error.c_str());
         return false;
     }
     
-    Serial.println("[OpenAICompatProvider] Content JSON deserialized successfully");
+    AI_DLOG("[OpenAICompatProvider] Content JSON deserialized successfully");
     
     // Проверяем обязательное поле "ok"
     if (!content_doc.containsKey("ok")) {
-        Serial.println("[OpenAICompatProvider] No 'ok' key in content JSON");
+        AI_LOG("[OpenAICompatProvider] No 'ok' key in content JSON");
         return false;
     }
     
     response.ok = content_doc["ok"].as<bool>();
     if (!response.ok) {
-        return true;  // ok=false - валидный ответ, но без интерпретации
+        // ok=false - валидный ответ, но без интерпретации (модель решила молчать)
+        // ok=false - valid response but no interpretation (model decided to stay silent)
+        AI_DLOG("[OpenAICompatProvider] HTTP 200 -> not_ok: model returned ok=false");
+        return true;
     }
     
     // Проверяем обязательные поля для успешного ответа
     if (!content_doc.containsKey("text") || !content_doc.containsKey("mode")) {
         response.ok = false;
+        // Debug summary для диагностики контракта / Debug summary for contract diagnostics
+        AI_DLOG("[OpenAICompatProvider] HTTP 200 -> not_ok: contract missing text=%d mode=%d",
+                 content_doc.containsKey("text") ? 1 : 0, content_doc.containsKey("mode") ? 1 : 0);
         return true;
     }
     
@@ -446,11 +495,17 @@ bool OpenAICompatProvider::_parseJSONResponse(const String& json_raw, LLMRespons
     // Валидация значений / Validate values
     if (response.text.isEmpty()) {
         response.ok = false;
+        // Debug summary для диагностики пустого текста / Debug summary for empty text diagnostics
+        AI_DLOG("[OpenAICompatProvider] HTTP 200 -> not_ok: text_empty_after_parse mode=%s",
+                 response.mode.c_str());
         return true;
     }
     
     if (response.mode != "fact" && response.mode != "listen") {
         response.ok = false;
+        // Debug summary для диагностики невалидного mode / Debug summary for invalid mode diagnostics
+        AI_DLOG("[OpenAICompatProvider] HTTP 200 -> not_ok: mode_invalid got=%s expected=fact|listen",
+                 response.mode.c_str());
         return true;
     }
     
@@ -477,20 +532,14 @@ bool OpenAICompatProvider::requestInterpretation(
     const String& track_title,
     LLMResponse& response
 ) {
-    Serial.println("[OpenAICompatProvider] requestInterpretation() called");
-    
     // Проверка входных параметров / Validate input parameters
     if (api_key.isEmpty() || model.isEmpty()) {
-        Serial.println("[OpenAICompatProvider] api_key or model empty");
+        AI_LOG("[OpenAICompatProvider] api_key or model empty");
         return false;
     }
     
-    Serial.println("[OpenAICompatProvider] Parameters OK, initializing response");
-    
     // Инициализируем ответ как неуспешный / Initialize response as unsuccessful
     response = LLMResponse();
-    
-    Serial.println("[OpenAICompatProvider] Calling _makeHTTPRequest()");
     
     // Выполняем HTTP/HTTPS запрос / Perform HTTP/HTTPS request
     String response_body;
@@ -500,21 +549,21 @@ bool OpenAICompatProvider::requestInterpretation(
     if (!_makeHTTPRequest(api_key, model, station_name, artist, song, track_title, 
                          response_body, httpCode, content_type, content_length, 
                          transfer_encoding, content_encoding)) {
-        Serial.println("[OpenAICompatProvider] _makeHTTPRequest() failed");
+        AI_LOG("[OpenAICompatProvider] _makeHTTPRequest() failed");
         return false;
     }
     
-    Serial.printf("[OpenAICompatProvider] Response body length: %u\n", response_body.length());
+    AI_DLOG("[OpenAICompatProvider] Response body length: %u", response_body.length());
     
     // Парсим JSON ответ / Parse JSON response
     if (!_parseJSONResponse(response_body, response, httpCode, content_type, content_length, 
                             transfer_encoding, content_encoding)) {
-        Serial.println("[OpenAICompatProvider] _parseJSONResponse() failed");
+        AI_LOG("[OpenAICompatProvider] _parseJSONResponse() failed");
         return false;
     }
     
-    Serial.println("[OpenAICompatProvider] _parseJSONResponse() succeeded");
-    Serial.println("[OpenAICompatProvider] requestInterpretation() succeeded");
+    // Успешный парсинг логируется внутри _parseJSONResponse, не дублируем здесь / Successful parsing is logged inside _parseJSONResponse, don't duplicate here
+    AI_DLOG("[OpenAICompatProvider] requestInterpretation() succeeded");
     return true;
 }
 

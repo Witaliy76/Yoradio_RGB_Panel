@@ -7,6 +7,7 @@
  */
 
 #include "ai_task.h"
+#include "ai_log.h"  // AI Layer logging macros
 #include "utils/utf8_truncate.h"
 #include <string.h> // For strnlen, memcpy
 
@@ -38,7 +39,7 @@ AITaskManager::~AITaskManager() {
 
 bool AITaskManager::begin(LLMProvider* provider) {
     if (!provider) {
-        Serial.println("[AITaskManager] begin() failed: provider is null");
+        AI_LOG("[AITaskManager] begin() failed: provider is null");
         return false;
     }
     
@@ -52,7 +53,7 @@ bool AITaskManager::begin(LLMProvider* provider) {
     _resultQueue = xQueueCreate(1, sizeof(AIRequestResult));
     
     if (!_requestQueue || !_resultQueue) {
-        Serial.println("[AITaskManager] begin() failed: queue creation failed");
+        AI_LOG("[AITaskManager] begin() failed: queue creation failed");
         return false;
     }
     
@@ -71,7 +72,7 @@ bool AITaskManager::begin(LLMProvider* provider) {
                 );
     
     if (result != pdPASS) {
-        Serial.println("[AITaskManager] begin() failed: task creation failed");
+        AI_LOG("[AITaskManager] begin() failed: task creation failed");
         if (_requestQueue) {
             vQueueDelete(_requestQueue);
             _requestQueue = nullptr;
@@ -84,11 +85,11 @@ bool AITaskManager::begin(LLMProvider* provider) {
     }
     
     _taskRunning = true;
-    Serial.println("[AITaskManager] begin() success: task created, queues ready");
+    AI_LOG("[AITaskManager] begin() success: task created, queues ready");
     
     #ifdef ESP_PLATFORM
     UBaseType_t stack_remaining = uxTaskGetStackHighWaterMark(_taskHandle);
-    Serial.printf("[AITaskManager] AI task stack HWM: %u words (~%u bytes)\n", 
+    AI_DLOG("[AITaskManager] AI task stack HWM: %u words (~%u bytes)", 
                   stack_remaining, stack_remaining * sizeof(StackType_t));
     #endif
     
@@ -151,7 +152,7 @@ bool AITaskManager::enqueueRequest(const AIRequestJob& job) {
     // Проверяем rate limiting и занятость
     // Check rate limiting and busy state
     if (!canSendRequest()) {
-        Serial.println("[AITaskManager] Rate limit or busy -> skipping (silence is valid)");
+        AI_DLOG("[AITaskManager] Rate limit or busy -> skipping (silence is valid)");
         return false;
     }
     
@@ -166,12 +167,12 @@ bool AITaskManager::enqueueRequest(const AIRequestJob& job) {
         const char* task_name = pcTaskGetName(current_task);
         int core_id = xPortGetCoreID();
         UBaseType_t stack_remaining = uxTaskGetStackHighWaterMark(nullptr);
-        Serial.printf("[AITaskManager] Enqueued request from task=%s core=%d stack_HWM=%u words (~%u bytes)\n",
+        AI_DLOG("[AITaskManager] Enqueued request from task=%s core=%d stack_HWM=%u words (~%u bytes)",
                       task_name ? task_name : "unknown", core_id, stack_remaining, (unsigned int)(stack_remaining * sizeof(StackType_t)));
         #endif
         return true;
     } else {
-        Serial.println("[AITaskManager] Queue full -> skipping (silence is valid)");
+        AI_LOG("[AITaskManager] Queue full -> skipping (silence is valid)");
         return false;
     }
     #else
@@ -223,13 +224,13 @@ void AITaskManager::_taskWrapper(void* param) {
 }
 
 void AITaskManager::_taskLoop() {
-    Serial.println("[AITaskManager] AI task started");
+    AI_DLOG("[AITaskManager] AI task started");
     
     #ifdef ESP_PLATFORM
     UBaseType_t stack_remaining = uxTaskGetStackHighWaterMark(nullptr);
     const char* task_name = pcTaskGetName(nullptr);
     int core_id = xPortGetCoreID();
-    Serial.printf("[AITaskManager] Task running: name=%s core=%d initial_stack_HWM=%u words (~%u bytes)\n",
+    AI_DLOG("[AITaskManager] Task running: name=%s core=%d initial_stack_HWM=%u words (~%u bytes)",
                   task_name ? task_name : "unknown", core_id, stack_remaining, WORDS_TO_BYTES(stack_remaining));
     #endif
     
@@ -242,7 +243,7 @@ void AITaskManager::_taskLoop() {
             _requestInProgress = true;
             _lastRequestTime = millis();
             
-            Serial.println("[AITaskManager] Processing request");
+            AI_DLOG("[AITaskManager] Processing request");
             
             // Небольшая задержка перед HTTPS для меньшего влияния на аудио
             // Small delay before HTTPS to reduce audio impact
@@ -250,7 +251,7 @@ void AITaskManager::_taskLoop() {
             
             #ifdef ESP_PLATFORM
             stack_remaining = uxTaskGetStackHighWaterMark(nullptr);
-            Serial.printf("[AITaskManager] Stack HWM before HTTPS: %u words (~%u bytes)\n",
+            AI_DLOG("[AITaskManager] Stack HWM before HTTPS: %u words (~%u bytes)",
                           stack_remaining, (unsigned int)(stack_remaining * sizeof(StackType_t)));
             #endif
             
@@ -290,26 +291,22 @@ void AITaskManager::_taskLoop() {
             {
                 size_t text_len = strlen(result.text);
                 if (text_len > 0) {
-                    Serial.printf("[AITaskManager] UTF-8 truncate check: len=%u, tail hex: ", text_len);
+                    char hex_buf[32] = {0};
                     size_t tail_start = (text_len > 8) ? text_len - 8 : 0;
-                    for (size_t i = tail_start; i < text_len; i++) {
-                        Serial.printf("%02X ", (uint8_t)result.text[i]);
+                    for (size_t i = tail_start, j = 0; i < text_len && j < 30; i++, j += 3) {
+                        snprintf(hex_buf + j, 4, "%02X ", (uint8_t)result.text[i]);
                     }
-                    Serial.println();
+                    AI_DLOG("[AITaskManager] UTF-8 truncate check: len=%u, tail hex: %s", text_len, hex_buf);
                 }
             }
             
             // Отправляем результат (неблокирующе, если очередь полна - результат отбрасывается)
             // Send result (non-blocking, if queue full - result discarded)
             if (xQueueSend(_resultQueue, &result, 0) != pdTRUE) {
-                Serial.println("[AITaskManager] Result queue full, discarding result");
+                AI_LOG("[AITaskManager] Result queue full, discarding result");
             } else {
-                Serial.print("[AITaskManager] Result enqueued: ok=");
-                Serial.print(result.ok);
-                Serial.print(", text=\"");
-                Serial.print(result.text);
-                Serial.print("\", track_id=");
-                Serial.println(result.track_id);
+                AI_DLOG("[AITaskManager] Result enqueued: ok=%d, text=\"%s\", track_id=%u",
+                        result.ok, result.text, result.track_id);
             }
             
             // Сбрасываем флаг занятости / Clear busy flag
@@ -317,7 +314,7 @@ void AITaskManager::_taskLoop() {
         }
     }
     
-    Serial.println("[AITaskManager] AI task stopped");
+    AI_DLOG("[AITaskManager] AI task stopped");
     vTaskDelete(nullptr);
 }
 #endif

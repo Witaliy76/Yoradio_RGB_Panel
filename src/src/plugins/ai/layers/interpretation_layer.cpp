@@ -7,6 +7,7 @@
  */
 
 #include "interpretation_layer.h"
+#include "../ai_log.h"  // AI Layer logging macros
 #include "../utils/utf8_truncate.h"
 #include "../../../core/config.h"
 #ifdef ESP_PLATFORM
@@ -82,52 +83,44 @@ bool InterpretationLayer::tryEnqueuePending(const AIContext& context) {
     }
     
     _last_enqueued_track_id = _track_id;  // Фиксируем "уже отправили" / Mark as enqueued
-    Serial.println("[InterpretationLayer] Pending request enqueued after debounce");
+    AI_LOG("[InterpretationLayer] Pending request enqueued after debounce");
     return true;  // Запрос отправлен / Request sent
 }
 
 bool InterpretationLayer::process(const AIContext& context, AICandidate& out) {
-    Serial.println("[InterpretationLayer] process() called");
-    
     if (!_enabled || !_taskManager) {
-        Serial.println("[InterpretationLayer] disabled or no task manager");
+        AI_LOG("[InterpretationLayer] disabled or no task manager");
         return false;  // Слой выключен или нет Task Manager / Layer disabled or no Task Manager
     }
-    
-    Serial.println("[InterpretationLayer] enabled and task manager OK");
     
     // Runtime Manifest: Interpretation должен выводиться при каждой смене песни, если AI активен
     // Runtime Manifest: Interpretation should output on every track change if AI is active
     
     // Проверяем настройки AI из config
     if (!config.store.ai_enabled || config.store.llm_provider == LLM_NONE) {
-        Serial.println("[InterpretationLayer] AI disabled in config");
+        AI_LOG("[InterpretationLayer] AI disabled in config");
         return false;  // AI отключен в настройках / AI disabled in settings
     }
-    
-    Serial.println("[InterpretationLayer] Getting API key and model");
     
     // Получаем API ключ и модель
     String api_key = String(config.store.ai_api_key);
     String model = String(config.store.ai_model);
     
-    Serial.println("[InterpretationLayer] API key and model obtained");
-    
     if (api_key.isEmpty() || model.isEmpty()) {
-        Serial.println("[InterpretationLayer] API key or model empty");
+        AI_LOG("[InterpretationLayer] API key or model empty");
         return false;  // Нет API ключа или модели / No API key or model
     }
     
     // Используем Task Manager для асинхронного выполнения HTTPS запроса
     // Use Task Manager for asynchronous HTTPS request execution
     if (!_taskManager->isRunning()) {
-        Serial.println("[InterpretationLayer] Task Manager not running, returning false");
+        AI_LOG("[InterpretationLayer] Task Manager not running, returning false");
         return false;
     }
     
     // Запрет LLM без валидного трека / Prohibit LLM without valid track
     if (context.track_title.isEmpty()) {
-        Serial.println("[InterpretationLayer] track_title empty, skipping LLM request");
+        AI_LOG("[InterpretationLayer] track_title empty, skipping LLM request");
         return false;  // На boot/служебных строках/станциях без метаданных LLM не дергать / Don't call LLM on boot/service strings/stations without metadata
     }
     
@@ -138,7 +131,7 @@ bool InterpretationLayer::process(const AIContext& context, AICandidate& out) {
     
     // Строго 1 запрос на трек / Strictly 1 request per track
     if (_last_enqueued_track_id == _track_id) {
-        Serial.println("[InterpretationLayer] Already enqueued for this track_id, skipping");
+        AI_DLOG("[InterpretationLayer] Already enqueued for this track_id, skipping");
         return false;
     }
     
@@ -167,6 +160,6 @@ bool InterpretationLayer::process(const AIContext& context, AICandidate& out) {
     
     // Задача поставлена в очередь, результат будет обработан асинхронно в _processLayers()
     // Job enqueued, result will be processed asynchronously in _processLayers()
-    Serial.println("[InterpretationLayer] Request enqueued successfully");
+    AI_LOG("[InterpretationLayer] Request enqueued successfully");
     return true;  // Возвращаем true для индикации успешного enqueue / Return true to indicate successful enqueue
 }

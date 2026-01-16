@@ -8,6 +8,7 @@
  */
 
 #include "ai_prompt.h"
+#include "ai_log.h"  // AI Layer logging macros
 #include <SPIFFS.h>
 #include "../../core/config.h"   // Для fsIsReady() / For fsIsReady()
 
@@ -33,19 +34,19 @@ static bool loadPromptFromFS(String& outPrompt) {
     }
     
     if (!SPIFFS.exists(AI_PROMPT_PATH)) {
-        Serial.printf("[AI] Prompt missing: %s\n", AI_PROMPT_PATH);
+        AI_LOG("[AI] Prompt missing: %s", AI_PROMPT_PATH);
         return false;
     }
     
     File file = SPIFFS.open(AI_PROMPT_PATH, "r");
     if (!file || file.isDirectory()) {
-        Serial.printf("[AI] Failed to open prompt: %s\n", AI_PROMPT_PATH);
+        AI_LOG("[AI] Failed to open prompt: %s", AI_PROMPT_PATH);
         return false;
     }
     
     size_t size = file.size();
     if (size == 0 || size > AI_PROMPT_MAX_LEN) {
-        Serial.printf("[AI] Prompt invalid size: %s size=%u max=%u\n", AI_PROMPT_PATH, size, AI_PROMPT_MAX_LEN);
+        AI_LOG("[AI] Prompt invalid size: %s size=%u max=%u", AI_PROMPT_PATH, size, AI_PROMPT_MAX_LEN);
         file.close();
         return false;
     }
@@ -56,12 +57,12 @@ static bool loadPromptFromFS(String& outPrompt) {
     
     outPrompt.trim();
     if (outPrompt.length() == 0) {
-        Serial.printf("[AI] Prompt empty after trim: %s\n", AI_PROMPT_PATH);
+        AI_LOG("[AI] Prompt empty after trim: %s", AI_PROMPT_PATH);
         return false;
     }
     
     // Log both file size and string length for diagnostics / Логировать и размер файла, и длину строки для диагностики
-    Serial.printf("[AI] Loaded prompt from %s (file=%u, text=%u)\n", AI_PROMPT_PATH, file_size, outPrompt.length());
+    AI_LOG("[AI] Loaded prompt from %s (file=%u, text=%u)", AI_PROMPT_PATH, file_size, outPrompt.length());
     return true;
 }
 
@@ -94,7 +95,7 @@ bool aiPromptGet(String& outPrompt) {
 void aiPromptResetCache() {
     g_prompt_loaded = false;
     g_prompt = "";
-    Serial.println("[AI] Prompt cache reset");
+    AI_LOG("[AI] Prompt cache reset");
 }
 
 // Check if prompt file is available (strict mode, no fallback) / Проверить, доступен ли файл промпта (строгий режим, без fallback)

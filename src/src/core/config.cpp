@@ -5,6 +5,7 @@
 #include "player.h"
 #include "network.h"
 #include "netserver.h"
+#include "../plugins/ai/ai_log.h"  // AI Layer logging macros
 #ifdef USE_SD
 #include "sdmanager.h"
 #endif
@@ -156,7 +157,7 @@ void aiApplyToStore(const AIConfig& cfg) {
   if (cfg.enabled && !should_enable) {
     extern bool aiPromptIsAvailable();
     if (!aiPromptIsAvailable()) {
-      Serial.println("[AI] Enable rejected: prompt missing (/ai/ai_prompt.txt)");
+      AI_LOG("[AI] Enable rejected: prompt missing (/ai/ai_prompt.txt)");
     }
   }
   

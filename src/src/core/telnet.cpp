@@ -5,6 +5,7 @@
 #include "player.h"
 #include "network.h"
 #include "telnet.h"
+#include "../plugins/ai/ai_log.h"  // Для aiLogSetBootDone / For aiLogSetBootDone
 
 Telnet telnet;
 
@@ -29,6 +30,9 @@ bool Telnet::begin(bool quiet) {
       BOOTLOG("Ready! Go to http:/%s/ to configure", WiFi.localIP().toString().c_str());
       BOOTLOG("------------------------------------------------");
       Serial.println("##[BOOT]#");
+      
+      // Boot banner завершён - разрешаем AI debug-логи / Boot banner complete - enable AI debug logs
+      aiLogSetBootDone(true);
     }
     return true;
   } else {

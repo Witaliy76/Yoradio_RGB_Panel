@@ -1091,17 +1091,53 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
   DBGVB("File: %s, size:%u bytes, index: %u, final: %s\n", filename.c_str(), len, index, final?"true":"false");
   
   // Handle AI prompt upload / Обработка загрузки AI промпта
-  // CONTRACT: Frontend MUST send file with name "ai_prompt.txt" (renamed in JavaScript)
-  // КОНТРАКТ: Frontend ДОЛЖЕН отправлять файл с именем "ai_prompt.txt" (переименован в JavaScript)
-  if (filename == "ai_prompt.txt") {
+  // Accept any .txt file for AI prompt (filename ignored, always saved as /ai/ai_prompt.txt)
+  // Принимаем любой .txt файл для AI prompt (имя файла игнорируется, всегда сохраняется как /ai/ai_prompt.txt)
+  // Atomic upload: write to /ai/ai_prompt.tmp, replace only on success
+  // Атомарная загрузка: пишем в /ai/ai_prompt.tmp, заменяем только при успехе
+  bool is_prompt_file = filename.endsWith(".txt") && filename != "playlist.csv" && filename != "wifi.csv";
+  
+  if (is_prompt_file) {
     // Get max prompt size from ai_prompt module / Получить максимальный размер промпта из модуля ai_prompt
     extern size_t aiPromptGetMaxLen();
     size_t max_prompt_size = aiPromptGetMaxLen();
+    const char* tmp_path = "/ai/ai_prompt.tmp";
+    const char* final_path = "/ai/ai_prompt.txt";
     
     if (!index) {
       // First chunk - validate and prepare / Первый chunk - валидация и подготовка
+      // ATOMIC UPLOAD: Do NOT touch existing prompt file until upload succeeds
+      // АТОМАРНАЯ ЗАГРУЗКА: НЕ трогаем существующий prompt файл до успешной загрузки
+      
+      // Debug logging (debug-only) / Отладочное логирование (только debug)
+      AI_DLOG("[AI] Upload start: filename=%s index=%u len=%u final=%d", filename.c_str(), index, len, final ? 1 : 0);
+      
+      // Save old file size for logging overwrite / Сохранить старый размер файла для логирования перезаписи
+      size_t old_size = 0;
+      if (SPIFFS.exists(final_path)) {
+        File old_file = SPIFFS.open(final_path, "r");
+        if (old_file) {
+          old_size = old_file.size();
+          old_file.close();
+        }
+      }
+      
+      // Store old_size for logging (static variable, safe for sequential uploads)
+      // Сохранить old_size для логирования (static переменная, безопасно для последовательных загрузок)
+      static size_t g_upload_old_size = 0;
+      g_upload_old_size = old_size;
+      
+      AI_DLOG("[AI] Upload: old_size=%u", old_size);
+      
+      // Remove any leftover temp file / Удалить любой оставшийся временный файл
+      if (SPIFFS.exists(tmp_path)) {
+        SPIFFS.remove(tmp_path);
+      }
+      
       // Check free space in SPIFFS / Проверка свободного места в SPIFFS
       float freeSpace = (float)SPIFFS.totalBytes()/100*68 - SPIFFS.usedBytes();
+      AI_DLOG("[AI] Upload: freeSpace=%.0f max_prompt_size=%u", freeSpace, max_prompt_size);
+      
       if (freeSpace < max_prompt_size) {
         AI_LOG("[AI] Upload rejected: insufficient SPIFFS space (free=%.0f, required=%u)", freeSpace, max_prompt_size);
         request->send(413, "text/plain", "Insufficient SPIFFS space");
@@ -1111,6 +1147,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
       // Check if Content-Length header exists and validate size / Проверить заголовок Content-Length и валидировать размер
       if (request->hasHeader("Content-Length")) {
         size_t content_length = atoi(request->getHeader("Content-Length")->value().c_str());
+        AI_DLOG("[AI] Upload: Content-Length=%u", content_length);
         if (content_length > max_prompt_size) {
           AI_LOG("[AI] Upload rejected: prompt too large (%u > %u)", content_length, max_prompt_size);
           request->send(413, "text/plain", "File too large");
@@ -1118,35 +1155,16 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         }
       }
       
-      // Save old file size for logging overwrite / Сохранить старый размер файла для логирования перезаписи
-      size_t old_size = 0;
-      if (SPIFFS.exists("/ai/ai_prompt.txt")) {
-        File old_file = SPIFFS.open("/ai/ai_prompt.txt", "r");
-        if (old_file) {
-          old_size = old_file.size();
-          old_file.close();
-        }
-      }
-      
-      // Remove old file if exists / Удалить старый файл если существует
-      if (SPIFFS.exists("/ai/ai_prompt.txt")) {
-        SPIFFS.remove("/ai/ai_prompt.txt");
-      }
-      
-      // Open file for writing / Открыть файл для записи
-      request->_tempFile = SPIFFS.open("/ai/ai_prompt.txt", "w");
+      // Open TEMP file for writing (atomic upload) / Открыть ВРЕМЕННЫЙ файл для записи (атомарная загрузка)
+      request->_tempFile = SPIFFS.open(tmp_path, "w");
       if (!request->_tempFile) {
-        AI_LOG("[AI] Upload failed: SPIFFS error (cannot open file)");
+        AI_LOG("[AI] Upload failed: SPIFFS error (cannot open temp file)");
+        AI_DLOG("[AI] Upload: open() failed for %s", tmp_path);
         request->send(500, "text/plain", "SPIFFS error");
         return;
       }
       
-      // Store old_size for logging overwrite (using request->_tempObject if available)
-      // Сохранить old_size для логирования перезаписи (используя request->_tempObject если доступен)
-      // Note: We'll use a static variable, but it's safe because uploads are sequential
-      // Примечание: Используем static переменную, но это безопасно, так как загрузки последовательны
-      static size_t g_upload_old_size = 0;
-      g_upload_old_size = old_size;
+      AI_DLOG("[AI] Upload: temp file opened successfully");
     }
     
     if (len) {
@@ -1156,25 +1174,193 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         if (current_size + len > max_prompt_size) {
           AI_LOG("[AI] Upload rejected: prompt too large (current=%u + chunk=%u > max=%u)", current_size, len, max_prompt_size);
           request->_tempFile.close();
-          SPIFFS.remove("/ai/ai_prompt.txt");
+          SPIFFS.remove(tmp_path);  // Remove temp file only / Удалить только временный файл
           request->send(413, "text/plain", "File too large");
           return;
         }
-        request->_tempFile.write(data, len);
+        size_t bytes_written = request->_tempFile.write(data, len);
+        request->_tempFile.flush();  // Ensure data is written to SPIFFS / Обеспечить запись данных в SPIFFS
+        
+        AI_DLOG("[AI] Upload chunk: index=%u len=%u written=%u final=%d", index, len, bytes_written, final ? 1 : 0);
+        
+        if (bytes_written != len) {
+          AI_LOG("[AI] Upload failed: write error (requested=%u written=%u)", len, bytes_written);
+          request->_tempFile.close();
+          SPIFFS.remove(tmp_path);
+          request->send(500, "text/plain", "SPIFFS write error");
+          return;
+        }
+      } else {
+        AI_DLOG("[AI] Upload chunk: request->_tempFile is NULL (index=%u len=%u)", index, len);
       }
     }
     
     if (final) {
       if (request->_tempFile) {
+        request->_tempFile.flush();  // Final flush before checking size / Финальный flush перед проверкой размера
         size_t new_size = request->_tempFile.size();
         request->_tempFile.close();
+        
+        // Debug logging (debug-only) / Отладочное логирование (только debug)
+        AI_DLOG("[AI] Upload final: tmp_size=%u max_prompt_size=%u index=%u len=%u", new_size, max_prompt_size, index, len);
         
         // Validate final file size / Валидация итогового размера файла
         if (new_size == 0 || new_size > max_prompt_size) {
           AI_LOG("[AI] Upload failed: invalid file size (%u, max=%u)", new_size, max_prompt_size);
-          SPIFFS.remove("/ai/ai_prompt.txt");
+          AI_DLOG("[AI] Upload: validation failed, removing tmp only");
+          SPIFFS.remove(tmp_path);  // Remove temp file only, keep old prompt / Удалить только временный файл, оставить старый prompt
           request->send(400, "text/plain", "Invalid file size");
           return;
+        }
+        
+        // ROLLBACK-SAFE REPLACE: Create backup of old file, then replace only on success
+        // БЕЗОПАСНАЯ ЗАМЕНА С ВОССТАНОВЛЕНИЕМ: Создаём backup старого файла, затем заменяем только при успехе
+        // If replace fails, restore backup and keep old prompt
+        // Если замена не удалась, восстанавливаем backup и оставляем старый prompt
+        const char* bak_path = "/ai/ai_prompt.bak";
+        
+        // Step 1: Create backup of old file (if exists) / Шаг 1: Создать backup старого файла (если существует)
+        bool has_backup = false;
+        if (SPIFFS.exists(final_path)) {
+          // Remove old backup if exists / Удалить старый backup если существует
+          if (SPIFFS.exists(bak_path)) {
+            SPIFFS.remove(bak_path);
+          }
+          
+          // Copy old file to backup / Копировать старый файл в backup
+          File old_file = SPIFFS.open(final_path, "r");
+          if (old_file) {
+            File bak_file = SPIFFS.open(bak_path, "w");
+            if (bak_file) {
+              uint8_t buf[128];
+              bool bak_success = true;
+              while (old_file.available()) {
+                size_t bytes_read = old_file.read(buf, sizeof(buf));
+                if (bytes_read > 0) {
+                  size_t bytes_written = bak_file.write(buf, bytes_read);
+                  if (bytes_written != bytes_read) {
+                    bak_success = false;
+                    break;
+                  }
+                }
+              }
+              bak_file.close();
+              old_file.close();
+              
+              if (bak_success) {
+                has_backup = true;
+              } else {
+                // Backup failed - remove corrupted backup / Backup не удался - удалить повреждённый backup
+                SPIFFS.remove(bak_path);
+              }
+            } else {
+              old_file.close();
+            }
+          }
+        }
+        
+        // Step 2: Copy temp to final (overwrite) / Шаг 2: Копировать временный в финальный (перезаписать)
+        File tmp_file = SPIFFS.open(tmp_path, "r");
+        if (!tmp_file) {
+          AI_LOG("[AI] Upload failed: cannot read temp file for finalization");
+          SPIFFS.remove(tmp_path);
+          if (has_backup && SPIFFS.exists(bak_path)) {
+            SPIFFS.remove(bak_path);  // Cleanup backup if we didn't use it / Очистить backup если не использовали
+          }
+          request->send(500, "text/plain", "SPIFFS error");
+          return;
+        }
+        
+        File final_file = SPIFFS.open(final_path, "w");
+        if (!final_file) {
+          tmp_file.close();
+          AI_LOG("[AI] Upload failed: cannot create final file");
+          SPIFFS.remove(tmp_path);
+          if (has_backup && SPIFFS.exists(bak_path)) {
+            SPIFFS.remove(bak_path);  // Cleanup backup / Очистить backup
+          }
+          request->send(500, "text/plain", "SPIFFS error");
+          return;
+        }
+        
+        // Copy temp to final / Копировать временный в финальный
+        uint8_t buf[128];
+        bool copy_success = true;
+        while (tmp_file.available()) {
+          size_t bytes_read = tmp_file.read(buf, sizeof(buf));
+          if (bytes_read > 0) {
+            size_t bytes_written = final_file.write(buf, bytes_read);
+            if (bytes_written != bytes_read) {
+              copy_success = false;
+              break;
+            }
+          }
+        }
+        
+        tmp_file.close();
+        final_file.close();
+        
+        // Step 3: Validate copied file / Шаг 3: Валидировать скопированный файл
+        // Check final file size (more reliable than counting bytes during copy)
+        // Проверяем размер финального файла (надёжнее, чем подсчёт байтов при копировании)
+        size_t final_size = 0;
+        File validate_file = SPIFFS.open(final_path, "r");
+        if (validate_file) {
+          final_size = validate_file.size();
+          validate_file.close();
+        }
+        
+        AI_DLOG("[AI] Upload: copy result - copy_success=%d tmp_size=%u final_size=%u", copy_success ? 1 : 0, new_size, final_size);
+        
+        if (!copy_success || final_size != new_size || final_size == 0) {
+          // Copy failed or validation failed - rollback / Копирование не удалось или валидация не прошла - откат
+          if (SPIFFS.exists(final_path)) {
+            SPIFFS.remove(final_path);  // Remove corrupted final / Удалить повреждённый финальный
+          }
+          
+          // Restore backup if exists / Восстановить backup если существует
+          if (has_backup && SPIFFS.exists(bak_path)) {
+            File bak_file = SPIFFS.open(bak_path, "r");
+            if (bak_file) {
+              File restore_file = SPIFFS.open(final_path, "w");
+              if (restore_file) {
+                uint8_t buf[128];
+                bool restore_success = true;
+                while (bak_file.available()) {
+                  size_t bytes_read = bak_file.read(buf, sizeof(buf));
+                  if (bytes_read > 0) {
+                    size_t bytes_written = restore_file.write(buf, bytes_read);
+                    if (bytes_written != bytes_read) {
+                      restore_success = false;
+                      break;
+                    }
+                  }
+                }
+                restore_file.close();
+                bak_file.close();
+                
+                if (restore_success) {
+                  AI_LOG("[AI] Upload failed: restored prompt from backup");
+                } else {
+                  SPIFFS.remove(final_path);  // Remove corrupted restore / Удалить повреждённое восстановление
+                }
+              } else {
+                bak_file.close();
+              }
+            }
+            SPIFFS.remove(bak_path);  // Cleanup backup after restore attempt / Очистить backup после попытки восстановления
+          }
+          
+          SPIFFS.remove(tmp_path);
+          AI_LOG("[AI] Upload failed: file copy/validation failed (tmp_size=%u final_size=%u)", new_size, final_size);
+          request->send(500, "text/plain", "SPIFFS copy/validation error");
+          return;
+        }
+        
+        // Step 4: Replace succeeded - cleanup temp and backup / Шаг 4: Замена успешна - очистить временный файл и backup
+        SPIFFS.remove(tmp_path);
+        if (has_backup && SPIFFS.exists(bak_path)) {
+          SPIFFS.remove(bak_path);  // Remove backup after successful replace / Удалить backup после успешной замены
         }
         
         // Log upload event FIRST (before cache reset) / Залогировать событие загрузки ПЕРВЫМ (до сброса кеша)
@@ -1194,6 +1380,9 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         request->send(200, "text/plain", "OK");
       } else {
         AI_LOG("[AI] Upload failed: SPIFFS error (file not open)");
+        if (SPIFFS.exists(tmp_path)) {
+          SPIFFS.remove(tmp_path);  // Cleanup temp file / Очистить временный файл
+        }
         request->send(500, "text/plain", "SPIFFS error");
       }
       return;

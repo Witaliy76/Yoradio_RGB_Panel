@@ -39,14 +39,14 @@
 #endif
 
 /* SROLLS  */                            /* {{ left, top, fontsize, align }, buffsize, uppercase, width, scrolldelay, scrolldelta, scrolltime } */
-const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 3, WA_LEFT }, 140, true, MAX_WIDTH, 5000, 30, 12 }; //5,12
-const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT, 48, 2, WA_LEFT }, 140, true, MAX_WIDTH-TITLE_FIX, 5000, 30, 12 };
-const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT, 69, 2, WA_LEFT }, 140, false, MAX_WIDTH-TITLE_FIX, 5000, 30, 12 };
-const ScrollConfig interpretationConf PROGMEM = {{ TFT_FRAMEWDT, 90, 2, WA_LEFT }, 256, false, MAX_WIDTH-TITLE_FIX, 1000, 40, 6 }; // AI interpretation / AI интерпретация (faster scroll / быстрая прокрутка)
-const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 4, WA_LEFT }, 140, false, MAX_WIDTH, 1000, 30, 12 };
+const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 3, WA_LEFT }, 140, true, MAX_WIDTH, 5000, 70, 12 }; //5,12
+const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT, 48, 2, WA_LEFT }, 140, true, MAX_WIDTH-TITLE_FIX, 5000, 70, 12 };
+const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT, 69, 2, WA_LEFT }, 140, false, MAX_WIDTH-TITLE_FIX, 5000, 70, 12 };
+const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 4, WA_LEFT }, 140, false, MAX_WIDTH, 1000, 50, 12 };
 const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 4, WA_CENTER }, 140, false, MAX_WIDTH, 0, 30, 8 };
 const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT, 320-TFT_FRAMEWDT-16, 2, WA_LEFT }, 140, false, MAX_WIDTH, 0, 30, 8 };
-const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT, 102, 2, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 30, 4 }; //10,4
+const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT, 94, 2, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 80, 4 }; //10,4-суперплавно
+const ScrollConfig interpretationConf PROGMEM = {{ TFT_FRAMEWDT, 116, 3, WA_LEFT }, 256, false, MAX_WIDTH, 1000, 70, 4 }; // AI interpretation / AI интерпретация (faster scroll / быстрая прокрутка) - below Weather / ниже Weather
 
 /* BACKGROUNDS  */                       /* {{ left, top, fontsize, align }, width, height, outlined } */
 const FillConfig   metaBGConf     PROGMEM = {{ 0, 0, 0, WA_LEFT }, DSP_WIDTH, 40, false };
@@ -75,7 +75,7 @@ const ProgressConfig bootPrgConf  PROGMEM = { 90, 9, 4 }; //скорость, ш
 const BitrateConfig fullbitrateConf PROGMEM = {{DSP_WIDTH-TFT_FRAMEWDT-34, 44, 2, WA_LEFT}, 42 };
 
 /* BANDS  */                             /* { onebandwidth, onebandheight, bandsHspace, bandsVspace, numofbands, fadespeed } */
-const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH, 35, 4, 5, 45, 30};
+const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH, 30, 4, 5, 45, 10};
 
 /* STRINGS  */
 const char         numtxtFmt[]    PROGMEM = "%d";
@@ -89,9 +89,9 @@ const char         voltxtFmt[]    PROGMEM = "\023\025%d";
 const char        bitrateFmt[]    PROGMEM = "%d kBs";
 
 /* MOVES  */                             /* { left, top, width } */
-const MoveConfig    clockMove     PROGMEM = { 0, 150, MAX_WIDTH /* MAX_WIDTH */ }; // -1 disables move
-const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
-const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT, 102, MAX_WIDTH};
+const MoveConfig    clockMove     PROGMEM = { 0, 157, MAX_WIDTH /* MAX_WIDTH */ }; // -1 disables move
+const MoveConfig   weatherMove    PROGMEM = { TFT_FRAMEWDT, 94, MAX_WIDTH};  
+const MoveConfig   weatherMoveVU  PROGMEM = { TFT_FRAMEWDT, 94, MAX_WIDTH};  
 
 /* SPECTRUM ANALYZER  */                 /* Spectrum analyzer config for AXS15231B (320x480) */
 const SpectrumWidgetConfig spectrumConf PROGMEM = {

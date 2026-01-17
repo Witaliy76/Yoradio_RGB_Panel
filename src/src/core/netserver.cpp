@@ -1170,18 +1170,24 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
     if (len) {
       // Check current file size during upload / Проверить текущий размер файла во время загрузки
       if (request->_tempFile) {
-        size_t current_size = request->_tempFile.size();
-        if (current_size + len > max_prompt_size) {
-          AI_LOG("[AI] Upload rejected: prompt too large (current=%u + chunk=%u > max=%u)", current_size, len, max_prompt_size);
+        // Для первого chunk (index=0) size() может возвращать мусорное значение на некоторых модулях SPIFFS
+        // For first chunk (index=0) size() may return garbage value on some SPIFFS modules
+        // Используем index как приблизительную оценку размера для проверки
+        // Use index as approximate size estimate for validation
+        size_t estimated_size = (index == 0) ? len : request->_tempFile.size();
+        
+        if (estimated_size + len > max_prompt_size) {
+          AI_LOG("[AI] Upload rejected: prompt too large (estimated=%u + chunk=%u > max=%u)", estimated_size, len, max_prompt_size);
           request->_tempFile.close();
           SPIFFS.remove(tmp_path);  // Remove temp file only / Удалить только временный файл
           request->send(413, "text/plain", "File too large");
           return;
         }
+        
         size_t bytes_written = request->_tempFile.write(data, len);
         request->_tempFile.flush();  // Ensure data is written to SPIFFS / Обеспечить запись данных в SPIFFS
         
-        AI_DLOG("[AI] Upload chunk: index=%u len=%u written=%u final=%d", index, len, bytes_written, final ? 1 : 0);
+        AI_DLOG("[AI] Upload chunk: index=%u len=%u written=%u final=%d estimated_size=%u", index, len, bytes_written, final ? 1 : 0, estimated_size);
         
         if (bytes_written != len) {
           AI_LOG("[AI] Upload failed: write error (requested=%u written=%u)", len, bytes_written);

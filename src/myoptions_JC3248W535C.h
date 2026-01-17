@@ -194,7 +194,15 @@
 //#define LED_INVERT       false             // Invert onboard LED
 //#define DSP_INVERT_TITLE false             // Invert station title colors
 //#define EXT_WEATHER      false             // Extended weather display
-
 //#define DEBUG_TOUCH                          // Enable touchscreen debug output
+//#define DEBUG_DISPLAY                          // Display debug
+
+// Day of week uppercase (true = uppercase, false = lowercase)
+//#define DOW_UPPERCASE true                     // Uncomment and set to true/false if needed
+
+/* AI Layer debug logs / Логи отладки AI Layer */
+// 0 = release (only important logs), 1 = debug (all logs)
+// 0 = релиз (только важные логи), 1 = отладка (все логи)
+#define AI_LAYER_DEBUG 1
 
 #endif

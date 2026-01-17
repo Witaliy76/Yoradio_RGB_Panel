@@ -75,7 +75,7 @@ const ProgressConfig bootPrgConf  PROGMEM = { 90, 9, 4 }; // speed, width, movin
 const BitrateConfig fullbitrateConf PROGMEM = {{DSP_WIDTH-TFT_FRAMEWDT-34, 44, 2, WA_LEFT}, 42 };
 
 /* BANDS  */                             /* { onebandwidth, onebandheight, bandsHspace, bandsVspace, numofbands, fadespeed } */
-const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH, 25, 4, 5, 47, 15}; // lower fadespeed = slower fade
+const VUBandsConfig bandsConf     PROGMEM = {  MAX_WIDTH, 25, 4, 5, 47, 10}; // lower fadespeed = slower fade
 
 /* STRINGS  */
 const char         numtxtFmt[]    PROGMEM = "%d";

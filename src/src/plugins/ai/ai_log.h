@@ -33,8 +33,22 @@ inline void aiLogSetBootDone(bool v) {
  * AI_LOG - Всегда печатать (логи класса A)
  * 
  * Usage: AI_LOG("[AIPlugin] Track changed, new track_id: %u", track_id);
+ * 
+ * Note: Long strings (>200 chars) are truncated to prevent Serial buffer overflow / Примечание: Длинные строки (>200 символов) обрезаются для предотвращения переполнения буфера Serial
  */
-#define AI_LOG(fmt, ...)   Serial.printf((fmt "\n"), ##__VA_ARGS__)
+#define AI_LOG(fmt, ...) do { \
+    char _ai_log_buf[256]; \
+    int _ai_log_len = snprintf(_ai_log_buf, sizeof(_ai_log_buf) - 1, fmt, ##__VA_ARGS__); \
+    if (_ai_log_len < 0) { \
+        _ai_log_buf[0] = '\0'; \
+    } else if (_ai_log_len >= (int)(sizeof(_ai_log_buf) - 1)) { \
+        _ai_log_buf[sizeof(_ai_log_buf) - 4] = '.'; \
+        _ai_log_buf[sizeof(_ai_log_buf) - 3] = '.'; \
+        _ai_log_buf[sizeof(_ai_log_buf) - 2] = '.'; \
+        _ai_log_buf[sizeof(_ai_log_buf) - 1] = '\0'; \
+    } \
+    Serial.printf("%s\n", _ai_log_buf); \
+} while(0)
 
 /**
  * AI_DLOG - Print only if AI_LAYER_DEBUG == 1 AND boot is done (class B logs)

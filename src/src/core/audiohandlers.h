@@ -28,12 +28,46 @@ void audio_info(const char *info) {
     strlcpy(b, ici + 9, 50);
     audio_bitrate(b);
   }
+  if (((ici = strstr(info, "StreamTitle= ")) != NULL) /*&& strlen(info) > 15*/) {
+    if(strlen(config.station.title)==0 || strcmp(config.station.title, config.station.name)==0 || strstr(config.station.title, "timeout") != NULL ||
+       strstr(config.station.title, "[соединение]") != NULL || strstr(config.station.title, "[connecting]") != NULL ||
+       strstr(config.station.title, "(connection)") != NULL || strstr(config.station.title, "[ready]") != NULL ||
+       strstr(config.station.title, "[готов]") != NULL || strstr(config.station.title, "[stopped]") != NULL ||
+       strstr(config.station.title, "[остановлено]") != NULL){
+      char StreamTitle[strlen(info)+1]={0};
+      strlcpy(StreamTitle, ici + 13, strlen(info));
+      audio_id3album(StreamTitle);
+    }
+  }
+  if (((ici = strstr(info, "icy-name: ")) != NULL) && strlen(info) > 12) {
+    if(strlen(config.station.title)==0 || strcmp(config.station.title, config.station.name)==0 || strstr(config.station.title, "timeout") != NULL ||
+       strstr(config.station.title, "[соединение]") != NULL || strstr(config.station.title, "[connecting]") != NULL ||
+       strstr(config.station.title, "(connection)") != NULL || strstr(config.station.title, "[ready]") != NULL ||
+       strstr(config.station.title, "[готов]") != NULL || strstr(config.station.title, "[stopped]") != NULL ||
+       strstr(config.station.title, "[остановлено]") != NULL) {
+      char icyName[strlen(info)+1]={0};
+      strlcpy(icyName, ici + 10, strlen(info));
+      #ifdef NAME_STRIM
+         if ((ici = strstr(icyName, " - " )) != NULL) {
+           char icySt[strlen(icyName) - strlen(ici) + 1]={0};
+           strlcpy(icySt, icyName, strlen(icyName) - strlen(ici) + 1);
+           config.setStation(icySt);
+         } else
+           config.setStation(icyName);
+         display.putRequest(NEWSTATION);
+         netserver.requestOnChange(STATION, 0);
+     #endif
+         audio_id3album(icyName);
+    }
+  }
 }
 
 void audio_bitrate(const char *info)
 {
   if(config.store.audioinfo) telnet.printf("%s %s\n", "##AUDIO.BITRATE#:", info);
-  config.station.bitrate = atoi(info) / 1000;
+  uint32_t br = atoi(info);
+  if (br > 3000) br = br / 1000;
+  config.station.bitrate = br;
   display.putRequest(DBITRATE);
   #ifdef USE_NEXTION
     nextion.bitrate(config.station.bitrate);
@@ -65,11 +99,12 @@ void audio_showstation(const char *info) {
 void audio_showstreamtitle(const char *info) {
   DBGH();
   if (strstr(info, "Account already in use") != NULL || strstr(info, "HTTP/1.0 401") != NULL) player.setError(info);
-  bool p = printable(info) && (strlen(info) > 0);
+  bool p = (strlen(info) > 0) && printable(info);
   #ifdef DEBUG_TITLES
     config.setTitle(DEBUG_TITLES);
   #else
-    config.setTitle(p?info:config.station.name);
+    if (p) config.setTitle(info);
+    else if (strlen(config.station.title)==0) config.setTitle(config.station.name);
   #endif
 }
 
@@ -88,7 +123,11 @@ void audio_id3artist(const char *info){
 void audio_id3album(const char *info){
   if(player.lockOutput) return;
   if(printable(info)){
-    if(strlen(config.station.title)==0){
+    if(strlen(config.station.title)==0 || strcmp(config.station.title, config.station.name)==0 || strstr(config.station.title, "timeout") != NULL ||
+       strstr(config.station.title, "[соединение]") != NULL || strstr(config.station.title, "[connecting]") != NULL ||
+       strstr(config.station.title, "(connection)") != NULL || strstr(config.station.title, "[ready]") != NULL ||
+       strstr(config.station.title, "[готов]") != NULL || strstr(config.station.title, "[stopped]") != NULL ||
+       strstr(config.station.title, "[остановлено]") != NULL){
       config.setTitle(info);
     }else{
       char out[BUFLEN]= {0};

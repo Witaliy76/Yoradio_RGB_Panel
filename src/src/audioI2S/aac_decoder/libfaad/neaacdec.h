@@ -48,6 +48,7 @@
     #if defined(DSP_AXS15231B)
         #define PS_DEC // ⚠️ Включено только для QSPI дисплеев (JC3248W535C)
     #endif
+    //#define PS_DEC
     // Для RGB Panel (4848S040, UEDX) PS отключен из-за высокой нагрузки / PS disabled for RGB panels due to high load
 #endif
 //#define SBR_LOW_POWER

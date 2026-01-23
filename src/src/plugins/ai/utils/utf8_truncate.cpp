@@ -1,9 +1,9 @@
 /**
- * utf8_truncate.cpp - Реализация утилит для корректной обрезки UTF-8 строк
- * Описание: Безопасное копирование UTF-8 строк в фиксированные буферы с учётом границ символов
- * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * utf8_truncate.cpp - UTF-8 string truncation utilities implementation
+ * Description: Safe UTF-8 string copying to fixed buffers with character boundary awareness
+ * Author: W76W, 4pda.to
+ * Date: 21.12.2025
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include "utf8_truncate.h"

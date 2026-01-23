@@ -1,9 +1,9 @@
 /**
- * interpretation_layer.cpp - Реализация слоя интерпретации
- * Описание: Слой интерпретации музыки через LLM, отправка запросов, обработка результатов
- * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * interpretation_layer.cpp - Music interpretation layer implementation
+ * Description: Music interpretation layer via LLM, request submission, result processing
+ * Author: W76W, 4pda.to
+ * Date: 21.12.2025
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include "interpretation_layer.h"

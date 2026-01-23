@@ -3,11 +3,10 @@
 
 /**
  * ai_prompt.h - AI prompt loader header
- * Описание: Загрузчик промптов для AI из SPIFFS с кешированием в RAM
  * Description: AI prompt loader from SPIFFS with RAM caching
- * Автор: W76W, 4pda.to
- * Дата: 02.01.2026
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * Author: W76W, 4pda.to
+ * Date: 02.01.2026
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include <Arduino.h>

@@ -2,11 +2,11 @@
 #define AI_COORDINATOR_H
 
 /**
- * ai_coordinator.h - Заголовочный файл координатора показа AI-текста
- * Описание: Интерфейс менеджера показа AI-текста (анти-спам, дедупликация, контроль частоты)
- * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * ai_coordinator.h - AI text display coordinator header
+ * Description: AI text display manager interface (anti-spam, deduplication, rate limiting)
+ * Author: W76W, 4pda.to
+ * Date: 21.12.2025
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include "ai_types.h"

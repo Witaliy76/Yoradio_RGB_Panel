@@ -1,9 +1,9 @@
 /**
- * utf8_casefold_search.cpp - Реализация регистронезависимого поиска в UTF-8 строках
- * Описание: Регистронезависимый поиск паттернов в UTF-8 строках без выделения памяти (RU+EN)
- * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * utf8_casefold_search.cpp - Case-insensitive UTF-8 string search utilities implementation
+ * Description: Case-insensitive pattern search in UTF-8 strings without memory allocation (RU+EN)
+ * Author: W76W, 4pda.to
+ * Date: 21.12.2025
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include "utf8_casefold_search.h"

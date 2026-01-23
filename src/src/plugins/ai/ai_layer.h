@@ -2,11 +2,11 @@
 #define AI_LAYER_H
 
 /**
- * ai_layer.h - Базовый интерфейс для AI-слоёв
- * Описание: Абстрактный базовый класс для всех AI-слоёв (InterpretationLayer, MomentLayer)
- * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * ai_layer.h - Base interface for AI layers
+ * Description: Abstract base class for all AI layers (InterpretationLayer, MomentLayer)
+ * Author: W76W, 4pda.to
+ * Date: 21.12.2025
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include "ai_types.h"

@@ -1,10 +1,9 @@
 /**
  * openai_compat_provider.cpp - OpenAI-compatible provider implementation
- * Описание: Универсальный провайдер для OpenAI-compatible API, использует настройки из runtime cache
  * Description: Universal provider for OpenAI-compatible API, uses settings from runtime cache
- * Автор: W76W, 4pda.to
- * Дата: 02.01.2026
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * Author: W76W, 4pda.to
+ * Date: 02.01.2026
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include "openai_compat_provider.h"

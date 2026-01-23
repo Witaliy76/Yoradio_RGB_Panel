@@ -2,11 +2,11 @@
 #define LLM_PROVIDER_H
 
 /**
- * llm_provider.h - Абстрактный базовый класс для LLM провайдеров
- * Описание: Интерфейс для pluggable архитектуры поддержки разных LLM API
- * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * llm_provider.h - Abstract base class for LLM providers
+ * Description: Interface for pluggable architecture supporting different LLM APIs
+ * Author: W76W, 4pda.to
+ * Date: 21.12.2025
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include <Arduino.h>

@@ -1,9 +1,9 @@
 /**
- * moment_layer.cpp - Реализация слоя момента
- * Описание: Автономный слой момента с предопределёнными фразами (без LLM)
- * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * moment_layer.cpp - Moment layer implementation
+ * Description: Autonomous moment layer with predefined phrases (no LLM)
+ * Author: W76W, 4pda.to
+ * Date: 21.12.2025
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include "moment_layer.h"

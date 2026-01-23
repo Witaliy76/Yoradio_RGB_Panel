@@ -2,11 +2,11 @@
 #define AI_TASK_H
 
 /**
- * ai_task.h - Заголовочный файл менеджера AI задач
- * Описание: Структуры данных и интерфейс для асинхронного выполнения AI запросов через FreeRTOS
- * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * ai_task.h - AI task manager header
+ * Description: Data structures and interface for asynchronous AI request execution via FreeRTOS
+ * Author: W76W, 4pda.to
+ * Date: 21.12.2025
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include "ai_types.h"

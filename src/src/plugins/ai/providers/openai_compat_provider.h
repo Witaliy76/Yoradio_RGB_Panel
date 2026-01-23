@@ -3,11 +3,10 @@
 
 /**
  * openai_compat_provider.h - OpenAI-compatible provider header
- * Описание: Универсальный провайдер для OpenAI-compatible API (DeepSeek, OpenAI, Perplexity, etc.)
  * Description: Universal provider for OpenAI-compatible API (DeepSeek, OpenAI, Perplexity, etc.)
- * Автор: W76W, 4pda.to
- * Дата: 02.01.2026
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * Author: W76W, 4pda.to
+ * Date: 02.01.2026
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include "llm_provider.h"

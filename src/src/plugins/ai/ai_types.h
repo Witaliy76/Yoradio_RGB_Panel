@@ -2,11 +2,11 @@
 #define AI_TYPES_H
 
 /**
- * ai_types.h - Базовые типы данных для AI-слоя
- * Описание: Определения структур данных, перечислений и типов для AI-слоя
- * Автор: W76W, 4pda.to
- * Дата: 21.12.2025
- * Версия: Yoradio RGB Panel v0.9.434m-alpha
+ * ai_types.h - Base data types for AI Layer
+ * Description: Data structures, enumerations and types definitions for AI Layer
+ * Author: W76W, 4pda.to
+ * Date: 21.12.2025
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #include <Arduino.h>

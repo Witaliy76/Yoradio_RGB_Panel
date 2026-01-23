@@ -1,9 +1,9 @@
 /**
  * ai_log.h - AI Layer logging macros
- * Описание: Макросы для логирования AI Layer с поддержкой compile-time debug флага
  * Description: Logging macros for AI Layer with compile-time debug flag support
- * Автор: W76W, 4pda.to
- * Дата: 2025-01-XX
+ * Author: W76W, 4pda.to
+ * Date: 20.01.2026
+ * Version: Yoradio RGB Panel v0.9.434m-r2
  */
 
 #pragma once

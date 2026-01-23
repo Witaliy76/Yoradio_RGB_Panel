@@ -240,14 +240,20 @@ void DspCore::printPLitem(uint8_t pos, const char* item, ScrollWidget& current, 
       strncpy(buf, rus, cut);
       buf[cut] = 0;
     }
-    gfxDrawText(
+    // Используем gfxDrawText1b() так как строка уже сконвертирована в CP1251 через utf8Rus()
+    // Use gfxDrawText1b() because string is already converted to CP1251 via utf8Rus()
+    // gfxDrawText() вызывает utf8Rus() внутри, что приводит к двойной конвертации
+    // gfxDrawText() calls utf8Rus() internally, causing double conversion
+    gfxDrawText1b(
       gfx,
       TFT_FRAMEWDT,
       plYStart + pos * plItemHeight,
       buf,
       config.theme.playlist[plColor],
       config.theme.background,
-      textsize
+      textsize,
+      nullptr,
+      uppercase
     );
   }
 }

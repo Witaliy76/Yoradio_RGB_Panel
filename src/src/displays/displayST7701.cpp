@@ -263,7 +263,7 @@ void DspCore::initDisplay() {
   
   // Simple test - clear screen
   if (gfx) {
-    gfx->fillScreen(BLACK);
+    gfx->fillScreen(RGB565_BLACK);
     Serial.println("[ST7701] Screen cleared to BLACK");
     
    

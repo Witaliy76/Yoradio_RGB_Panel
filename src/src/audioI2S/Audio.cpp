@@ -17,6 +17,7 @@
 
 #if VS1053_CS==255
 #include "../core/config.h"
+#include "../core/mem_watchdog.h"
 #include "AudioEx.h"
 #include "aac_decoder/aac_decoder.h"
 #include "flac_decoder/flac_decoder.h"
@@ -587,6 +588,10 @@ bool Audio::openai_speech(const String& api_key, const String& model, const Stri
         m_f_tts = true;
     } else {
         /*AUDIO_LOG_WARN*/AUDIO_ERROR("Request %s failed!", host.get());
+#ifdef MEM_WATCHDOG_AUTOREBOOT
+        memWatchdog.record(MWEvent::HTTP_FAIL);
+        { auto d = memWatchdog.evaluate(); if (d.trigger) memWatchdog.armReboot(); }
+#endif
     }
     xSemaphoreGiveRecursive(mutex_playAudioData);
     return res;
@@ -767,6 +772,10 @@ bool Audio::connecttohost(const char* host, const char* user, const char* pwd) {
     }
     else {
         AUDIO_ERROR("Request %s failed!", c_host.get());
+#ifdef MEM_WATCHDOG_AUTOREBOOT
+        memWatchdog.record(MWEvent::HTTP_FAIL);
+        { auto d = memWatchdog.evaluate(); if (d.trigger) memWatchdog.armReboot(); }
+#endif
         m_f_running = false;
 //        info(evt_name, "");
 //        info(evt_streamtitle, "");
@@ -854,6 +863,10 @@ bool Audio::httpPrint(const char* host) {
         if(m_f_ssl) tlsPreconnectCleanup();
         if(!m_client->connect(hwoe.get(), port)) {
             AUDIO_ERROR("connection lost %s", c_host.c_get());
+#ifdef MEM_WATCHDOG_AUTOREBOOT
+            memWatchdog.record(MWEvent::CONN_LOST);
+            { auto d = memWatchdog.evaluate(); if (d.trigger) memWatchdog.armReboot(); }
+#endif
             stopSong();
             return false;
         }
@@ -956,6 +969,10 @@ bool Audio::httpRange(uint32_t seek, uint32_t length){
     if(m_f_ssl) tlsPreconnectCleanup();
     if(!m_client->connect(hwoe.get(), port)) {
         AUDIO_ERROR("connection lost %s", c_host.c_get());
+#ifdef MEM_WATCHDOG_AUTOREBOOT
+        memWatchdog.record(MWEvent::CONN_LOST);
+        { auto d = memWatchdog.evaluate(); if (d.trigger) memWatchdog.armReboot(); }
+#endif
         stopSong();
         return false;
     }
@@ -1048,6 +1065,10 @@ bool Audio::connecttospeech(const char* speech, const char* lang) {
     AUDIO_INFO("connect to \"%s\"", host);
     if(!m_client->connect(host, 80)) {
         AUDIO_ERROR("Connection failed");
+#ifdef MEM_WATCHDOG_AUTOREBOOT
+        memWatchdog.record(MWEvent::HTTP_FAIL);
+        { auto d = memWatchdog.evaluate(); if (d.trigger) memWatchdog.armReboot(); }
+#endif
         xSemaphoreGiveRecursive(mutex_playAudioData);
         return false;
     }

@@ -3,6 +3,7 @@
 #include "player.h"
 
 #include "config.h"
+#include "mem_watchdog.h"
 #include "telnet.h"
 #include "display.h"
 #include "sdmanager.h"
@@ -275,6 +276,10 @@ void Player::_play(uint16_t stationId) {
   }else{
     telnet.printf("##ERROR#:\tError connecting to %s\n", config.station.url);
     SET_PLAY_ERROR("Error connecting to %s", config.station.url);
+#ifdef MEM_WATCHDOG_AUTOREBOOT
+    memWatchdog.record(MWEvent::HTTP_FAIL);
+    { auto d = memWatchdog.evaluate(); if (d.trigger) memWatchdog.armReboot(); }
+#endif
     _stop(true);
   };
 }
@@ -300,6 +305,10 @@ void Player::browseUrl(){
   }else{
     telnet.printf("##ERROR#:\tError connecting to %s\n", burl);
     SET_PLAY_ERROR("Error connecting to %s", burl);
+#ifdef MEM_WATCHDOG_AUTOREBOOT
+    memWatchdog.record(MWEvent::HTTP_FAIL);
+    { auto d = memWatchdog.evaluate(); if (d.trigger) memWatchdog.armReboot(); }
+#endif
     _stop(true);
   }
   memset(burl, 0, MQTT_BURL_SIZE);

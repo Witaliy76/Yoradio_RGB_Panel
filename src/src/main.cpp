@@ -9,6 +9,7 @@
 #include "core/controls.h"
 #include "core/mqtt.h"
 #include "core/optionschecker.h"
+#include "core/mem_watchdog.h"
 
 // Spectrum Analyzer
 #include "displays/tools/spectrum_analyzer.h"
@@ -37,6 +38,9 @@ void setup() {
   
   pm.on_setup();
   config.init();
+#ifdef MEM_WATCHDOG_AUTOREBOOT
+  memWatchdog.onBoot();
+#endif
   display.init();
   
   // Инициализация Spectrum Analyzer (всегда)
@@ -85,6 +89,15 @@ void setup() {
 }
 
 void loop() {
+#ifdef MEM_WATCHDOG_AUTOREBOOT
+  memWatchdog.onStableRun();
+  if (memWatchdog.rebootArmed() && !memWatchdog.isSuppressed()) {
+    config.setTitle("LOW RAM: rebooting to recover");
+    telnet.printf("##SYS#: LOW RAM: rebooting to recover\n");
+    delay(2000);
+    ESP.restart();
+  }
+#endif
   telnet.loop();
   if (network.status == CONNECTED || network.status==SDREADY) {
     player.loop();

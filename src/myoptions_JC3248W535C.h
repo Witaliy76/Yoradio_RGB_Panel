@@ -190,6 +190,8 @@
    =============================================== */
 //#define PERFMON_DISABLED                   // Disable performance monitoring
 //#define WROOM_USED                         // Set if using WROOM (adds memory, aac_decoder must be replaced)
+/* MemWatchdog: автоперезапуск при деградации RAM (TLS). Отключить: закомментировать. */
+#define MEM_WATCHDOG_AUTOREBOOT
 //#define LED_BUILTIN      2                 // Onboard LED pin
 //#define LED_INVERT       false             // Invert onboard LED
 //#define DSP_INVERT_TITLE false             // Invert station title colors

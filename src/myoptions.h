@@ -117,6 +117,8 @@
 #define BATTERY_OFF                       // Disable battery display
 //#define PERFMON_DISABLED                // Disable performance monitoring
 #define WDT_TIMEOUT 30                    // Watchdog timeout (seconds)
+/* MemWatchdog: автоперезапуск при деградации RAM (TLS). Отключить: закомментировать. */
+#define MEM_WATCHDOG_AUTOREBOOT
 
 
 /* ===============================================

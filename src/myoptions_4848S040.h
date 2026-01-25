@@ -109,6 +109,7 @@
 #define BOOMBOX_STYLE                     // VU-meter style (bars instead of strips)
 #define CPU_LOAD                          // CPU load widget
 //#define WAKE_PIN              255       // Wake pin (not used)
+#define EXT_WEATHER       false
 
 /* ===============================================
    SYSTEM & DEBUG
@@ -116,7 +117,8 @@
 #define BATTERY_OFF                       // Disable battery display
 //#define PERFMON_DISABLED                // Disable performance monitoring
 #define WDT_TIMEOUT 30                    // Watchdog timeout (seconds)
-
+/* MemWatchdog: автоперезапуск при деградации RAM (TLS). Отключить: закомментировать. */
+#define MEM_WATCHDOG_AUTOREBOOT
 
 /* ===============================================
    SD CARD
@@ -154,9 +156,21 @@
 #define TS_Y_MIN              0                  // Y minimum
 #define TS_Y_MAX              480                // Y maximum
 
+
+/* ===============================================
+   DISPLAY OPTIONS
+   =============================================== */
+// Day of week uppercase (true = uppercase, false = lowercase)
+//#define DOW_UPPERCASE true                     // Uncomment and set to true/false if needed
+
 /* ===============================================
    DEBUG
    =============================================== */
 //#define DEBUG_DISPLAY                          // Display debug
+
+/* AI Layer debug logs / Логи отладки AI Layer */
+// 0 = release (only important logs), 1 = debug (all logs)
+// 0 = релиз (только важные логи), 1 = отладка (все логи)
+#define AI_LAYER_DEBUG 0
 
 #endif

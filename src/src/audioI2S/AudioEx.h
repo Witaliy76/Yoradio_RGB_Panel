@@ -253,6 +253,7 @@ class Audio{
     bool         parseContentType(char* ct);
     bool         parseHttpResponseHeader();
     bool         parseHttpRangeHeader();
+    void         tlsPreconnectCleanup();
     bool         initializeDecoder(uint8_t codec);
     esp_err_t    I2Sstart();
     esp_err_t    I2Sstop();

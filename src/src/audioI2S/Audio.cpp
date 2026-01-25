@@ -434,7 +434,23 @@ void Audio::setDefaults() {
     m_f_reset_m3u8Codec = true;
     m_resampleCursor = 0.0f;
 }
-
+//****************************************************************************************
+void Audio::tlsPreconnectCleanup() {
+    // shrink_to_fit to reduce fragmentation before TLS connect
+    if(m_playlistURL.size() > 1024) m_playlistURL.shrink_to_fit();
+    if(m_playlistContent.size() > 1024) m_playlistContent.shrink_to_fit();
+    if(m_syltLines.size() > 1024) m_syltLines.shrink_to_fit();
+    if(m_syltTimeStamp.size() > 1024) m_syltTimeStamp.shrink_to_fit();
+    if(m_hashQueue.size() > 1024) m_hashQueue.shrink_to_fit();
+    if(m_linesWithURL.size() > 1024) m_linesWithURL.shrink_to_fit();
+    if(m_linesWithEXTINF.size() > 1024) m_linesWithEXTINF.shrink_to_fit();
+    MP3Decoder_FreeBuffers();
+    FLACDecoder_FreeBuffers();
+    AACDecoder_FreeBuffers();
+    OPUSDecoder_FreeBuffers();
+    VORBISDecoder_FreeBuffers();
+    delay(15); // let memory settle after freeing
+}
 //****************************************************************************************
 void Audio::setConnectionTimeout(uint16_t timeout_ms, uint16_t timeout_ms_ssl) {
     if(timeout_ms) m_timeout_ms = timeout_ms;
@@ -714,6 +730,7 @@ bool Audio::connecttohost(const char* host, const char* user, const char* pwd) {
     m_client->setTimeout(m_f_ssl ? m_timeout_ms_ssl : m_timeout_ms);
 
     AUDIO_INFO("connect to: \"%s\" on port %d path \"/%s\"", hwoe.get(), port, path.get());
+    if(m_f_ssl) tlsPreconnectCleanup();
     res = m_client->connect(hwoe.get(), port);
 
     m_expectedCodec = CODEC_NONE;
@@ -834,6 +851,7 @@ bool Audio::httpPrint(const char* host) {
          else        { m_client = static_cast<NetworkClient*>(&client); }
         if(f_equal) AUDIO_INFO("The host has disconnected, reconnecting");
 
+        if(m_f_ssl) tlsPreconnectCleanup();
         if(!m_client->connect(hwoe.get(), port)) {
             AUDIO_ERROR("connection lost %s", c_host.c_get());
             stopSong();
@@ -935,6 +953,7 @@ bool Audio::httpRange(uint32_t seek, uint32_t length){
     if(m_f_ssl) { m_client = static_cast<NetworkClientSecure*>(&clientsecure); if(m_f_ssl && port == 80) port = 443;}
     else        { m_client = static_cast<NetworkClient*>(&client); }
 
+    if(m_f_ssl) tlsPreconnectCleanup();
     if(!m_client->connect(hwoe.get(), port)) {
         AUDIO_ERROR("connection lost %s", c_host.c_get());
         stopSong();
@@ -3892,6 +3911,12 @@ void Audio::processWebStream() {
     m_pwst.availableBytes = 0; // available from stream
     m_pwst.f_clientIsConnected = m_client->connected();
 
+    if(!m_pwst.f_clientIsConnected && !m_f_tts) {
+        AUDIO_INFO("webstream disconnected -> stop running");
+        m_f_running = false;
+        return;
+    }
+
     // first call, set some values to default  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(m_f_firstCall) { // runs only ont time per connection, prepare for start
         m_f_firstCall = false;
@@ -4412,8 +4437,14 @@ bool Audio::parseHttpResponseHeader() { // this is the response to a GET / reque
             m_f_timeout = true;
             goto exit;
         }
+        bool overflow_logged_this_line = false;
         while(m_client->available()) {
             uint8_t b = audioFileRead();
+            if(pos >= 1022) { // overflow: do not write, consume until \n, log once, skip parsing
+                if(!overflow_logged_this_line) { AUDIO_ERROR("responseHeaderline overflow"); overflow_logged_this_line = true; }
+                if(b == '\n') { pos = 0; break; }
+                continue;
+            }
             if(b == '\n') {
                 if(!pos) { // empty line received, is the last line of this responseHeader
                     if(ct_seen) goto lastToDo;
@@ -4425,14 +4456,6 @@ bool Audio::parseHttpResponseHeader() { // this is the response to a GET / reque
             if(b < 0x20) continue;
             rhl[pos] = b;
             pos++;
-            if(pos == 1023) {
-                pos = 1022;
-                continue;
-            }
-            if(pos == 1022) {
-                rhl[pos] = '\0';
-                /*AUDIO_LOG_WARN*/AUDIO_ERROR("responseHeaderline overflow");
-            }
         } // inner while
         if(!pos) {
             vTaskDelay(5);
@@ -4685,8 +4708,14 @@ bool Audio::parseHttpRangeHeader() { // this is the response to a Range request
             m_f_timeout = true;
             goto exit;
         }
+        bool overflow_logged_this_line = false;
         while(m_client->available()) {
             uint8_t b = audioFileRead();
+            if(pos >= 1022) { // overflow: do not write, consume until \n, log once, skip parsing
+                if(!overflow_logged_this_line) { AUDIO_ERROR("responseHeaderline overflow"); overflow_logged_this_line = true; }
+                if(b == '\n') { pos = 0; break; }
+                continue;
+            }
             if(b == '\n') {
                 if(!pos) { // empty line received, is the last line of this responseHeader
                     goto lastToDo;
@@ -4697,14 +4726,6 @@ bool Audio::parseHttpRangeHeader() { // this is the response to a Range request
             if(b < 0x20) continue;
             rhl[pos] = b;
             pos++;
-            if(pos == 1023) {
-                pos = 1022;
-                continue;
-            }
-            if(pos == 1022) {
-                rhl[pos] = '\0';
-                /*AUDIO_LOG_WARN*/AUDIO_ERROR("responseHeaderline overflow");
-            }
         } // inner while
         if(!pos) {
             vTaskDelay(5);

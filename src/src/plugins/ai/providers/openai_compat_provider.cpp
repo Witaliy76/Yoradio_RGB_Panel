@@ -85,11 +85,23 @@ String OpenAICompatProvider::_buildPrompt(
     // Формируем user prompt с данными о треке / Build user prompt with track data
     String user_prompt = "";
     if (!artist.isEmpty() && !song.isEmpty()) {
+        #if L10N_LANGUAGE==RU
         user_prompt = "Исполнитель: " + artist + "\nТрек: " + song;
+        #else
+        user_prompt = "Artist: " + artist + "\nTrack: " + song;
+        #endif
     } else if (!track_title.isEmpty()) {
+        #if L10N_LANGUAGE==RU
         user_prompt = "Трек: " + track_title;
+        #else
+        user_prompt = "Track: " + track_title;
+        #endif
     } else {
+        #if L10N_LANGUAGE==RU
         user_prompt = "Трек: неизвестен";
+        #else
+        user_prompt = "Track: unknown";
+        #endif
     }
     
     // Возвращаем system и user prompt, разделённые \n\n для последующего парсинга в _buildRequestJSON()

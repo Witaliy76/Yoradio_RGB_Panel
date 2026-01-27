@@ -26,14 +26,16 @@ static char* uppercase1b(const char* str, bool uppercase) {
                 ch = ch - 'a' + 'A';
             }
             // Кириллица (строчные в CP1251): 0xE0-0xFF -> заглавные (вычитание 0x20)
+            // Примечание: символ "ё" (0xB8) не попадает в этот диапазон, обрабатывается отдельно
             else if ((unsigned char)ch >= 0xE0 && (unsigned char)ch <= 0xFF) {
                 ch = ch - 0x20;
             }
-            // ё -> Ё
+            // ё -> Ё (0xB8 -> 0xA8)
             else if ((unsigned char)ch == 0xB8) {
                 ch = 0xA8;
             }
         }
+        // При uppercase == false символ "ё" (0xB8) проходит как есть без изменений
         strn[i++] = ch;
     }
     strn[i] = 0;

@@ -44,7 +44,7 @@ char* utf8Rus(const char* str, bool uppercase) {
                 i += 2;
                 continue;
             } else if (next == 0x81) { // Ё
-                strn[j++] = 0xA8; // Ё всегда в верхнем регистре в CP1251
+                strn[j++] = 0xA8; // Ё в CP1251
                 i += 2;
                 continue;
             }
@@ -60,8 +60,8 @@ char* utf8Rus(const char* str, bool uppercase) {
                 strn[j++] = ch;
                 i += 2;
                 continue;
-            } else if (next == 0x91) { // ё
-                char ch = 0xB8; // ё в нижнем регистре
+            } else if (next == 0x91) { // ё (U+0451)
+                char ch = 0xB8; // ё в CP1251
                 // Применяем uppercase для ё
                 if (uppercase) {
                     ch = 0xA8; // Ё в верхнем регистре
@@ -70,6 +70,9 @@ char* utf8Rus(const char* str, bool uppercase) {
                 i += 2;
                 continue;
             }
+            // Другие D1-символы: пропускаем оба байта без добавления символов / Other D1 chars: skip both bytes
+            i += 2;
+            continue;
         }
         // Не кириллица (ASCII и другие символы) — обрабатываем как есть
         char ch = str[i];
@@ -83,7 +86,6 @@ char* utf8Rus(const char* str, bool uppercase) {
             else if ((unsigned char)ch == 0xB8)
                 ch = 0xA8;
         }
-        // Если uppercase == false, все символы остаются без изменений
         strn[j++] = ch;
         i++;
     }

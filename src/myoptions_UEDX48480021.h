@@ -67,7 +67,7 @@
 /* ===============================================
    DISPLAY OPTIONS
    =============================================== */
-#define RSSI_DIGIT            true        // Display RSSI as digits instead of icon
+//#define RSSI_DIGIT            true        // Display RSSI as digits instead of icon
 
 /* ===============================================
    I2S DAC (Audio output)

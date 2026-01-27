@@ -42,14 +42,14 @@
 #endif
 
 /* SROLLS  */                            /* {{ left, top, fontsize, align }, buffsize, uppercase, width, scrolldelay, scrolldelta, scrolltime } */
-const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT+30, 107, 5, WA_CENTER }, 140, true, MAX_WIDTH-55, 5000, 50, 12 }; //5,12
-const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT+10, 158, 3, WA_CENTER }, 140, true, MAX_WIDTH-15, 5000, 30, 12 };
-const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT+15, 155, 3, WA_CENTER }, 140, false, MAX_WIDTH-20, 5000, 30, 12 };
-const ScrollConfig interpretationConf PROGMEM = {{ TFT_FRAMEWDT+10, 185, 2, WA_CENTER }, 256, false, MAX_WIDTH-20, 1000, 40, 6 }; // AI interpretation / AI интерпретация (faster scroll / быстрая прокрутка)
+const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT+30, 107, 5, WA_CENTER }, 140, true, MAX_WIDTH-55, 1000, 70, 12 }; //1000,40,4
+const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT+10, 158, 3, WA_CENTER }, 140, true, MAX_WIDTH-15, 1000, 70, 12 };
+const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT+15, 155, 3, WA_CENTER }, 140, false, MAX_WIDTH-20, 1000, 70, 12 };
+const ScrollConfig interpretationConf PROGMEM = {{ TFT_FRAMEWDT+100, DSP_HEIGHT-65, 3, WA_CENTER }, 256, false, MAX_WIDTH-200, 1000, 70, 4 }; // AI interpretation / AI интерпретация (below VU meter, above volbar / ниже VU метра, над volbar)
 const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 4, WA_LEFT }, 140, false, MAX_WIDTH, 1000, 30, 12 };
 const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT+10, 107, 4, WA_CENTER }, 140, true, MAX_WIDTH-20, 0, 30, 8 };
 const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT+10, 350, 2, WA_CENTER }, 140, false, MAX_WIDTH-20, 0, 30, 8 };
-const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT+65, 65, 3, WA_LEFT }, 140, true, MAX_WIDTH-140, 1000, 30, 4 }; //10,4
+const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT+65, 65, 3, WA_LEFT }, 140, true, MAX_WIDTH-140, 1000, 70, 4 }; //10,4
 
 /* BACKGROUNDS  */                       /* {{ left, top, fontsize, align }, width, height, outlined } */
 const FillConfig   metaBGConf     PROGMEM = {{ TFT_FRAMEWDT+10, 105, 0, WA_LEFT }, MAX_WIDTH, 45, false };

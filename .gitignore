@@ -14,3 +14,7 @@ docs/
 old/
 panel_vendor_files/
 .github/
+!ai/
+!ai/*.txt
+!build_bin/
+!build_bin/**

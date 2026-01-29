@@ -48,6 +48,9 @@ char* utf8Rus(const char* str, bool uppercase) {
                 i += 2;
                 continue;
             }
+            // Другие D0-символы: пропускаем оба байта без добавления символов / Other D0 chars: skip both bytes
+            i += 2;
+            continue;
         } else if ((uint8_t)str[i] == 0xD1 && str[i+1]) {
             uint8_t next = (uint8_t)str[i+1];
             if (next >= 0x80 && next <= 0x8F) { // р-я

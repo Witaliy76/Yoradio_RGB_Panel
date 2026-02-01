@@ -11,17 +11,20 @@
 #### 4848S040 (ST7701S, 480x480, 4.0" square)
 - [AliExpress link](https://aliexpress.ru/item/1005008214872438.html?)
 - [How to connect this board to the project →](README_4848S040_english.md)
-- ![photo](https://github.com/user-attachments/assets/8feae43d-82f8-464f-848d-d09c33db8234)
+- ![photo_3_2026-01-29_21-02-50](https://github.com/user-attachments/assets/f3b3b624-8d00-484f-b70f-bf865368d511)
+
 
 #### UEDX48480021-MD80ET (ST7701S, 480x480, 2.1" round)
 - [AliExpress link](https://aliexpress.ru/item/1005007576008287.html?)
 - [How to connect this board to the project →](README_UEDX48480021_english.md)
-- ![photo](https://github.com/user-attachments/assets/360799e8-da95-4c77-8ad9-c10b85be3855)
+- ![photo_11_2026-01-29_21-02-50](https://github.com/user-attachments/assets/a3c049f6-1511-42ab-9d7b-3fdadbe5cd9e)
+
 
 #### JC3248W535C (AXS15231B, 320x480, 3.5")
 - [AliExpress link](https://aliexpress.ru/item/1005007566332450.html)
 - [How to connect this board to the project →](README_JC3248W535C_english.md)
-- ![photo_2025-10-25_18-32-20](https://github.com/user-attachments/assets/72968eda-fa70-446a-8830-b598320f346d)
+- ![photo_13_2026-01-29_21-02-50](https://github.com/user-attachments/assets/76bca77d-ac8f-4338-9f02-8da2146a6668)
+
 
 ### Project Features
 
@@ -37,6 +40,7 @@ Differences from original Yoradio:
 8. **Battery** — code built into display files, activated by uncommenting `#define BATTERY_OFF` (for UEDX48480021 requires free pins).
 9. **Updated libraries** — AudioI2S from Wolle (schreibfaul1) & Maleksm, Version 3.4.2p.
 10. **Many bugfixes** — stability and performance improvements.
+11. **AI_layer**
 
 ## AI Layer (optional)
 

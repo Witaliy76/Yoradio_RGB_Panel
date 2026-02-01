@@ -1,215 +1,185 @@
-Yoradio
+# AI Layer in Yoradio
+
+## What is AI Layer
+AI Layer is the author's experiment in "bringing the device to life":
+a quiet semantic layer that can appear behind the music and add meaning when appropriate.
+It is not an assistant, it does not hold a dialogue, and it does not seek constant presence.
+If the layer is silent, that is a correct state and a normal mode of operation.
 
-Wi-Fi Internet Radio with AI Layer
+The device remains a Wi-Fi internet radio: music is primary, screen and text are secondary.
 
-Yoradio AI Layer — Open Semantic Player for Background Music
-Yoradio is a music system with an AI layer.
+## Behavior and principles
+AI Layer does not initiate events and does not affect system behavior.
+It appears episodically and does not compete with the music.
+Weak or uncertain phrasing is not shown.
 
-It is a Wi-Fi internet radio where AI is used not as an assistant,
-not as a voice,
-and not as a conversational entity,
-but as a quiet semantic layer that adds meaning to background music.
+No output from AI Layer is not an error.
+When input is missing or confidence is low, no output is produced.
+
+## AI Layer layers
+AI Layer may display several independent lines:
 
-The AI layer appears only when appropriate
-and does not aim for constant presence.
+- **Facts** — short, verifiable facts about the track or artist.  
+- **Interpretation** — a soft interpretation of the musical atmosphere, without analysis or explanations.  
+- **Moment / Context** — neutral device context (not an AI layer): short system phrases not related to music.
 
-Yoradio does not demand attention,
-does not explain itself,
-and is not required to be useful at all times.
+Each layer can be empty independently of the others.
+Layers do not have to appear at the same time and may be absent most of the time.
+Moment / Context acts as a neutral fallback when AI output is not produced.
+Moment / Context output conditions:
+- there is a valid track (not a system status);
+- AI is enabled and activated;
+- a prompt is loaded;
+- no Facts/Interpretation was shown for this track;
+- a decision has already been made that the LLM is silent for this track.
+Moment / Context is shown once per track, and when AI is off or no prompt is loaded, this layer is silent as well.
 
-Nature of the device
-Yoradio is:
+## Requirements and compatibility
+AI Layer works with OpenAI-compatible API (HTTP/HTTPS).
+Public and local compatible providers are supported.
+Without access to a provider, the system continues to work as a regular internet radio.
+On network errors or timeouts, AI Layer simply outputs nothing and does not affect device behavior.
+
+## Getting an API key
 
-a background music device,
+AI Layer requires an API key for an OpenAI-compatible provider.
+You can use any compatible service — public or local.
 
-an object of presence in space,
+Below are a few common options.
 
-a device that exists next to the user, not in front of them.
+### DeepSeek
+DeepSeek provides an OpenAI-compatible API.
 
-Yoradio is present through sound, not through interface.
+1. Go to: https://platform.deepseek.com/
+2. Create an account or sign in.
+3. Generate an API key in your dashboard.
+4. Use the following settings as a starting point:
+   - API host: `api.deepseek.com`
+   - API port: `443`
+   - API path: `/v1`
 
-Yoradio is not:
+DeepSeek is suitable for experimentation and regular use.
+Pricing and limits depend on your account.
+
+### OpenAI
+OpenAI provides the reference OpenAI API.
+
+1. Go to: https://platform.openai.com/
+2. Sign in and open the API keys section.
+3. Create a new API key.
+4. Typical settings:
+   - API host: `api.openai.com`
+   - API port: `443`
+   - API path: `/v1`
+
+An active billing account may be required.
 
-a conversational AI,
+### OpenRouter (optional)
+OpenRouter aggregates multiple OpenAI-compatible models behind a single API.
+
+1. Go to: https://openrouter.ai/
+2. Create an account.
+3. Generate an API key.
+4. Typical settings:
+   - API host: `openrouter.ai`
+   - API port: `443`
+   - API path: `/api/v1`
+
+OpenRouter may provide a small free quota for testing,
+depending on current platform policy.
+Check their website for up-to-date limits.
+
+### Notes
+
+- The Yoradio project is not affiliated with any provider listed above.
+- API availability, pricing, and limits are defined by the provider.
+- If no API key is configured, AI Layer remains silent and the device works normally.
+- AI Layer does not send requests automatically and does not consume API until a suitable context appears.
+
+After getting an API key and a prompt, you can proceed to configure the layer in WebUI.
+
+## AI Layer setup in WebUI
+The settings section is located in WebUI on the AI Layer tab.
 
-a smart speaker,
+![AI Layer settings](settings_ai.jpg)
 
-a notification hub,
+Below is the actual AI Layer settings screen:
 
-a system competing with music.
+Parameters on the screen:
 
-Music in Yoradio is primary.
-The screen and the AI layer are secondary.
+- **AI enabled** — enables or disables AI Layer.  
+  - Enabled: the layer may produce output.  
+  - Disabled: the layer is silent, system behavior does not change.  
+  - If disabled, all other parameters are ignored.
 
-Concept overview
-Role of AI
-AI in Yoradio is a layer, not a subject.
+- **API host** — address of the OpenAI-compatible server.  
+  - Example: `api.deepseek.com`, `api.openai.com`.  
+  - If not set, requests are not sent and the layer is silent.
 
-It does not initiate dialogue,
-does not form its own behavior,
-and does not impose interpretations.
+- **API port** — server port.  
+  - Usually `443` for HTTPS.  
+  - If not set, the connection is not made.
 
-AI layers are not required to produce output.
-The absence of output in a layer is a valid system state.
+- **API path** — API path.  
+  - Example: `/v1`.  
+  - If not set, requests are not sent.
 
-Core user scenario
-Music plays in the background (home / office).
-The user occasionally glances at the screen.
+- **Timeout (ms)** — request timeout in milliseconds.  
+  - Lower values reduce waiting time.  
+  - If not set, the system default is used.
 
-The screen must:
+- **API key** — access key for the provider.  
+  - If missing or invalid, requests are rejected and the layer is silent.  
+  - Missing key does not affect radio operation.
 
-be readable instantly,
+- **Model** — provider model.  
+  - Example: `deepseek-chat`, `gpt-4o-mini`.  
+  - If not set, requests are not executed.
 
-not require reading,
+- **Prompt file** / **Upload Prompt File** — uploads a prompt file.  
+  - After selecting a file, the status **Loaded (… bytes)** should appear.  
+  - If no prompt is loaded, AI Layer is completely silent.
 
-not distract from music.
+- **Apply** — saves parameters and applies them.  
+  - Without pressing it, parameters are not saved.
 
-Interest is initiated by sound, not by interface.
+Output language is defined by the prompt text: use RU prompt for Russian output, EN prompt for English.
+Start the prompt in the target language — that will be the response language.
+Interface language affects only the Moment / Context lines.
 
-Semantic layers
-Yoradio uses several independent semantic layers.
-Each layer may be active or empty independently of others.
+## Prompt file
+The prompt defines the rules and tone of the output.
+It is uploaded via the **Upload Prompt File** button in WebUI.
+Example prompt files from `ai/`:
+`[ai/ai_prompt_ru.txt](ai/ai_prompt_ru.txt)`, `[ai/ai_prompt_en.txt](ai/ai_prompt_en.txt)`.
+Prompt structure details: [readme_ai_prompt_explained_eng.md](readme_ai_prompt_explained_eng.md).
 
-Facts Layer
-An informational layer generated by an LLM.
+Rules:
 
-facts only,
+- A new prompt replaces the previous one.  
+- After upload, the status **Loaded (… bytes)** should appear.  
+- **No prompt → AI Layer is completely silent.**  
+- Missing prompt is not an error.  
+- No fallback texts are used.
 
-rare,
+There are no limits on size or encoding beyond reasonable ones.
 
-verifiable,
+## Output examples
+- Facts: `Alphaville — Forever Young (1984).`  
+- Interpretation: `Warm, calm atmosphere, no tension.`  
+- Moment: `Everything moves at its own pace.`  
+- No output: `—` (screen without AI Layer lines, this is normal).
 
-if uncertain, the layer remains empty.
+## How to know AI Layer works correctly
+AI Layer is considered configured if:
 
-A fact is either accurate or absent.
+- It is enabled in WebUI and parameters are saved via **Apply**.  
+- A prompt is loaded and the status **Loaded (… bytes)** is shown.  
+- Facts or Interpretation lines appear sometimes, and the layer is silent the rest of the time.
 
-Interpretation Layer
-A soft supportive layer generated by an LLM.
+If the layer is always silent, check: AI Layer enabled, prompt present, API key, and model.
+For normal operation, no additional diagnostics are required.
+For developers and debugging, enable `AI_LAYER_DEBUG` in `myoptions.h` (value `1`).
+Even when fully configured, silence remains an acceptable state.
 
-not analysis,
-
-not explanation,
-
-does not compete with facts.
-
-Its purpose is to:
-
-suggest how to listen,
-
-support the atmosphere,
-
-allow “not knowing”.
-
-The layer may produce no output.
-
-Moment / Context Layer
-A contextual device layer, not an AI layer.
-
-a fixed set of predefined phrases,
-
-rule-based,
-
-invoked as a callback,
-
-not generated by an LLM,
-
-not related to music.
-
-Primary contexts:
-
-weather,
-
-changes,
-
-state transitions.
-
-A single line, no scrolling.
-May be present most of the time as neutral context.
-
-Principle of emptiness
-Emptiness of AI layers is a valid state.
-
-If facts or interpretations are not formed,
-the corresponding layer remains empty
-and is not compensated by pseudo-meaning.
-
-In this state, the device continues to operate
-in contextual presence mode
-through the moment layer.
-
-Weak or uncertain text is unacceptable.
-
-Time and rhythm
-Yoradio lives calmly:
-
-without rush,
-
-without frequent changes,
-
-without sharp transitions.
-
-The AI layer:
-
-does not break musical rhythm,
-
-does not distract,
-
-does not compete with sound.
-
-Technical projection (brief)
-the AI layer can be fully disabled
-
-when AI is disabled, system behavior is identical to the original
-
-all layers are independent
-
-errors result in no output, not fallback text
-
-no prompt → no AI → no side effects
-
-AI does not initiate events —
-it only reacts.
-
-What the Yoradio version with AI Layer means
-The Yoradio version with AI Layer differs not by interface,
-but by the presence of an additional semantic level.
-
-In the AI Layer version:
-
-the device remains a Wi-Fi internet radio
-
-music remains the primary function
-
-AI does not control the device and does not communicate with the user
-
-The AI Layer may add:
-
-strict facts about the track or artist (Facts Layer)
-
-soft interpretation of the musical atmosphere (Interpretation Layer)
-
-The AI Layer does not add:
-
-dialogue
-
-recommendations
-
-personal advice
-
-notifications
-
-evaluation of the user or the music
-
-If AI data is unavailable or uncertain,
-the device continues to operate normally
-without any visual or behavioral changes.
-
-Purpose of this document
-This file describes the nature and behavior of the Yoradio device.
-
-It is not a setup guide
-and not technical documentation.
-
-Its purpose is to define
-what kind of device Yoradio is
-and the principles by which it evolves.
+AI Layer does not make the device “smart” — it makes it slightly more alive when appropriate.

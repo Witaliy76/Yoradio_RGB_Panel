@@ -1,6 +1,6 @@
  [Русская версия](README.md)
 
-### Yoradio for ESP32 RGB Panel Displays (Arduino_GFX, .pioarduino / PlatformIO)
+### Yoradio — Wi-Fi internet radio for ESP32 RGB Panel displays, where music is primary and the AI layer is a quiet experiment in “bringing the device to life”
 
 - Based on `e2002/yoradio` (`https://github.com/e2002/yoradio`). This fork adds support for ESP32‑S3 boards with RGB Panel displays using `Arduino_GFX` and `.pioarduino`/PlatformIO.
 
@@ -36,8 +36,26 @@ Differences from original Yoradio:
 9. **Updated libraries** — AudioI2S from Wolle (schreibfaul1) & Maleksm, Version 3.4.2p.
 10. **Many bugfixes** — stability and performance improvements.
 
+## AI Layer (optional)
+
+This version of Yoradio optionally includes an AI Layer —
+a quiet semantic layer that may add meaning to background music.
+
+The AI Layer is not an assistant and does not interact with the user.
+It may remain silent and does not affect system behavior when disabled.
+
+The device remains a Wi‑Fi internet radio and an object of presence,
+where music is primary and meaning appears only when appropriate.
+
+See: [readme_ai_layer_eng.md](readme_ai_layer_eng.md)
+
 ### Changelog
 
+- 29.01.2026
+  - Added AI Layer (core architecture and integration).
+  - Fixed text rendering, scrolling, and display optimizations.
+  - Added LwIP libs for ESP‑IDF 5.5.2 / Arduino 3.3.6 (`b2159fa`).
+  - Updated audioI2S for stable operation (`0d81d2c`).
 - 25.10.2025
   - Fixed: Wi‑Fi boot screen status updates and robust multi‑SSID iteration.
   - Added support for JC3248W535C board (AXS15231B QSPI, 320x480, 3.5").
@@ -49,13 +67,15 @@ Differences from original Yoradio:
 
 ### Important notes
 
-- Russian font: replace `.pio/libdeps/<env>/GFX Library for Arduino/src/font/glcdfont.h` with the file from `fonts/glcdfont.h` (where `<env>` is the PlatformIO environment).
+- English font: replace `.pio/libdeps/<env>/GFX Library for Arduino/src/font/glcdfont.h` with the file from `fonts/glcdfont_EN.c` (where `<env>` is the PlatformIO environment).
 
-- High bitrate radio stability: replace IDF libs with prebuilt ones from `library!/esp32s3_5.5_stable/`:
+- Language switch (RU/EN): in `myoptions.h`, change `L10N_LANGUAGE` from `RU` to `EN`.
+
+- High bitrate radio stability: replace IDF libs with prebuilt ones from `library!/esp32s3_5_5_2__3_3_6/`:
   - `libesp_netif.a`
   - `liblwip.a`
   - Copy to (Windows): `%USERPROFILE%\.platformio\packages\framework-arduinoespressif32-libs\esp32s3\lib\`
-  - Version: ESP-IDF 5.5 (stable, commit 07e9bf4970). Restart PlatformIO and rebuild after replacing.
+  - Version: ESP-IDF 5.5.2 / Arduino 3.3.6. Restart PlatformIO and rebuild after replacing.
   
 - First boot / after erase flash: screen can stay black for ~60 seconds (FS init). This is normal — just wait.
 

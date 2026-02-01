@@ -11,17 +11,20 @@
 #### 4848S040 (ST7701S, 480x480, 4.0" квадратный)
 - [AliExpress ссылка](https://aliexpress.ru/item/1005008214872438.html?)
 - [Порядок подключения модуля к проекту →](README_4848S040.md)
-- ![20251012_175502](https://github.com/user-attachments/assets/8feae43d-82f8-464f-848d-d09c33db8234)
+- ![photo_1_2026-01-29_21-02-50](https://github.com/user-attachments/assets/9f2a75c8-1480-4e7a-ac49-d185314127f3)
+
 
 #### UEDX48480021-MD80ET (ST7701S, 480x480, 2.1" круглый)
 - [AliExpress ссылка](https://aliexpress.ru/item/1005007576008287.html?)
 - [Порядок подключения модуля к проекту →](README_UEDX48480021.md)
-- ![20251012_175649](https://github.com/user-attachments/assets/360799e8-da95-4c77-8ad9-c10b85be3855)
+- ![photo_9_2026-01-29_21-02-50](https://github.com/user-attachments/assets/7cea40f3-d539-4f82-9d26-50ea7f889610)
+
 
 #### JC3248W535C (AXS15231B, 320x480, 3.5")
 - [AliExpress ссылка](https://aliexpress.ru/item/1005007566332450.html)
 - [Порядок подключения модуля к проекту →](README_JC3248W535C.md)
-- ![photo_2025-10-25_18-32-20](https://github.com/user-attachments/assets/72968eda-fa70-446a-8830-b598320f346d)
+- ![photo_6_2026-01-29_21-02-50](https://github.com/user-attachments/assets/48c1f12e-5561-4f8c-9fad-b85469b53b39)
+
 
 
 ### Особенности проекта
@@ -38,6 +41,7 @@
 8. **Батарея** — код встроен в файлы дисплея, активируется закомментированием `#define BATTERY_OFF` (для UEDX48480021 требуются свободные пины).
 9. **Обновлённые библиотеки** — AudioI2S от Wolle (schreibfaul1) & Maleksm, Version 3.4.2p.
 10. **Исправлено множество багов** — стабильность и производительность.
+11. **AI Layer**
 
 ## AI Layer (optional)
 
@@ -49,6 +53,10 @@ AI Layer — не ассистент и не взаимодействует с �
 
 Устройство остаётся Wi‑Fi интернет‑радио и объектом присутствия,
 где музыка первична, а смысл появляется только когда уместно.
+
+Видео работы ai_layer:
+https://github.com/user-attachments/assets/ea316f44-2394-4d24-8178-0bb7b66141dc
+
 
 См.: [readme_ai_layer_rus.md](readme_ai_layer_rus.md)
 

@@ -1,3 +1,5 @@
+[English version](readme_ai_prompt_explained_eng.md)
+
 # AI Layer prompt: как его читать и изменять
 
 ## Зачем нужен prompt в AI Layer

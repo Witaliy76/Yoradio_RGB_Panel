@@ -1,3 +1,5 @@
+[Русская версия](readme_ai_layer_rus.md)
+
 # AI Layer in Yoradio
 
 ## What is AI Layer

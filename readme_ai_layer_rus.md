@@ -1,3 +1,5 @@
+[English version](readme_ai_layer_eng.md)
+
 # AI Layer в Yoradio
 
 ## Что такое AI Layer

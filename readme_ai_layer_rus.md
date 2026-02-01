@@ -150,9 +150,11 @@ OpenRouter может предоставлять небольшой беспла
 ## Prompt-файл
 Prompt задаёт правила и тональность вывода.
 Он загружается через кнопку **Upload Prompt File** в WebUI.
-Примеры prompt‑файлов из каталога `ai/`:
-`[ai/ai_prompt_ru.txt](ai/ai_prompt_ru.txt)`, `[ai/ai_prompt_en.txt](ai/ai_prompt_en.txt)`.
+Примеры prompt‑файлов из каталога `ai/`: [ai/ai_prompt_ru.txt](ai/ai_prompt_ru.txt), [ai/ai_prompt_en.txt](ai/ai_prompt_en.txt).
 Подробнее о структуре prompt: [readme_ai_prompt_explained_rus.md](readme_ai_prompt_explained_rus.md).
+Если вы прошиваете SPIFFS заранее, поместите prompt в `data/ai/ai_prompt.txt`
+(можно просто скопировать один из файлов из `ai/`).
+Либо загрузите prompt позже через WebUI — результат будет тем же.
 
 Правила работы:
 
@@ -162,7 +164,7 @@ Prompt задаёт правила и тональность вывода.
 - Отсутствие prompt не считается ошибкой.  
 - Fallback‑тексты не используются.
 
-Ограничений по размеру и кодировке, кроме разумных, нет.
+Максимальный размер prompt‑файла: 8192 байта (8 КБ).
 
 ## Примеры вывода
 - Facts: `Alphaville — Forever Young (1984).`  

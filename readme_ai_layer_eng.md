@@ -150,9 +150,11 @@ Interface language affects only the Moment / Context lines.
 ## Prompt file
 The prompt defines the rules and tone of the output.
 It is uploaded via the **Upload Prompt File** button in WebUI.
-Example prompt files from `ai/`:
-`[ai/ai_prompt_ru.txt](ai/ai_prompt_ru.txt)`, `[ai/ai_prompt_en.txt](ai/ai_prompt_en.txt)`.
+Example prompt files from `ai/`: [ai/ai_prompt_ru.txt](ai/ai_prompt_ru.txt), [ai/ai_prompt_en.txt](ai/ai_prompt_en.txt).
 Prompt structure details: [readme_ai_prompt_explained_eng.md](readme_ai_prompt_explained_eng.md).
+If you pre-flash SPIFFS, place the prompt at `data/ai/ai_prompt.txt`
+(you can simply copy one of the files from `ai/`).
+Or upload the prompt later via WebUI — the result is the same.
 
 Rules:
 
@@ -162,7 +164,7 @@ Rules:
 - Missing prompt is not an error.  
 - No fallback texts are used.
 
-There are no limits on size or encoding beyond reasonable ones.
+Maximum prompt file size: 8192 bytes (8 KB).
 
 ## Output examples
 - Facts: `Alphaville — Forever Young (1984).`  

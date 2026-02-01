@@ -16,5 +16,7 @@ panel_vendor_files/
 .github/
 !ai/
 !ai/*.txt
+!data/ai/
+!data/ai/*.txt
 !build_bin/
 !build_bin/**

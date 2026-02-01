@@ -2,6 +2,8 @@
 
 ### Yoradio — Wi-Fi internet radio for ESP32 RGB Panel displays, where music is primary and the AI layer is a quiet experiment in “bringing the device to life”
 
+- See: [readme_ai_layer_eng.md](readme_ai_layer_eng.md)
+
 - Based on `e2002/yoradio` (`https://github.com/e2002/yoradio`). This fork adds support for ESP32‑S3 boards with RGB Panel displays using `Arduino_GFX` and `.pioarduino`/PlatformIO.
 
 ### Supported dev boards

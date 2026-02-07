@@ -24,8 +24,8 @@
 #include "Arduino_GFX_Library.h"
 #include "tools/GFX_Canvas_screen.h"
 
-// ST7701 init sequence declaration from Arduino_GFX
-extern const uint8_t st7701_type1_init_operations[];
+// ST7701 init sequence declaration from Arduino_GFX (type9 for 480x480)
+extern const uint8_t st7701_type9_init_operations[];
 #if defined(ARDUINO_ARCH_ESP32)
 #include "esp32-hal-ledc.h"
 #endif
@@ -127,8 +127,8 @@ DspCore::DspCore() {
 #define DOW_UPPERCASE true
 #endif
 
-// Use standard init sequence from Arduino_GFX
-extern const uint8_t st7701_type1_init_operations[];
+// Use type9 init sequence from Arduino_GFX (480x480)
+extern const uint8_t st7701_type9_init_operations[];
 
 void DspCore::initDisplay() {
   Serial.println("[ST7701] initDisplay start");
@@ -161,8 +161,8 @@ void DspCore::initDisplay() {
         // Timing parameters (horizontal and vertical)
         /* hsync_polarity */ 1, /* hsync_front_porch */ 10, /* hsync_pulse_width */ 8, /* hsync_back_porch */ 50,
         /* vsync_polarity */ 1, /* vsync_front_porch */ 10, /* vsync_pulse_width */ 8, /* vsync_back_porch */ 20,
-        // Clock and data format parameters
-        /* pclk_active_neg */ 0, /* prefer_speed */ 6000000UL, /* big endian */ false,
+        // Clock and data format parameters (from GUITION PlatformIO example)
+        /* pclk_active_neg */ 0, /* prefer_speed */ 12000000UL, /* big endian */ false,
         /* de_idle_high */ 0, /* pclk_idle_high */ 0, /* bounce_buffer_size_px */ 0);
     if (!rgbpanel) {
       Serial.println("[ST7701] Failed to initialize RGB panel!");
@@ -174,10 +174,10 @@ void DspCore::initDisplay() {
   if (!output_display) {
     Serial.println("[ST7701] Initializing RGB display...");
     
-    // Use proper ST7701 init sequence from Arduino_GFX
+    // Use ST7701 type9 init (480x480) from Arduino_GFX
     output_display = new Arduino_RGB_Display(
         480 /* width */, 480 /* height */, rgbpanel, 0 /* rotation */, false /* auto flush */,
-        bus, GFX_NOT_DEFINED /* RST */, st7701_type1_init_operations, sizeof(st7701_type1_init_operations));
+        bus, GFX_NOT_DEFINED /* RST */, st7701_type9_init_operations, sizeof(st7701_type9_init_operations));
     if (!output_display) {
       Serial.println("[ST7701] Failed to initialize RGB display!");
       return;
@@ -209,25 +209,6 @@ void DspCore::initDisplay() {
     delay(100);
   }
 
-  // 5. Send required commands to controller (after begin)
-  if (bus) {
-    // Pixel format: RGB565
-    bus->sendCommand(0x3A);
-    bus->sendData(0x55);
-    delay(5);
-    // Inversion off
-    bus->sendCommand(0x20);
-    delay(2);
-    // Page 0x10: scan setup (C7=0x00 normal)
-    bus->beginWrite();
-    bus->writeCommand(0xFF); bus->write(0x77); bus->write(0x01); bus->write(0x00); bus->write(0x00); bus->write(0x10);
-    bus->writeCommand(0xC7); bus->write(0x00);
-    // Return to page 0x00 and set MADCTL (0x36) = 0x00 (RGB order)
-    bus->writeCommand(0xFF); bus->write(0x77); bus->write(0x01); bus->write(0x00); bus->write(0x00); bus->write(0x00);
-    bus->writeCommand(0x36); bus->write(0x00);
-    bus->endWrite();
-  }
-  
   // 6. Enable backlight (PWM compatible with Arduino Core 3.x)
   pinMode(ST7701_BL, OUTPUT);
   delay(50); // Pin stabilization delay
@@ -257,9 +238,6 @@ void DspCore::initDisplay() {
   plYStart = (height() / 2 - plItemHeight / 2) - plItemHeight * (plTtemsCount - 1) / 2 + playlistConf.widget.textsize*2;
   
   Serial.println("[ST7701] initDisplay completed successfully");
-  
-  // Call RGB Panel stabilization
-  stabilizeRGBPanel();
   
   // Simple test - clear screen
   if (gfx) {
@@ -792,41 +770,6 @@ void DspCore::readBattery() {
 // RGB Panel stabilization function
 Arduino_G* DspCore::getOutputDisplay() {
   return output_display;
-}
-
-void DspCore::stabilizeRGBPanel() {
-  Serial.println("[ST7701] stabilizeRGBPanel start");
-  
-  if (bus) {
-    // Stabilization commands based on Guition type5
-    bus->beginWrite();
-    
-    // 0xEF commands for stabilization
-    bus->writeCommand(0xEF);
-    bus->write(0x08);  // Stabilization
-    
-    // Additional commands for RGB565
-    bus->writeCommand(0xFF);
-    bus->write(0x77); bus->write(0x01); bus->write(0x00); bus->write(0x00); bus->write(0x00);
-    
-    // Set MADCTL for stability
-    bus->writeCommand(0x36);
-    bus->write(0x00);  // RGB order
-    
-    // 0xEF command with parameters for final stabilization
-    bus->writeCommand(0xEF);
-    bus->write(0x10); bus->write(0x0D); bus->write(0x04); bus->write(0x08);
-    bus->write(0x3F); bus->write(0x1F);
-    
-    bus->endWrite();
-    
-    // Stabilization delay
-    delay(50);
-    
-    Serial.println("[ST7701] stabilizeRGBPanel completed");
-  } else {
-    Serial.println("[ST7701] stabilizeRGBPanel: bus is nullptr!");
-  }
 }
 
 // Получить порядковый индекс ScrollWidget'а среди всех ScrollWidget'ов в активной странице

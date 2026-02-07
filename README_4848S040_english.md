@@ -15,6 +15,7 @@
 
 3) Changelog
 
+- 05.02.2026 — Switch to Arduino_GFX type9 init, drop post-init/stabilize steps, set PCLK to 12MHz.
 - 12.10.2025 — Initial README for 4848S040.
 
 4) Features & pins

@@ -58,12 +58,15 @@
 /* ===============================================
    ENCODER
    =============================================== */
-#define ENC_BTNL              6           // Left rotation
-#define ENC_BTNB              0           // Encoder button
-#define ENC_BTNR              5           // Right rotation
-#define ENC_INTERNALPULLUP    false       // Internal pull-up resistors
-#define ENC_HALFQUARD         true        // Half mode (experimental)
-
+   #define ENC_BTNL              255           /*  Left rotation */
+   #define ENC_BTNB              255           /*  Encoder button */
+   #define ENC_BTNR              255           /*  Right rotation */
+   #define ENC2_BTNL              6           // Left rotation
+   #define ENC2_BTNB              0           // Encoder button
+   #define ENC2_BTNR              5           // Right rotation
+   #define ENC2_INTERNALPULLUP    false       // Internal pull-up resistors
+   #define ENC2_HALFQUARD         true        // Half mode (experimental)
+   
 /* ===============================================
    DISPLAY OPTIONS
    =============================================== */

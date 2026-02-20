@@ -93,6 +93,7 @@ public:
 private:
     char  _timeBuf[20], _dateBuf[20], _oldTimeBuf[20], _oldDateBuf[20], _bufforseconds[4], _buffordate[40];
     uint16_t _timewidth, _timeleft, _datewidth, _dateleft, _oldtimeleft, _oldtimewidth, _olddateleft, _olddatewidth, clockTop, clockRightSpace, clockTimeHeight, _dotsLeft;
+    uint16_t _oldClockTop;  // previous clock Y (clear ghost when position changes / очистка при смене позиции)
     bool _clipping, _printdots;
     clipArea _cliparea;
     void * _scrollid;

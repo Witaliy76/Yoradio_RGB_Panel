@@ -807,12 +807,18 @@ void Display::_time(bool redraw) {
   }
 #endif
   if(config.isScreensaver && network.timeinfo.tm_sec % 20 == 0){
+    uint16_t maxY = dsp.height() - dsp.plItemHeight - TFT_FRAMEWDT*2;
+    uint16_t maxClockY = dsp.height() - 100;  // нижняя граница (380 при height 480)
+    if (maxY > maxClockY) maxY = maxClockY;
+    uint16_t minClockY = 100;  // верхняя граница — не меньше 100 px от верха
     #ifdef GXCLOCKFONT
-      uint16_t ft=static_cast<uint16_t>(random(TFT_FRAMEWDT, (dsp.height()-dsp.plItemHeight-TFT_FRAMEWDT*2-clockConf.textsize)));
+      uint16_t minY = (TFT_FRAMEWDT > minClockY) ? TFT_FRAMEWDT : minClockY;
+      uint16_t ft=static_cast<uint16_t>(random(minY, maxY));
     #else
-      uint16_t ft=static_cast<uint16_t>(random(TFT_FRAMEWDT+clockConf.textsize, (dsp.height()-dsp.plItemHeight-TFT_FRAMEWDT*2)));
+      uint16_t minY = (TFT_FRAMEWDT+clockConf.textsize > minClockY) ? (TFT_FRAMEWDT+clockConf.textsize) : minClockY;
+      uint16_t ft=static_cast<uint16_t>(random(minY, maxY));
     #endif
-    _clock.moveTo({clockConf.left, ft, 0});
+    if (minY < maxY) _clock.moveTo({clockConf.left, ft, 0});
   }
   _clock.draw();
   /*#ifdef USE_NEXTION

@@ -101,6 +101,7 @@ DspCore::DspCore(): Arduino_AXS15231B(bus, GFX_NOT_DEFINED /* RST */, 0 /* rotat
   _lastScroller = nullptr;
   _lastReleaseTime = 0;
   _lastScrollIndex = -1;
+  _oldClockTop = 0;
 #ifndef BATTERY_OFF
   // Инициализация ADC для батареи
   adc1_config_width(ADC_WIDTH_BIT_12);
@@ -419,21 +420,16 @@ void DspCore::printClock(uint16_t top, uint16_t rightspace, uint16_t timeheight,
     top = TFT_FRAMEWDT;
   }
   
-  // Ограничиваем нижнюю границу
-  // Учитываем:
-  // - высоту времени (clockTimeHeight)
-  // - высоту даты (CHARHEIGHT*2)
-  // - высоту дня недели (CHARHEIGHT*3)
-  // - отступы между элементами (78 пикселей для даты, 44 для дня недели)
-  uint16_t totalHeight = clockTimeHeight + CHARHEIGHT*2 + CHARHEIGHT*3 + 78 ;
-  
-  if(top + totalHeight > height() - TFT_FRAMEWDT) {
-    top = height() - TFT_FRAMEWDT - totalHeight;
+  // Do not clamp bottom: when Y>310 forced top=302 → two positions → ghosting. Use requested Y.
+  if (_oldClockTop != 0 && _oldClockTop != top && gfx) {
+    int16_t oldY = (int16_t)_oldClockTop - (int16_t)timeheight - 20;
+    if (oldY < 0) oldY = 0;
+    gfxFillRect(gfx, TFT_FRAMEWDT, (uint16_t)oldY, MAX_WIDTH, 250, config.theme.background);
   }
-  
   clockTop = top;
   clockRightSpace = rightspace;
   clockTimeHeight = timeheight;
+  _oldClockTop = top;
   strftime(_timeBuf, sizeof(_timeBuf), "%H:%M", &network.timeinfo);
   if(strcmp(_oldTimeBuf, _timeBuf)!=0 || redraw){
     _getTimeBounds();
@@ -445,14 +441,15 @@ void DspCore::printClock(uint16_t top, uint16_t rightspace, uint16_t timeheight,
 
 void DspCore::clearClock(){
   if (!gfx) { Serial.println("[AXS15231B] gfx is nullptr! (clearClock)"); return; }
-  
-  // Очищаем область под текущими часами
-  gfxFillRect(gfx, _timeleft, clockTop, MAX_WIDTH, clockTimeHeight+12+CHARHEIGHT, config.theme.background);
-  
-  // Если есть старое положение часов (при перемещении), очищаем и его
-  if(_oldtimeleft > 0) {
-    gfxFillRect(gfx, _oldtimeleft, clockTop-clockTimeHeight, _oldtimewidth+CHARWIDTH*3*2+80, clockTimeHeight+CHARHEIGHT+100, config.theme.background);
+  int16_t curY = (int16_t)clockTop - (int16_t)clockTimeHeight - 20;
+  if (curY < 0) curY = 0;
+  gfxFillRect(gfx, TFT_FRAMEWDT, (uint16_t)curY, MAX_WIDTH, 250, config.theme.background);
+  if (_oldClockTop != 0 && _oldClockTop != clockTop) {
+    int16_t oldY = (int16_t)_oldClockTop - (int16_t)clockTimeHeight - 20;
+    if (oldY < 0) oldY = 0;
+    gfxFillRect(gfx, TFT_FRAMEWDT, (uint16_t)oldY, MAX_WIDTH, 250, config.theme.background);
   }
+  _oldClockTop = clockTop;
 }
 
 void DspCore::startWrite(void) {

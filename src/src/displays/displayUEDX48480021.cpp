@@ -119,6 +119,7 @@ DspCore::DspCore() {
   _lastScroller = nullptr;
   _lastReleaseTime = 0;
   _lastScrollIndex = -1;
+  _oldClockTop = 0;
 }
 
 #include "tools/utf8RusGFX.h"
@@ -528,21 +529,16 @@ void DspCore::printClock(uint16_t top, uint16_t rightspace, uint16_t timeheight,
     top = TFT_FRAMEWDT;
   }
   
-  // Limit bottom boundary
-  // Account for:
-  // - time height (clockTimeHeight)
-  // - date height (CHARHEIGHT*2)
-  // - day of week height (CHARHEIGHT*3)
-  // - spacing between elements (78px for date, 44 for day)
-  uint16_t totalHeight = clockTimeHeight + CHARHEIGHT*2 + CHARHEIGHT*3 + 78 ;
-  
-  if(top + totalHeight > height() - TFT_FRAMEWDT) {
-    top = height() - TFT_FRAMEWDT - totalHeight;
+  // Do not clamp bottom: when Y>310 forced top=302 → two positions → ghosting. Use requested Y.
+  if (_oldClockTop != 0 && _oldClockTop != top && gfx) {
+    int16_t oldY = (int16_t)_oldClockTop - (int16_t)timeheight - 20;
+    if (oldY < 0) oldY = 0;
+    gfxFillRect(gfx, TFT_FRAMEWDT, (uint16_t)oldY, MAX_WIDTH, 250, config.theme.background);
   }
-  
   clockTop = top;
   clockRightSpace = rightspace;
   clockTimeHeight = timeheight;
+  _oldClockTop = top;
   strftime(_timeBuf, sizeof(_timeBuf), "%H:%M", &network.timeinfo);
   if(strcmp(_oldTimeBuf, _timeBuf)!=0 || redraw){
     _getTimeBounds();
@@ -554,32 +550,15 @@ void DspCore::printClock(uint16_t top, uint16_t rightspace, uint16_t timeheight,
 
 void DspCore::clearClock(){
   if (!gfx) { Serial.println("[UEDX48480021] gfx is nullptr! (clearClock)"); return; }
-  
-  // Clear current clock area
-  // Ограничиваем очистку правой границей часов, дополнительно сдвигаем на 50 px влево
-  // чтобы гарантированно не задевать область RSSI при возврате со списков/диалогов
-  int16_t rightLimit = (int16_t)(width() - clockRightSpace - 13);
-  int16_t rectWidth  = (int16_t)(rightLimit - _timeleft);
-  if (rectWidth < 0) rectWidth = 0;
-  gfxFillRect(gfx,
-              _timeleft,
-              clockTop,
-              rectWidth,
-              clockTimeHeight + 12 + CHARHEIGHT,
-              config.theme.background);
-  
-  // If there's old clock position (when moving), clear it too, но не дальше правой границы часов
-  if(_oldtimeleft > 0) {
-    int16_t oldRightLimit = (int16_t)(width() - clockRightSpace - 13);
-    int16_t oldRectWidth  = (int16_t)(oldRightLimit - _oldtimeleft);
-    if (oldRectWidth < 0) oldRectWidth = 0;
-    gfxFillRect(gfx,
-                _oldtimeleft,
-                clockTop - 10,
-                oldRectWidth,
-                clockTimeHeight + CHARHEIGHT + 48,
-                config.theme.background); // +48 to clear date under clock
+  int16_t curY = (int16_t)clockTop - (int16_t)clockTimeHeight - 20;
+  if (curY < 0) curY = 0;
+  gfxFillRect(gfx, TFT_FRAMEWDT, (uint16_t)curY, MAX_WIDTH, 250, config.theme.background);
+  if (_oldClockTop != 0 && _oldClockTop != clockTop) {
+    int16_t oldY = (int16_t)_oldClockTop - (int16_t)clockTimeHeight - 20;
+    if (oldY < 0) oldY = 0;
+    gfxFillRect(gfx, TFT_FRAMEWDT, (uint16_t)oldY, MAX_WIDTH, 250, config.theme.background);
   }
+  _oldClockTop = clockTop;
 }
 
 void DspCore::startWrite(void) {

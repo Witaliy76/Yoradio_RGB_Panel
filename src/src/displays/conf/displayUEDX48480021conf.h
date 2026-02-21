@@ -70,7 +70,7 @@ const WidgetConfig apNameConf     PROGMEM = { TFT_FRAMEWDT+10, 160, 3, WA_CENTER
 const WidgetConfig apName2Conf    PROGMEM = { TFT_FRAMEWDT+10, 195, 3, WA_CENTER };
 const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT+10, 240, 3, WA_CENTER };
 const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT+10, 265, 3, WA_CENTER };
-const WidgetConfig  clockConf     PROGMEM = { 70, 250, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
+const WidgetConfig  clockConf     PROGMEM = { 70, 205, 52, WA_CENTER };  /* 52 is a fixed font size. do not change */
 const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT+73, 310, 2, WA_LEFT };//294
 
 const WidgetConfig bootWdtConf    PROGMEM = { 200, bootLogoTop+130, 2, WA_LEFT }; // left, top, size, align

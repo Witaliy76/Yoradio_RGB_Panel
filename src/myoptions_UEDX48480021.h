@@ -105,7 +105,7 @@
 /* ===============================================
    GENERAL SETTINGS
    =============================================== */
-#define PLAYER_FORCE_MONO false           // Mono mode (disabled)
+#define PLAYER_FORCE_MONO true           // Mono mode (disabled)
 #define L10N_LANGUAGE RU                  // Interface language (Russian)
 #define BITRATE_FULL  true                // Full bitrate widget
 

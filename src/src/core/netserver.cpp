@@ -1143,15 +1143,11 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         return;
       }
       
-      // Check if Content-Length header exists and validate size / Проверить заголовок Content-Length и валидировать размер
+      // Content-Length is the size of the full multipart body, not the file itself.
+      // Actual file size is validated after writing (see final chunk handling below).
       if (request->hasHeader("Content-Length")) {
         size_t content_length = atoi(request->getHeader("Content-Length")->value().c_str());
-        AI_DLOG("[AI] Upload: Content-Length=%u", content_length);
-        if (content_length > max_prompt_size) {
-          AI_LOG("[AI] Upload rejected: prompt too large (%u > %u)", content_length, max_prompt_size);
-          request->send(413, "text/plain", "File too large");
-          return;
-        }
+        AI_DLOG("[AI] Upload: Content-Length=%u (multipart body, not file size)", content_length);
       }
       
       // Open TEMP file for writing (atomic upload) / Открыть ВРЕМЕННЫЙ файл для записи (атомарная загрузка)

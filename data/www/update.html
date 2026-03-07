@@ -16,11 +16,11 @@
     <div class="logo"></div>
     <div class="playerwrap">
       <div class="player" id="uploaderwrap">
-        <div id="uploadstatus">Please choose firmware or SPIFFS *.bin file</div>
+        <div id="uploadstatus">Please choose firmware or filesystem *.bin file</div>
         <form id="updateform" method="POST" action="/update" enctype="multipart/form-data">
           <div class="row">
             <label for="uploadtype1"><input type="radio" id="uploadtype1" name="updatetarget" value="fw" checked /><span class="checkmark"></span> firmware</label>
-            <label for="contactChoice2"><input type="radio" id="uploadtype2" name="updatetarget" value="spiffs" /><span class="checkmark"></span> SPIFFS</label>
+            <label for="contactChoice2"><input type="radio" id="uploadtype2" name="updatetarget" value="spiffs" /><span class="checkmark"></span> filesystem</label>
           </div>
           <div class="row rowinput">
             <input id="binfile" type="file" accept=".bin,.hex" name="update" />

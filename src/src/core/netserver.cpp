@@ -1,5 +1,5 @@
 #include "netserver.h"
-#include <SPIFFS.h>
+#include <LittleFS.h>
 
 #include "config.h"
 #include "player.h"
@@ -104,7 +104,7 @@ bool NetServer::begin(bool quiet) {
   webserver.on("/update", HTTP_POST, beginUpdate, handleUpdate);
   webserver.on("/settings", HTTP_GET, handleHTTPArgs);
   if (IR_PIN != 255) webserver.on("/ir", HTTP_GET, handleHTTPArgs);
-  webserver.serveStatic("/", SPIFFS, "/www/").setCacheControl("max-age=31536000");
+  webserver.serveStatic("/", LittleFS, "/www/").setCacheControl("max-age=31536000");
 #ifdef CORS_DEBUG
   DefaultHeaders::Instance().addHeader(F("Access-Control-Allow-Origin"), F("*"));
   DefaultHeaders::Instance().addHeader(F("Access-Control-Allow-Headers"), F("content-type"));
@@ -178,7 +178,7 @@ size_t NetServer::chunkedHtmlPageCallback(uint8_t* buffer, size_t maxLen, size_t
   if(sdpl){
     requiredfile = config.SDPLFS()->open(netserver.chunkedPathBuffer, "r");
   }else{
-    requiredfile = SPIFFS.open(netserver.chunkedPathBuffer, "r");
+    requiredfile = LittleFS.open(netserver.chunkedPathBuffer, "r");
   }
   if (!requiredfile) return 0;
   size_t filesize = requiredfile.size();
@@ -688,7 +688,7 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
       if (strcmp(cmd, "ai_enabled") == 0) {
         AIConfig aicfg;
         aiLoadFromFS(aicfg);
-        bool old_enabled = aicfg.enabled;  // Сохраняем старое состояние из SPIFFS / Save old state from SPIFFS
+        bool old_enabled = aicfg.enabled;  // Сохраняем старое состояние из FS / Save old state from FS
         bool old_store_enabled = config.store.ai_enabled;  // Сохраняем старое состояние из store / Save old state from store
         aicfg.enabled = (atoi(val) == 1);
         
@@ -1010,7 +1010,7 @@ uint8_t NetServer::_readPlaylistLine(File &file, char * line, size_t size){
 
 bool NetServer::importPlaylist() {
   if(config.getMode()==PM_SDCARD) return false;
-  File tempfile = SPIFFS.open(TMP_PATH, "r");
+  File tempfile = LittleFS.open(TMP_PATH, "r");
   if (!tempfile) {
     return false;
   }
@@ -1019,12 +1019,12 @@ bool NetServer::importPlaylist() {
   _readPlaylistLine(tempfile, linePl, sizeof(linePl)-1);
   if (config.parseCSV(linePl, sName, sUrl, sOvol)) {
     tempfile.close();
-    SPIFFS.rename(TMP_PATH, PLAYLIST_PATH);
+    LittleFS.rename(TMP_PATH, PLAYLIST_PATH);
     requestOnChange(PLAYLISTSAVED, 0);
     return true;
   }
   if (config.parseJSON(linePl, sName, sUrl, sOvol)) {
-    File playlistfile = SPIFFS.open(PLAYLIST_PATH, "w");
+    File playlistfile = LittleFS.open(PLAYLIST_PATH, "w");
     snprintf(linePl, sizeof(linePl)-1, "%s\t%s\t%d", sName, sUrl, 0);
     playlistfile.println(linePl);
     while (tempfile.available()) {
@@ -1037,12 +1037,12 @@ bool NetServer::importPlaylist() {
     playlistfile.flush();
     playlistfile.close();
     tempfile.close();
-    SPIFFS.remove(TMP_PATH);
+    LittleFS.remove(TMP_PATH);
     requestOnChange(PLAYLISTSAVED, 0);
     return true;
   }
   tempfile.close();
-  SPIFFS.remove(TMP_PATH);
+  LittleFS.remove(TMP_PATH);
   return false;
 }
 
@@ -1069,13 +1069,13 @@ int freeSpace;
 void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
   if (!index) {
     if(filename!="tempwifi.csv"){
-      if(SPIFFS.exists(PLAYLIST_PATH)) SPIFFS.remove(PLAYLIST_PATH);
-      if(SPIFFS.exists(INDEX_PATH)) SPIFFS.remove(INDEX_PATH);
-      if(SPIFFS.exists(PLAYLIST_SD_PATH)) SPIFFS.remove(PLAYLIST_SD_PATH);
-      if(SPIFFS.exists(INDEX_SD_PATH)) SPIFFS.remove(INDEX_SD_PATH);
+      if(LittleFS.exists(PLAYLIST_PATH)) LittleFS.remove(PLAYLIST_PATH);
+      if(LittleFS.exists(INDEX_PATH)) LittleFS.remove(INDEX_PATH);
+      if(LittleFS.exists(PLAYLIST_SD_PATH)) LittleFS.remove(PLAYLIST_SD_PATH);
+      if(LittleFS.exists(INDEX_SD_PATH)) LittleFS.remove(INDEX_SD_PATH);
     }
-    freeSpace = (float)SPIFFS.totalBytes()/100*68-SPIFFS.usedBytes();
-    request->_tempFile = SPIFFS.open(TMP_PATH , "w");
+    freeSpace = (float)(LittleFS.totalBytes() - LittleFS.usedBytes()) - 4096;
+    request->_tempFile = LittleFS.open(TMP_PATH , "w");
   }
   if (len) {
     if(freeSpace>index+len){
@@ -1114,8 +1114,8 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
       
       // Save old file size for logging overwrite / Сохранить старый размер файла для логирования перезаписи
       size_t old_size = 0;
-      if (SPIFFS.exists(final_path)) {
-        File old_file = SPIFFS.open(final_path, "r");
+      if (LittleFS.exists(final_path)) {
+        File old_file = LittleFS.open(final_path, "r");
         if (old_file) {
           old_size = old_file.size();
           old_file.close();
@@ -1130,17 +1130,16 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
       AI_DLOG("[AI] Upload: old_size=%u", old_size);
       
       // Remove any leftover temp file / Удалить любой оставшийся временный файл
-      if (SPIFFS.exists(tmp_path)) {
-        SPIFFS.remove(tmp_path);
+      if (LittleFS.exists(tmp_path)) {
+        LittleFS.remove(tmp_path);
       }
       
-      // Check free space in SPIFFS / Проверка свободного места в SPIFFS
-      float freeSpace = (float)SPIFFS.totalBytes()/100*68 - SPIFFS.usedBytes();
+      float freeSpace = (float)(LittleFS.totalBytes() - LittleFS.usedBytes()) - 4096;
       AI_DLOG("[AI] Upload: freeSpace=%.0f max_prompt_size=%u", freeSpace, max_prompt_size);
       
       if (freeSpace < max_prompt_size) {
-        AI_LOG("[AI] Upload rejected: insufficient SPIFFS space (free=%.0f, required=%u)", freeSpace, max_prompt_size);
-        request->send(413, "text/plain", "Insufficient SPIFFS space");
+        AI_LOG("[AI] Upload rejected: insufficient FS space (free=%.0f, required=%u)", freeSpace, max_prompt_size);
+        request->send(413, "text/plain", "Insufficient filesystem space");
         return;
       }
       
@@ -1156,11 +1155,11 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
       }
       
       // Open TEMP file for writing (atomic upload) / Открыть ВРЕМЕННЫЙ файл для записи (атомарная загрузка)
-      request->_tempFile = SPIFFS.open(tmp_path, "w");
+      request->_tempFile = LittleFS.open(tmp_path, "w");
       if (!request->_tempFile) {
-        AI_LOG("[AI] Upload failed: SPIFFS error (cannot open temp file)");
+        AI_LOG("[AI] Upload failed: FS error (cannot open temp file)");
         AI_DLOG("[AI] Upload: open() failed for %s", tmp_path);
-        request->send(500, "text/plain", "SPIFFS error");
+        request->send(500, "text/plain", "Filesystem error");
         return;
       }
       
@@ -1170,8 +1169,8 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
     if (len) {
       // Check current file size during upload / Проверить текущий размер файла во время загрузки
       if (request->_tempFile) {
-        // Для первого chunk (index=0) size() может возвращать мусорное значение на некоторых модулях SPIFFS
-        // For first chunk (index=0) size() may return garbage value on some SPIFFS modules
+        // Для первого chunk (index=0) size() может возвращать мусорное значение
+        // For first chunk (index=0) size() may return garbage value
         // Используем index как приблизительную оценку размера для проверки
         // Use index as approximate size estimate for validation
         size_t estimated_size = (index == 0) ? len : request->_tempFile.size();
@@ -1179,21 +1178,21 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         if (estimated_size + len > max_prompt_size) {
           AI_LOG("[AI] Upload rejected: prompt too large (estimated=%u + chunk=%u > max=%u)", estimated_size, len, max_prompt_size);
           request->_tempFile.close();
-          SPIFFS.remove(tmp_path);  // Remove temp file only / Удалить только временный файл
+          LittleFS.remove(tmp_path);  // Remove temp file only / Удалить только временный файл
           request->send(413, "text/plain", "File too large");
           return;
         }
         
         size_t bytes_written = request->_tempFile.write(data, len);
-        request->_tempFile.flush();  // Ensure data is written to SPIFFS / Обеспечить запись данных в SPIFFS
+        request->_tempFile.flush();
         
         AI_DLOG("[AI] Upload chunk: index=%u len=%u written=%u final=%d estimated_size=%u", index, len, bytes_written, final ? 1 : 0, estimated_size);
         
         if (bytes_written != len) {
           AI_LOG("[AI] Upload failed: write error (requested=%u written=%u)", len, bytes_written);
           request->_tempFile.close();
-          SPIFFS.remove(tmp_path);
-          request->send(500, "text/plain", "SPIFFS write error");
+          LittleFS.remove(tmp_path);
+          request->send(500, "text/plain", "Filesystem write error");
           return;
         }
       } else {
@@ -1214,7 +1213,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         if (new_size == 0 || new_size > max_prompt_size) {
           AI_LOG("[AI] Upload failed: invalid file size (%u, max=%u)", new_size, max_prompt_size);
           AI_DLOG("[AI] Upload: validation failed, removing tmp only");
-          SPIFFS.remove(tmp_path);  // Remove temp file only, keep old prompt / Удалить только временный файл, оставить старый prompt
+          LittleFS.remove(tmp_path);  // Remove temp file only, keep old prompt / Удалить только временный файл, оставить старый prompt
           request->send(400, "text/plain", "Invalid file size");
           return;
         }
@@ -1227,16 +1226,16 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         
         // Step 1: Create backup of old file (if exists) / Шаг 1: Создать backup старого файла (если существует)
         bool has_backup = false;
-        if (SPIFFS.exists(final_path)) {
+        if (LittleFS.exists(final_path)) {
           // Remove old backup if exists / Удалить старый backup если существует
-          if (SPIFFS.exists(bak_path)) {
-            SPIFFS.remove(bak_path);
+          if (LittleFS.exists(bak_path)) {
+            LittleFS.remove(bak_path);
           }
           
           // Copy old file to backup / Копировать старый файл в backup
-          File old_file = SPIFFS.open(final_path, "r");
+          File old_file = LittleFS.open(final_path, "r");
           if (old_file) {
-            File bak_file = SPIFFS.open(bak_path, "w");
+            File bak_file = LittleFS.open(bak_path, "w");
             if (bak_file) {
               uint8_t buf[128];
               bool bak_success = true;
@@ -1257,7 +1256,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
                 has_backup = true;
               } else {
                 // Backup failed - remove corrupted backup / Backup не удался - удалить повреждённый backup
-                SPIFFS.remove(bak_path);
+                LittleFS.remove(bak_path);
               }
             } else {
               old_file.close();
@@ -1266,26 +1265,26 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         }
         
         // Step 2: Copy temp to final (overwrite) / Шаг 2: Копировать временный в финальный (перезаписать)
-        File tmp_file = SPIFFS.open(tmp_path, "r");
+        File tmp_file = LittleFS.open(tmp_path, "r");
         if (!tmp_file) {
           AI_LOG("[AI] Upload failed: cannot read temp file for finalization");
-          SPIFFS.remove(tmp_path);
-          if (has_backup && SPIFFS.exists(bak_path)) {
-            SPIFFS.remove(bak_path);  // Cleanup backup if we didn't use it / Очистить backup если не использовали
+          LittleFS.remove(tmp_path);
+          if (has_backup && LittleFS.exists(bak_path)) {
+            LittleFS.remove(bak_path);  // Cleanup backup if we didn't use it / Очистить backup если не использовали
           }
-          request->send(500, "text/plain", "SPIFFS error");
+          request->send(500, "text/plain", "Filesystem error");
           return;
         }
         
-        File final_file = SPIFFS.open(final_path, "w");
+        File final_file = LittleFS.open(final_path, "w");
         if (!final_file) {
           tmp_file.close();
           AI_LOG("[AI] Upload failed: cannot create final file");
-          SPIFFS.remove(tmp_path);
-          if (has_backup && SPIFFS.exists(bak_path)) {
-            SPIFFS.remove(bak_path);  // Cleanup backup / Очистить backup
+          LittleFS.remove(tmp_path);
+          if (has_backup && LittleFS.exists(bak_path)) {
+            LittleFS.remove(bak_path);  // Cleanup backup / Очистить backup
           }
-          request->send(500, "text/plain", "SPIFFS error");
+          request->send(500, "text/plain", "Filesystem error");
           return;
         }
         
@@ -1310,7 +1309,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         // Check final file size (more reliable than counting bytes during copy)
         // Проверяем размер финального файла (надёжнее, чем подсчёт байтов при копировании)
         size_t final_size = 0;
-        File validate_file = SPIFFS.open(final_path, "r");
+        File validate_file = LittleFS.open(final_path, "r");
         if (validate_file) {
           final_size = validate_file.size();
           validate_file.close();
@@ -1320,15 +1319,15 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         
         if (!copy_success || final_size != new_size || final_size == 0) {
           // Copy failed or validation failed - rollback / Копирование не удалось или валидация не прошла - откат
-          if (SPIFFS.exists(final_path)) {
-            SPIFFS.remove(final_path);  // Remove corrupted final / Удалить повреждённый финальный
+          if (LittleFS.exists(final_path)) {
+            LittleFS.remove(final_path);  // Remove corrupted final / Удалить повреждённый финальный
           }
           
           // Restore backup if exists / Восстановить backup если существует
-          if (has_backup && SPIFFS.exists(bak_path)) {
-            File bak_file = SPIFFS.open(bak_path, "r");
+          if (has_backup && LittleFS.exists(bak_path)) {
+            File bak_file = LittleFS.open(bak_path, "r");
             if (bak_file) {
-              File restore_file = SPIFFS.open(final_path, "w");
+              File restore_file = LittleFS.open(final_path, "w");
               if (restore_file) {
                 uint8_t buf[128];
                 bool restore_success = true;
@@ -1348,25 +1347,25 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
                 if (restore_success) {
                   AI_LOG("[AI] Upload failed: restored prompt from backup");
                 } else {
-                  SPIFFS.remove(final_path);  // Remove corrupted restore / Удалить повреждённое восстановление
+                  LittleFS.remove(final_path);  // Remove corrupted restore / Удалить повреждённое восстановление
                 }
               } else {
                 bak_file.close();
               }
             }
-            SPIFFS.remove(bak_path);  // Cleanup backup after restore attempt / Очистить backup после попытки восстановления
+            LittleFS.remove(bak_path);  // Cleanup backup after restore attempt / Очистить backup после попытки восстановления
           }
           
-          SPIFFS.remove(tmp_path);
+          LittleFS.remove(tmp_path);
           AI_LOG("[AI] Upload failed: file copy/validation failed (tmp_size=%u final_size=%u)", new_size, final_size);
-          request->send(500, "text/plain", "SPIFFS copy/validation error");
+          request->send(500, "text/plain", "Filesystem copy/validation error");
           return;
         }
         
         // Step 4: Replace succeeded - cleanup temp and backup / Шаг 4: Замена успешна - очистить временный файл и backup
-        SPIFFS.remove(tmp_path);
-        if (has_backup && SPIFFS.exists(bak_path)) {
-          SPIFFS.remove(bak_path);  // Remove backup after successful replace / Удалить backup после успешной замены
+        LittleFS.remove(tmp_path);
+        if (has_backup && LittleFS.exists(bak_path)) {
+          LittleFS.remove(bak_path);  // Remove backup after successful replace / Удалить backup после успешной замены
         }
         
         // Log upload event FIRST (before cache reset) / Залогировать событие загрузки ПЕРВЫМ (до сброса кеша)
@@ -1385,11 +1384,11 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
         
         request->send(200, "text/plain", "OK");
       } else {
-        AI_LOG("[AI] Upload failed: SPIFFS error (file not open)");
-        if (SPIFFS.exists(tmp_path)) {
-          SPIFFS.remove(tmp_path);  // Cleanup temp file / Очистить временный файл
+        AI_LOG("[AI] Upload failed: FS error (file not open)");
+        if (LittleFS.exists(tmp_path)) {
+          LittleFS.remove(tmp_path);  // Cleanup temp file / Очистить временный файл
         }
-        request->send(500, "text/plain", "SPIFFS error");
+        request->send(500, "text/plain", "Filesystem error");
       }
       return;
     }
@@ -1400,7 +1399,7 @@ void handleUploadWeb(AsyncWebServerRequest *request, String filename, size_t ind
   if (!index) {
     String spath = "/www/";
     if(filename=="playlist.csv" || filename=="wifi.csv") spath = "/data/";
-    request->_tempFile = SPIFFS.open(spath + filename , "w");
+    request->_tempFile = LittleFS.open(spath + filename , "w");
   }
   if (len) {
     request->_tempFile.write(data, len);
@@ -1543,8 +1542,8 @@ void handleHTTPArgs(AsyncWebServerRequest * request) {
         commandFound=true;
       }
     }
-    if (request->hasArg("clearspiffs")) {
-      if(config.spiffsCleanup()){
+    if (request->hasArg("clearspiffs") || request->hasArg("clearfs")) {
+      if(config.fsCleanup()){
         config.saveValue(&config.store.play_mode, static_cast<uint8_t>(PM_WEB));
         request->redirect("/");
         ESP.restart();

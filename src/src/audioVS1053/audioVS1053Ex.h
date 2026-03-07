@@ -28,7 +28,7 @@
 
 #include <SD.h>
 #include <SD_MMC.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <FS.h>
 #include <FFat.h>
 

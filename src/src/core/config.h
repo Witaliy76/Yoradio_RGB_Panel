@@ -3,7 +3,7 @@
 #include "Arduino.h"
 #include <Ticker.h>
 #include <SPI.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <EEPROM.h>
 //#include "SD.h"
 #include "options.h"
@@ -261,7 +261,7 @@ class Config {
     uint8_t getMode() { return store.play_mode/* & 0b11*/; }
     void initPlaylistMode();
     void reset();
-    bool spiffsCleanup();
+    bool fsCleanup();
     FS* SDPLFS(){ return _SDplaylistFS; }
     #if RTCSUPPORTED
       bool isRTCFound(){ return _rtcFound; };
@@ -323,7 +323,7 @@ extern Config config;
 extern SPIClass  SPI2;
 #endif
 
-// AI configuration structure for SPIFFS storage / Структура конфигурации AI для хранения в SPIFFS
+// AI configuration structure for filesystem storage / Структура конфигурации AI для хранения в FS
 struct AIConfig {
   bool enabled;
   char host[64];
@@ -334,12 +334,11 @@ struct AIConfig {
   char model[32];
 };
 
-// Get runtime AI configuration from cache (RAM, no SPIFFS access) / Получить runtime AI конфигурацию из кеша (RAM, без доступа к SPIFFS)
+// Get runtime AI configuration from cache (RAM, no FS access) / Получить runtime AI конфигурацию из кеша (RAM, без доступа к FS)
 // Returns true if cache is loaded, false if using defaults / Возвращает true если кеш загружен, false если используются дефолты
 bool aiGetRuntimeConfig(AIConfig& out);
 
-// Check if SPIFFS is ready (mounted successfully) / Проверить готовность SPIFFS (успешно смонтирован)
-// Returns true if SPIFFS.begin() was successful in Config::init() / Возвращает true если SPIFFS.begin() был успешным в Config::init()
+// Check if filesystem is ready (mounted successfully) / Проверить готовность FS (успешно смонтирована)
 bool fsIsReady();
 
 #endif

@@ -1,6 +1,6 @@
 #include "config.h"
 
-//#include <SPIFFS.h>
+//#include <LittleFS.h>  // Migrated to LittleFS (Stage 1)
 #include "display.h"
 #include "player.h"
 #include "network.h"
@@ -10,14 +10,14 @@
 #include "sdmanager.h"
 #endif
 #include <cstddef>
-// Runtime AI config cache removed - using SPIFFS /ai.json as single source of truth
-// Runtime AI config кеш удалён - используем SPIFFS /ai.json как единственный источник истины
+// Runtime AI config cache removed - using filesystem /ai.json as single source of truth
+// Runtime AI config кеш удалён - используем FS /ai.json как единственный источник истины
 #include <ArduinoJson.h>
 
 Config config;
 
-// SPIFFS ready flag (set after SPIFFS.begin() in Config::init()) / Флаг готовности SPIFFS (устанавливается после SPIFFS.begin() в Config::init())
-static bool g_spiffs_ready = false;
+// Filesystem ready flag (set after LittleFS.begin() in Config::init())
+static bool g_fs_ready = false;
 
 // Deferred AI widget clear flag / Флаг отложенной очистки AI виджета
 // Set to true when AI is disabled during init (before display is ready)
@@ -28,8 +28,8 @@ static bool g_aiNeedsClear = false;
 // Структура AIConfig теперь определена в config.h для публичного доступа
 
 // Runtime AI configuration cache in RAM / Runtime кеш AI конфигурации в RAM
-// Populated from SPIFFS /ai.json on startup and after each save
-// Заполняется из SPIFFS /ai.json при старте и после каждого сохранения
+// Populated from FS /ai.json on startup and after each save
+// Заполняется из FS /ai.json при старте и после каждого сохранения
 static AIConfig g_ai_cfg;
 static bool g_ai_cfg_loaded = false;
 
@@ -64,10 +64,10 @@ bool aiIsValidForEnable(const AIConfig& cfg) {
   return true;
 }
 
-// Load AI configuration from SPIFFS / Загрузить конфигурацию AI из SPIFFS
+// Load AI configuration from filesystem / Загрузить конфигурацию AI из FS
 // Also updates runtime cache (g_ai_cfg) / Также обновляет runtime кеш (g_ai_cfg)
 bool aiLoadFromFS(AIConfig& out) {
-  if (!SPIFFS.exists(AI_CONFIG_PATH)) {
+  if (!LittleFS.exists(AI_CONFIG_PATH)) {
     aiSetDefaults(out);
     // Update cache with defaults / Обновляем кеш дефолтами
     g_ai_cfg = out;
@@ -75,7 +75,7 @@ bool aiLoadFromFS(AIConfig& out) {
     return false;  // File doesn't exist, using defaults
   }
   
-  File file = SPIFFS.open(AI_CONFIG_PATH, "r");
+  File file = LittleFS.open(AI_CONFIG_PATH, "r");
   if (!file || file.isDirectory()) {
     aiSetDefaults(out);
     // Update cache with defaults / Обновляем кеш дефолтами
@@ -121,10 +121,10 @@ bool aiLoadFromFS(AIConfig& out) {
   return true;
 }
 
-// Save AI configuration to SPIFFS / Сохранить конфигурацию AI в SPIFFS
+// Save AI configuration to filesystem / Сохранить конфигурацию AI в FS
 // Also updates runtime cache (g_ai_cfg) / Также обновляет runtime кеш (g_ai_cfg)
 bool aiSaveToFS(const AIConfig& cfg) {
-  File file = SPIFFS.open(AI_CONFIG_PATH, "w");
+  File file = LittleFS.open(AI_CONFIG_PATH, "w");
   if (!file) {
     return false;
   }
@@ -197,13 +197,13 @@ bool Config::_isFSempty() {
   char fullpath[28];
   for (uint8_t i=0; i<reqiredFilesSize; i++){
     sprintf(fullpath, "/www/%s", reqiredFiles[i]);
-    if(!SPIFFS.exists(fullpath)) return true;
+    if(!LittleFS.exists(fullpath)) return true;
   }
   return false;
 }
 
-// Get runtime AI configuration from cache (RAM, no SPIFFS access)
-// Получить runtime AI конфигурацию из кеша (RAM, без доступа к SPIFFS)
+// Get runtime AI configuration from cache (RAM, no FS access)
+// Получить runtime AI конфигурацию из кеша (RAM, без доступа к FS)
 // Returns true if cache is loaded, false if using defaults
 // Возвращает true если кеш загружен, false если используются дефолты
 bool aiGetRuntimeConfig(AIConfig& out) {
@@ -261,9 +261,9 @@ void Config::init() {
     saveValue(&store.ai_enableFiles, false, true, true);
   }
   
-  // AI runtime config removed - using SPIFFS /ai.json as single source of truth
-  // Runtime config удалён - используем SPIFFS /ai.json как единственный источник истины
-  // SPIFFS config is loaded later in init() after SPIFFS.begin()
+  // AI runtime config removed - using FS /ai.json as single source of truth
+  // Runtime config удалён - используем FS /ai.json как единственный источник истины
+  // FS config is loaded later in init() after LittleFS.begin()
   
   #ifdef AI_ENABLE_FILES
     bool files_enabled = (AI_ENABLE_FILES != 0);
@@ -276,19 +276,23 @@ void Config::init() {
   store.play_mode = store.play_mode & 0b11;
   if(store.play_mode>1) store.play_mode=PM_WEB;
   _initHW();
-  g_spiffs_ready = SPIFFS.begin(true);
-  if (!g_spiffs_ready) {
-    Serial.println("##[ERROR]#\tSPIFFS Mount Failed");
+  // Stage 1: migrated from SPIFFS to LittleFS. First boot after migration
+  // will auto-format (losing old SPIFFS data). Re-upload via `pio run -t uploadfs`.
+  g_fs_ready = LittleFS.begin(true);
+  if (!g_fs_ready) {
+    Serial.println("##[ERROR]#\tLittleFS Mount Failed");
     return;
   }
-  BOOTLOG("SPIFFS mounted");
+  BOOTLOG("LittleFS mounted");
+  LittleFS.mkdir("/data");
+  LittleFS.mkdir("/www");
+  LittleFS.mkdir("/ai");
   
-  // Load AI configuration from SPIFFS and apply to store / Загрузить конфигурацию AI из SPIFFS и применить к store
-  // SPIFFS config has priority over runtime config (WebUI settings override dev config)
-  // Конфигурация SPIFFS имеет приоритет над runtime config (настройки WebUI перезаписывают dev config)
-  // IMPORTANT: Must be called AFTER SPIFFS.begin() / ВАЖНО: Вызывать ПОСЛЕ SPIFFS.begin()
-  if (g_spiffs_ready) {
-    // Reset AI prompt cache after SPIFFS is ready / Сбросить кеш промптов AI после готовности SPIFFS
+  // Load AI configuration from filesystem and apply to store
+  // FS config has priority over runtime config (WebUI settings override dev config)
+  // IMPORTANT: Must be called AFTER LittleFS.begin() / ВАЖНО: Вызывать ПОСЛЕ LittleFS.begin()
+  if (g_fs_ready) {
+    // Reset AI prompt cache after FS is ready
     // This allows prompts to be loaded from files on first request / Это позволяет загрузить промпты из файлов при первом запросе
     extern void aiPromptResetCache();
     aiPromptResetCache();
@@ -297,7 +301,7 @@ void Config::init() {
     extern bool aiPromptIsAvailable();
     if (!aiPromptIsAvailable()) {
       BOOTLOG("[AI] Prompt missing: /ai/ai_prompt.txt");
-      BOOTLOG("[AI] AI disabled until prompt is uploaded to SPIFFS");
+      BOOTLOG("[AI] AI disabled until prompt is uploaded to filesystem");
       BOOTLOG("[AI] Please upload: /ai/ai_prompt.txt");
     }
     
@@ -314,12 +318,12 @@ void Config::init() {
     }
   }
   emptyFS = _isFSempty();
-  if(emptyFS) BOOTLOG("SPIFFS is empty!");
+  if(emptyFS) BOOTLOG("LittleFS is empty!");
   ssidsCount = 0;
   #ifdef USE_SD
-  _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&SPIFFS:_SDplaylistFS);
+  _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&LittleFS:_SDplaylistFS);
   #else
-  _SDplaylistFS = &SPIFFS;
+  _SDplaylistFS = &LittleFS;
   #endif
   _bootDone=false;
 }
@@ -390,7 +394,7 @@ void Config::changeMode(int newmode){
     store.play_mode=(playMode_e)newmode;
   }
   saveValue(&store.play_mode, store.play_mode, true, true);
-  _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&SPIFFS:_SDplaylistFS);
+  _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&LittleFS:_SDplaylistFS);
   if(getMode()==PM_SDCARD){
     if(pir) player.sendCommand({PR_STOP, 0});
     display.putRequest(NEWMODE, SDCHANGE);
@@ -453,11 +457,11 @@ void Config::initSDPlaylist() {
 
 #endif //#ifdef USE_SD
 
-bool Config::spiffsCleanup(){
-  bool ret = (SPIFFS.exists(PLAYLIST_SD_PATH)) || (SPIFFS.exists(INDEX_SD_PATH)) || (SPIFFS.exists(INDEX_PATH));
-  if(SPIFFS.exists(PLAYLIST_SD_PATH)) SPIFFS.remove(PLAYLIST_SD_PATH);
-  if(SPIFFS.exists(INDEX_SD_PATH)) SPIFFS.remove(INDEX_SD_PATH);
-  if(SPIFFS.exists(INDEX_PATH)) SPIFFS.remove(INDEX_PATH);
+bool Config::fsCleanup(){
+  bool ret = (LittleFS.exists(PLAYLIST_SD_PATH)) || (LittleFS.exists(INDEX_SD_PATH)) || (LittleFS.exists(INDEX_PATH));
+  if(LittleFS.exists(PLAYLIST_SD_PATH)) LittleFS.remove(PLAYLIST_SD_PATH);
+  if(LittleFS.exists(INDEX_SD_PATH)) LittleFS.remove(INDEX_SD_PATH);
+  if(LittleFS.exists(INDEX_PATH)) LittleFS.remove(INDEX_PATH);
   return ret;
 }
 
@@ -647,8 +651,8 @@ void Config::setDefaults() {
   strlcpy(store.ai_model, "deepseek-chat", AI_MODEL_LENGTH);  // DeepSeek default model
   store.ai_enableFiles = false;
   
-  // AI settings migrated to SPIFFS /ai.json and runtime cache (see aiGetRuntimeConfig())
-  // Настройки AI мигрированы на SPIFFS /ai.json и runtime кеш (см. aiGetRuntimeConfig())
+  // AI settings migrated to FS /ai.json and runtime cache (see aiGetRuntimeConfig())
+  // Настройки AI мигрированы на FS /ai.json и runtime кеш (см. aiGetRuntimeConfig())
   // Runtime config will be applied in Config::init() after store is loaded
   // Runtime config будет применена в Config::init() после загрузки store
   
@@ -735,13 +739,13 @@ void Config::setStation(const char* station) {
 }
 
 void Config::indexPlaylist() {
-  File playlist = SPIFFS.open(PLAYLIST_PATH, "r");
+  File playlist = LittleFS.open(PLAYLIST_PATH, "r");
   if (!playlist) {
     return;
   }
   char sName[BUFLEN], sUrl[BUFLEN];
   int sOvol;
-  File index = SPIFFS.open(INDEX_PATH, "w");
+  File index = LittleFS.open(INDEX_PATH, "w");
   while (playlist.available()) {
     uint32_t pos = playlist.position();
     if (parseCSV(playlist.readStringUntil('\n').c_str(), sName, sUrl, sOvol)) {
@@ -754,10 +758,10 @@ void Config::indexPlaylist() {
 
 void Config::initPlaylist() {
   store.countStation = 0;
-  if (!SPIFFS.exists(INDEX_PATH)) indexPlaylist();
+  if (!LittleFS.exists(INDEX_PATH)) indexPlaylist();
 
-  if (SPIFFS.exists(INDEX_PATH)) {
-    File index = SPIFFS.open(INDEX_PATH, "r");
+  if (LittleFS.exists(INDEX_PATH)) {
+    File index = LittleFS.open(INDEX_PATH, "r");
     store.countStation = index.size() / 4;
     index.close();
     saveValue(&store.countStation, store.countStation, true, true);
@@ -950,7 +954,7 @@ bool Config::parseSsid(const char* line, char* ssid, char* pass) {
 }
 
 bool Config::saveWifiFromNextion(const char* post){
-  File file = SPIFFS.open(SSIDS_PATH, "w");
+  File file = LittleFS.open(SSIDS_PATH, "w");
   if (!file) {
     return false;
   } else {
@@ -961,21 +965,21 @@ bool Config::saveWifiFromNextion(const char* post){
   }
 }
 
-// Check if SPIFFS is ready (mounted successfully) / Проверить готовность SPIFFS (успешно смонтирован)
+// Check if filesystem is ready (mounted successfully)
 bool fsIsReady() {
-  return g_spiffs_ready;
+  return g_fs_ready;
 }
 
 bool Config::saveWifi() {
-  if (!SPIFFS.exists(TMP_PATH)) return false;
-  SPIFFS.remove(SSIDS_PATH);
-  SPIFFS.rename(TMP_PATH, SSIDS_PATH);
+  if (!LittleFS.exists(TMP_PATH)) return false;
+  LittleFS.remove(SSIDS_PATH);
+  LittleFS.rename(TMP_PATH, SSIDS_PATH);
   ESP.restart();
   return true;
 }
 
 bool Config::initNetwork() {
-  File file = SPIFFS.open(SSIDS_PATH, "r");
+  File file = LittleFS.open(SSIDS_PATH, "r");
   if (!file || file.isDirectory()) {
     return false;
   }

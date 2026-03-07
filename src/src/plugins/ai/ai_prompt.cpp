@@ -1,6 +1,6 @@
 /**
  * ai_prompt.cpp - AI prompt loader implementation
- * Description: AI prompt loader from SPIFFS with RAM caching
+ * Description: AI prompt loader from filesystem with RAM caching
  * Author: W76W, 4pda.to
  * Date: 02.01.2026
  * Version: Yoradio RGB Panel v0.9.434m-r2
@@ -8,7 +8,7 @@
 
 #include "ai_prompt.h"
 #include "ai_log.h"  // AI Layer logging macros
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include "../../core/config.h"   // Для fsIsReady() / For fsIsReady()
 
 // Maximum prompt file size in bytes / Максимальный размер файла промпта в байтах
@@ -19,25 +19,25 @@
 #define AI_PROMPT_PATH "/ai/ai_prompt.txt"
 
 // RAM cache for prompt / RAM кеш для промпта
-// Cache only successful loads from SPIFFS / Кешируются только успешные загрузки из SPIFFS
+// Cache only successful loads from filesystem / Кешируются только успешные загрузки из filesystem
 static String g_prompt;
 static bool g_prompt_loaded = false;
 
-// Load prompt from SPIFFS / Загрузить промпт из SPIFFS
+// Load prompt from filesystem / Загрузить промпт из filesystem
 // Returns true only if file successfully loaded / Возвращает true только если файл успешно загружен
 // No fallback - strict mode / Без fallback - строгий режим
 static bool loadPromptFromFS(String& outPrompt) {
-    // Проверка готовности SPIFFS / Check SPIFFS readiness
+    // Проверка готовности filesystem / Check filesystem readiness
     if (!fsIsReady()) {
         return false;
     }
     
-    if (!SPIFFS.exists(AI_PROMPT_PATH)) {
+    if (!LittleFS.exists(AI_PROMPT_PATH)) {
         AI_LOG("[AI] Prompt missing: %s", AI_PROMPT_PATH);
         return false;
     }
     
-    File file = SPIFFS.open(AI_PROMPT_PATH, "r");
+    File file = LittleFS.open(AI_PROMPT_PATH, "r");
     if (!file || file.isDirectory()) {
         AI_LOG("[AI] Failed to open prompt: %s", AI_PROMPT_PATH);
         return false;
@@ -65,7 +65,7 @@ static bool loadPromptFromFS(String& outPrompt) {
     return true;
 }
 
-// Get AI prompt from SPIFFS / Получить AI промпт из SPIFFS
+// Get AI prompt from filesystem / Получить AI промпт из filesystem
 // STRICT MODE: returns true ONLY if loaded from file / СТРОГИЙ РЕЖИМ: возвращает true ТОЛЬКО если загружен из файла
 // If file not available, returns false and clears outPrompt / Если файл недоступен, возвращает false и очищает outPrompt
 bool aiPromptGet(String& outPrompt) {
@@ -77,7 +77,7 @@ bool aiPromptGet(String& outPrompt) {
         return true;
     }
     
-    // Try to load from SPIFFS / Пытаемся загрузить из SPIFFS
+    // Try to load from filesystem / Пытаемся загрузить из filesystem
     if (loadPromptFromFS(g_prompt)) {
         g_prompt_loaded = true;
         outPrompt = g_prompt;
@@ -89,7 +89,7 @@ bool aiPromptGet(String& outPrompt) {
     }
 }
 
-// Reset prompt cache (forces reload from SPIFFS on next request) / Сбросить кеш промпта
+// Reset prompt cache (forces reload from filesystem on next request) / Сбросить кеш промпта
 // Resets only successfully loaded prompts / Сбрасывает только успешно загруженные промпты
 void aiPromptResetCache() {
     g_prompt_loaded = false;
@@ -100,18 +100,18 @@ void aiPromptResetCache() {
 // Check if prompt file is available (strict mode, no fallback) / Проверить, доступен ли файл промпта (строгий режим, без fallback)
 // Returns true only if all conditions met: FS ready, file exists, valid size / Возвращает true только если все условия выполнены
 bool aiPromptIsAvailable() {
-    // Check SPIFFS readiness / Проверка готовности SPIFFS
+    // Check filesystem readiness / Проверка готовности filesystem
     if (!fsIsReady()) {
         return false;
     }
     
     // Check file existence / Проверяем существование файла
-    if (!SPIFFS.exists(AI_PROMPT_PATH)) {
+    if (!LittleFS.exists(AI_PROMPT_PATH)) {
         return false;
     }
     
     // Check file size / Проверяем размер файла
-    File file = SPIFFS.open(AI_PROMPT_PATH, "r");
+    File file = LittleFS.open(AI_PROMPT_PATH, "r");
     if (!file || file.isDirectory()) {
         return false;
     }
@@ -134,11 +134,11 @@ size_t aiPromptGetSize() {
         return 0;
     }
     
-    if (!SPIFFS.exists(AI_PROMPT_PATH)) {
+    if (!LittleFS.exists(AI_PROMPT_PATH)) {
         return 0;
     }
     
-    File file = SPIFFS.open(AI_PROMPT_PATH, "r");
+    File file = LittleFS.open(AI_PROMPT_PATH, "r");
     if (!file || file.isDirectory()) {
         return 0;
     }

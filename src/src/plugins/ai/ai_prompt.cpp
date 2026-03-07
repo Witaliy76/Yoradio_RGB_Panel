@@ -13,7 +13,7 @@
 
 // Maximum prompt file size in bytes / Максимальный размер файла промпта в байтах
 // Single source of truth for prompt size limit / Единый источник истины для лимита размера промпта
-#define AI_PROMPT_MAX_LEN 8192
+#define AI_PROMPT_MAX_LEN 20480
 
 // Prompt file path / Путь к файлу промпта
 #define AI_PROMPT_PATH "/ai/ai_prompt.txt"

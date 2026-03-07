@@ -342,8 +342,13 @@ bool getWeather(char *wstr) {
 #if (DSP_MODEL!=DSP_DUMMY || defined(USE_NEXTION)) && !defined(HIDE_WEATHER)
   WiFiClient client;
   const char* host  = "api.openweathermap.org";
-  
-  if (!client.connect(host, 80)) {
+
+  IPAddress serverIP;
+  if (!WiFi.hostByName(host, serverIP)) {
+    Serial.println("##WEATHER###: DNS resolve failed");
+    return false;
+  }
+  if (!client.connect(serverIP, 80)) {
     Serial.println("##WEATHER###: connection  failed");
     return false;
   }

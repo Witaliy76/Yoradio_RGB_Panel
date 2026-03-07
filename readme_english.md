@@ -57,6 +57,10 @@ See: [readme_ai_layer_eng.md](readme_ai_layer_eng.md)
 
 ### Changelog
 
+- 07.03.2026
+  - Filesystem migration from SPIFFS to LittleFS: config, web server, playlists, AI prompt, OTA. First boot after update will format the FS partition (re-upload via “Upload filesystem image”).
+  - AI prompt size limit increased to 20 KB; fixed prompt upload rejecting valid files.
+  - Fixed weather crash on DNS failure (api.openweathermap.org): resolve hostname before connect.
 - 29.01.2026
   - Added AI Layer (core architecture and integration).
   - Fixed text rendering, scrolling, and display optimizations.

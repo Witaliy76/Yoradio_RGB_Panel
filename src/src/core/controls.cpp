@@ -116,7 +116,8 @@ void initControls() {
   }
 #endif
 #if (TS_MODEL!=TS_MODEL_UNDEFINED) && (DSP_MODEL!=DSP_DUMMY)
-  touchscreen.init();
+  // Defer touch init to first loop() — avoids LoadProhibited/IWDT when GT911 I2C init runs in setup (e.g. 4848S040)
+  // Инициализация тача в loop(), чтобы не падать в setup
 #endif
 #if IR_PIN!=255
   pinMode(IR_PIN, INPUT);
@@ -130,6 +131,13 @@ void initControls() {
 }
 
 void loopControls() {
+#if (TS_MODEL!=TS_MODEL_UNDEFINED) && (DSP_MODEL!=DSP_DUMMY)
+  static bool s_touchInitDone = false;
+  if (!s_touchInitDone) {
+    s_touchInitDone = true;
+    touchscreen.init();
+  }
+#endif
   if(display.mode()==UPDATING || display.mode()==SDCHANGE) return;
   if(SDC_CS==255 && display.mode()==LOST) return;
   if(ctrls_on_loop) ctrls_on_loop();

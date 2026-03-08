@@ -13,20 +13,24 @@ void TAMC_GT911::begin(uint8_t _addr) {
   reset();
 }
 void TAMC_GT911::reset() {
-  pinMode(pinInt, OUTPUT);
-  pinMode(pinRst, OUTPUT);
-  digitalWrite(pinInt, 0);
-  digitalWrite(pinRst, 0);
-  delay(10);
-  digitalWrite(pinInt, addr==GT911_ADDR2);
-  delay(1);
-  digitalWrite(pinRst, 1);
-  delay(5);
-  digitalWrite(pinInt, 0);
-  delay(50);
-  pinMode(pinInt, INPUT);
-  // attachInterrupt(pinInt, TAMC_GT911::onInterrupt, RISING);
-  delay(50);
+  // If RST/INT pins are not connected (255), skip GPIO reset to avoid undefined behaviour / LoadProhibited
+  if (pinRst != 255 && pinInt != 255) {
+    pinMode(pinInt, OUTPUT);
+    pinMode(pinRst, OUTPUT);
+    digitalWrite(pinInt, 0);
+    digitalWrite(pinRst, 0);
+    delay(10);
+    digitalWrite(pinInt, addr==GT911_ADDR2);
+    delay(1);
+    digitalWrite(pinRst, 1);
+    delay(5);
+    digitalWrite(pinInt, 0);
+    delay(50);
+    pinMode(pinInt, INPUT);
+    delay(50);
+  } else {
+    delay(60);  // Give GT911 time to power up without hardware reset
+  }
   readBlockData(configBuf, GT911_CONFIG_START, GT911_CONFIG_SIZE);
   setResolution(width, height);
 }

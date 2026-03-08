@@ -387,7 +387,7 @@ void Display::_start() {
 
   if(_rssi)     _setRSSI(WiFi.RSSI());
   #ifndef HIDE_IP
-    if(_volip) _volip->setText(WiFi.localIP().toString().c_str(), iptxtFmt);
+    if(_volip && network.status == CONNECTED) _volip->setText(WiFi.localIP().toString().c_str(), iptxtFmt);
   #endif
   _pager.setPage( pages[PG_PLAYER]);
   // Применяем pending AI интерпретацию при старте на странице плейера
@@ -674,7 +674,7 @@ void Display::loop() {
           if(_weather) _weather->lock(!config.store.showweather);
           if(!config.store.showweather){
             #ifndef HIDE_IP
-            if(_volip) _volip->setText(WiFi.localIP().toString().c_str(), iptxtFmt);
+            if(_volip && network.status == CONNECTED) _volip->setText(WiFi.localIP().toString().c_str(), iptxtFmt);
             #endif
           }else{
             if(_weather) _weather->setText(const_getWeather);
@@ -711,7 +711,7 @@ void Display::loop() {
           break;
         case NEWIP: {
           #ifndef HIDE_IP
-            if(_volip) _volip->setText(WiFi.localIP().toString().c_str(), iptxtFmt);
+            if(_volip && network.status == CONNECTED) _volip->setText(WiFi.localIP().toString().c_str(), iptxtFmt);
           #endif
           break;
         }

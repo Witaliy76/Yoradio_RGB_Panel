@@ -15,6 +15,12 @@
 
 3) Changelog
 
+- 14.11.2026 — Version 0.9.434m-r2.03:
+  - SD card works: mount, indexing, MP3 and FLAC playback, resume from the stop position, fallback to Radio when the card is removed.
+  - Two-finger touch switches SD<->Radio (GT911).
+  - Fixed heap corruption in the GT911 touch driver (185-byte config read into the 128-byte I2C buffer). It showed up as random reboots, mostly when SD was in use.
+  - Fixed a crash on FLAC files with tags (Vorbis comments).
+  - Removed the "memory check" from SDManager that itself caused reboots during playback.
 - 05.02.2026 — Switch to Arduino_GFX type9 init, drop post-init/stabilize steps, set PCLK to 12MHz.
 - 12.10.2025 — Initial README for 4848S040.
 
@@ -24,8 +30,9 @@
 - Touch: GT911 (I2C: SDA=19, SCL=45)
 - Backlight: GPIO38 (PWM)
 - Audio (I2S): DOUT=40, BCLK=1, LRC=2
-- SD card (SPI): CS=42, SCK=48, MISO=41, MOSI=47
-- Free pins: depends on board revision. You may temporarily reuse SD pins — SD playback is not integrated yet.
+- SD card (SPI): CS=42, SCK=48, MISO=41, MOSI=47, 20 MHz
+- GPIO48 and GPIO47 are shared by the SD card and the ST7701 command bus. GPIO48 is also the module's on-board RGB LED, so it is disabled in `myoptions.h` (`USE_BUILTIN_LED false`) — otherwise the SD card cannot be read. Enabling it stops the build with an error.
+- Free pins: depends on board revision.
 
 Specs
 
@@ -54,10 +61,18 @@ Touch gestures
 - Left/Right — volume
 - Up/Down — station select
 - Tap — play/pause
+- Short two-finger touch (about half a second) — switch SD<->Radio. If the player was playing, playback continues in the new mode; if it was stopped, it stays stopped.
+- The mode can also be switched from the web interface.
 
 SD status
 
-- SD indexing works, but playback is not integrated. Community PRs are welcome.
+- SD card is supported since version 0.9.434m-r2.03: MP3 and FLAC, FAT32 card.
+- Settings in `myoptions.h`: `SDC_CS 42`, `SD_SPIPINS 48, 41, 47`, `SDSPISPEED 20000000`, `USE_BUILTIN_LED false`.
+- If the card is removed during playback, the device returns to Radio mode.
+- Known limitations:
+  - display inversion (`invert`) is not applied while the SD card is mounted;
+  - rare picture jitter is possible during playback;
+  - when switching Radio -> SD during playback, the line `audio is not a file` flashes on the screen for a moment — it does not affect operation.
 
 Closing
 

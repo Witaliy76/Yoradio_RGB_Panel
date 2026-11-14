@@ -30,6 +30,14 @@ AIPlugin aiPluginInstance;
 void setup() {
   Serial.begin(115200);
   if(REAL_LEDBUILTIN!=255) pinMode(REAL_LEDBUILTIN, OUTPUT);
+#if SDC_CS!=255
+  // Deselect the SD card before any display traffic: on boards where SD shares
+  // SCK/MOSI with the display command bus (ESP32-4848S040: GPIO48/47 with ST7701 type9),
+  // a floating CS would let the card see display init commands.
+  // Снимаем выбор SD до инициализации дисплея: на 4848S040 SD делит GPIO48/47 с шиной ST7701.
+  pinMode(SDC_CS, OUTPUT);
+  digitalWrite(SDC_CS, HIGH);
+#endif
   if (yoradio_on_setup) yoradio_on_setup();
   
   // Регистрируем плагины явно перед вызовом pm.on_setup()

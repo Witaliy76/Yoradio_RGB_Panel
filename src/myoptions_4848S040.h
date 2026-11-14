@@ -123,22 +123,20 @@
 /* ===============================================
    SD CARD
    =============================================== */
-// SD card support DISABLED for ESP32-4848S040
-// SD card did not work properly on this board
-// SD pins according to ESP32-4848S040 schematic:
-//   io42 - TF(D3) - Chip Select
-//   io47 - SPICLK_P - MOSI (Master Out Slave In)
-//   io48 - SPICLK_N - SCK (Clock)
-//   io41 - TF(D1) - MISO (Master In Slave Out)
-// Note: SD card functionality is not implemented for this board
-//#define USE_SD                              // SD card support disabled
-//#define SDC_CS        42                    // Chip Select
-//#define SD_SCK        48                    // SCK pin
-//#define SD_MISO       41                    // MISO pin
-//#define SD_MOSI       47                    // MOSI pin
-//#define SD_HSPI       true                  // Use HSPI to avoid conflicts
-//#define SD_DEBUG_ENABLED true               // SD card debug
-//#define SDSPISPEED    20000000              // SPI speed (20 MHz)
+// ESP32-4848S040 SD slot (SPI mode), per board schematic:
+//   io42 - TF(D3)  - Chip Select
+//   io48 - SCK     - shared with ST7701 command bus SCK (ST7701_SCK)
+//   io41 - TF(D1)  - MISO
+//   io47 - MOSI    - shared with ST7701 command bus SDA (ST7701_SDA)
+// SDManager reads only SD_SPIPINS (SCK, MISO, MOSI); separate SD_SCK/SD_MISO/SD_MOSI are not used.
+// GPIO48 is also the on-board RGB LED (variant esp32s3 LED_BUILTIN), so the builtin LED
+// MUST stay disabled: its RMT driver captures GPIO48 and breaks SD reads.
+// Слот SD использует GPIO48/47 совместно с командной шиной ST7701 и RGB-светодиодом.
+// Встроенный LED обязательно отключён (USE_BUILTIN_LED false), иначе RMT захватывает GPIO48.
+#define USE_BUILTIN_LED false                 // Do not drive RGB LED on GPIO48 (shared with SD CLK)
+#define SDC_CS        42                      // SD Chip Select
+#define SD_SPIPINS    48, 41, 47              // SCK, MISO, MOSI
+#define SDSPISPEED    20000000                // SD SPI speed (20 MHz)
 
 /* ===============================================
    TOUCHSCREEN

@@ -65,16 +65,6 @@ void SDManager::stop(){
 
 #include "diskio_impl.h"
 bool SDManager::cardPresent() {
-  size_t freeHeap = ESP.getFreeHeap();
-  if (freeHeap < 100000) {
-    static uint32_t lastWarnMs = 0;
-    uint32_t now = millis();
-    if (now - lastWarnMs >= 30000) {
-      lastWarnMs = now;
-      Serial.printf("##[WARN]# SDManager: low internal heap in cardPresent! Only %u bytes free\n", freeHeap);
-    }
-  }
-  
   if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {
     return false;
   }

@@ -19,14 +19,9 @@ SPIClass  SDSPI(HOOPSENb);
 SDManager sdman(FSImplPtr(new VFSImpl()));
 
 bool SDManager::start(){
-  // ПРОВЕРКА ПАМЯТИ ПЕРЕД ИНИЦИАЛИЗАЦИЕЙ SD
   size_t freeHeap = ESP.getFreeHeap();
-  if (freeHeap < 100000) {  // Только критические уровни памяти
-    Serial.printf("##[CRITICAL]# SDManager: CRITICAL MEMORY before SD init! Only %u bytes free\n", freeHeap);
-    heap_caps_check_integrity_all(true);
-    delay(10);
-    freeHeap = ESP.getFreeHeap();
-    Serial.printf("##[DEBUG]# SDManager: After cleanup: %u bytes free\n", freeHeap);
+  if (freeHeap < 100000) {
+    Serial.printf("##[WARN]# SDManager: low internal heap before SD init! Only %u bytes free\n", freeHeap);
   }
   
   if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {
@@ -70,12 +65,14 @@ void SDManager::stop(){
 
 #include "diskio_impl.h"
 bool SDManager::cardPresent() {
-  // ПРОВЕРКА ПАМЯТИ ПЕРЕД ПРОВЕРКОЙ SD
   size_t freeHeap = ESP.getFreeHeap();
-  if (freeHeap < 100000) {  // Только критические уровни памяти
-    Serial.printf("##[CRITICAL]# SDManager: CRITICAL MEMORY in cardPresent! Only %u bytes free\n", freeHeap);
-    heap_caps_check_integrity_all(true);
-    delay(5);
+  if (freeHeap < 100000) {
+    static uint32_t lastWarnMs = 0;
+    uint32_t now = millis();
+    if (now - lastWarnMs >= 30000) {
+      lastWarnMs = now;
+      Serial.printf("##[WARN]# SDManager: low internal heap in cardPresent! Only %u bytes free\n", freeHeap);
+    }
   }
   
   if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {
@@ -135,29 +132,9 @@ bool SDManager::_endsWith (const char* base, const char* str) {
 }
 
 void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uint8_t levels) {
-    // ПРОВЕРКА ПАМЯТИ ПЕРЕД ОТКРЫТИЕМ SD
     size_t freeHeap = ESP.getFreeHeap();
-    if (freeHeap < 100000) {  // Только критические уровни памяти
-        Serial.printf("##[CRITICAL]# SDManager: CRITICAL MEMORY! Only %u bytes free\n", freeHeap);
-        // Принудительная очистка памяти
-        heap_caps_check_integrity_all(true);
-        delay(5);
-        
-        // ДОПОЛНИТЕЛЬНАЯ ОЧИСТКА ПАМЯТИ
-        if (freeHeap < 80000) {  // Экстренная ситуация
-            Serial.printf("##[EMERGENCY]# SDManager: EMERGENCY MEMORY CLEANUP!\n");
-            // Множественная очистка heap
-            for (int i = 0; i < 3; i++) {
-                heap_caps_check_integrity_all(true);
-                delay(5);
-                ESP.getFreeHeap();  // Триггер сборки мусора
-                delay(3);
-            }
-            Serial.printf("##[DEBUG]# SDManager: Emergency cleanup completed\n");
-        }
-        
-        freeHeap = ESP.getFreeHeap();
-        Serial.printf("##[DEBUG]# SDManager: After cleanup: %u bytes free\n", freeHeap);
+    if (freeHeap < 100000) {
+        Serial.printf("##[WARN]# SDManager: low internal heap! Only %u bytes free\n", freeHeap);
     }
     
     if(xSemaphoreTake(sdMutex, portMAX_DELAY) != pdTRUE) {
@@ -250,5 +227,4 @@ void SDManager::indexSDPlaylist() {
     delay(50);
 }
 #endif
-
 

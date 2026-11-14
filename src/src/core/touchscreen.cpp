@@ -226,6 +226,7 @@ void TouchScreen::loop(){
     static uint8_t bufferIndex = 0;
     static bool modeChangeInProgress = false;
     static uint8_t multiTouchCount = 0;  // Счетчик мультитач-событий
+    static uint32_t twoFingerGestureMs = 0;
 
     if (!_checklpdelay(TOUCH_READ_DELAY, _touchdelay)) return;
     
@@ -247,6 +248,52 @@ void TouchScreen::loop(){
       touchY = map(p.y, TS_Y_MIN, TS_Y_MAX, 0, _height);
     #elif TS_MODEL==TS_MODEL_GT911
       TSPoint p = ts.points[0];
+
+      // Two-finger Radio↔SD (same as AXS15231B). Must run before coordinate filter.
+      // Мультитач GT911: переключение WEB/SD до _filterGT911Coordinates, иначе возможен ранний return.
+      #if SDC_CS != 255
+      if (ts.touches > 1) {
+                uint32_t currentTime = millis();
+                if (config.store.dbgtouch) {
+                    Serial.printf("[GT911] two-finger: touches=%d count=%d\n", ts.touches, multiTouchCount);
+                }
+                if (currentTime - lastMultiTouchTime > TOUCH_MULTI_DELAY) {
+                    multiTouchCount++;
+                    
+                    if (multiTouchCount >= 2) {
+        wasTwoFingerTouch = true;
+                        lastMultiTouchTime = currentTime;
+                        multiTouchCount = 0;
+                        twoFingerGestureMs = millis();
+                        
+                        if(config.getMode()==PM_SDCARD) {
+                            config.sdResumePos = player.getFilePos();
+                        }
+                        
+                        if (display.mode() == PLAYER && !modeChangeInProgress) {
+                            modeChangeInProgress = true;
+                            display.putRequest(NEWMODE, SDCHANGE);
+                            while(display.mode() != SDCHANGE) {
+                                delay(10);
+                            }
+                            delay(TOUCH_MODE_DELAY/2);
+                            
+                            config.changeMode();
+                            
+                            delay(TOUCH_MODE_DELAY);
+                            modeChangeInProgress = false;
+                        }
+                        
+        return;
+                    }
+                } else {
+                    if (millis() - lastMultiTouchTime > TOUCH_MULTI_DELAY) {
+                        wasTwoFingerTouch = false;
+                        multiTouchCount = 0;
+                    }
+                }
+      }
+      #endif
       
       // Применяем фильтрацию координат GT911
       if (!_filterGT911Coordinates(p.x, p.y)) {
@@ -487,6 +534,12 @@ void TouchScreen::loop(){
             lastProcessedX = touchX;
             lastProcessedY = touchY;
         } else { /*     SWIPE TOUCH     */
+#if TS_MODEL==TS_MODEL_GT911
+            if (twoFingerGestureMs != 0 && (millis() - twoFingerGestureMs < 1500)) {
+                // One-finger motion right after two-finger gesture must not change volume/station.
+            } else
+#endif
+            {
             int16_t dX = touchX - lastProcessedX;
             int16_t dY = touchY - lastProcessedY;
             
@@ -575,6 +628,7 @@ void TouchScreen::loop(){
     }
                 }
             }
+            }
     }
     } else {
         if (wastouched) { /* END TOUCH */
@@ -592,7 +646,17 @@ void TouchScreen::loop(){
                 lastSwipeEndY = lastProcessedY;
             }
             
-            if (!wasSwiped && direct == TDS_REQUEST) {
+            bool skipClickAfterTwoFinger = false;
+#if TS_MODEL==TS_MODEL_GT911
+            if (twoFingerGestureMs != 0 &&
+                (twoFingerGestureMs >= touchLongPress || (millis() - twoFingerGestureMs < 1500))) {
+                skipClickAfterTwoFinger = true;
+                if (config.store.dbgtouch) {
+                    Serial.printf("[GT911] click suppressed after two-finger gesture\n");
+                }
+            }
+#endif
+            if (!skipClickAfterTwoFinger && !wasSwiped && direct == TDS_REQUEST) {
                 uint32_t pressTicks = millis() - touchLongPress;
                 if (pressTicks < BTN_PRESS_TICKS * 2) {
                     if (pressTicks > 50) {

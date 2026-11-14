@@ -1756,39 +1756,57 @@ int Audio::read_FLAC_Header(uint8_t* data, size_t len) {
         size_t commentListLength = data[0] + (data[1] << 8) + (data[2] << 16) + (data[3] << 24);
         data += 4; idx += 4;
 
-        char* album = NULL;
-        char* artist = NULL;
-        char* title  = NULL;
+        ps_ptr<char> album("vorbisAlbum");
+        ps_ptr<char> artist("vorbisArtist");
+        ps_ptr<char> title("vorbisTitle");
 
         for(int i = 0; i < commentListLength; i++) {
             (void)i;
+            if(idx + 4 > vendorLength + 3) {
+                AUDIO_ERROR("VORBIS COMMENT section is too long");
+                break;
+            }
             size_t commentLength = data[0] + (data[1] << 8) + (data[2] << 16) + (data[3] << 24);
+            if(idx + 4 + commentLength > vendorLength + 3) {
+                AUDIO_ERROR("VORBIS COMMENT section is too long");
+                break;
+            }
             data += 4; idx += 4;
             if(commentLength) { // guard
                 commentString.assign((const char*)data , commentLength);
                 if(commentString.starts_with("LYRICS=")) lyricsBuffer.clone_from(commentString);
                 else /*info(evt_id3data,*/ audio_id3data(commentString.get());
 
-            if(startsWith(commentString.get(), "album") || startsWith(commentString.get(), "ALBUM")){
-                album = strdup(commentString.get() + 6);
-                audio_id3album(album); }
-
-            if(startsWith(commentString.get(), "artist") || startsWith(commentString.get(), "ARTIST")){
-                artist = strdup(commentString.get() + 7);
-//                audio_id3artist(artist);
-                strcpy(album, " / ");
-                strcpy(album, artist); }
-
-            if(startsWith(commentString.get(), "title") || startsWith(commentString.get(), "TITLE")){
-                title = strdup(commentString.get() + 6);
-                strcpy(album, " - ");
-                strcpy(album, title);
-                audio_id3album(album); }
-
+                const char* s = commentString.get();
+                if(s) {
+                    if(strncasecmp(s, "ALBUM=", 6) == 0) {
+                        album.assign(s + 6);
+                    } else if(strncasecmp(s, "ARTIST=", 7) == 0) {
+                        artist.assign(s + 7);
+                    } else if(strncasecmp(s, "TITLE=", 6) == 0) {
+                        title.assign(s + 6);
+                    }
+                }
             }
             data += commentLength; idx += commentLength;
-            if(idx > vendorLength + 3) {AUDIO_ERROR("VORBIS COMMENT section is too long");}
+        }
 
+        ps_ptr<char> albumLine("albumLine");
+        const bool haveArtist = artist.valid() && artist.strlen() > 0;
+        const bool haveTitle  = title.valid() && title.strlen() > 0;
+        const bool haveAlbum  = album.valid() && album.strlen() > 0;
+        if(haveArtist && haveTitle) {
+            albumLine.assignf("%s - %s", artist.get(), title.get());
+        } else if(haveTitle) {
+            albumLine.assign(title.get());
+        } else if(haveArtist) {
+            albumLine.assign(artist.get());
+        } else if(haveAlbum) {
+            albumLine.assign(album.get());
+        }
+        if(albumLine.valid() && albumLine.strlen() > 0) {
+            if(albumLine.strlen() > 250) albumLine.truncate_at((std::size_t)250);
+            audio_id3album(albumLine.get());
         }
         ps_ptr<char> tmp(__LINE__);
         ps_ptr<char> timestamp(__LINE__);

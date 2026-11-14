@@ -72,6 +72,7 @@ void TAMC_GT911::read(void) {
   uint8_t bufferStatus = pointInfo >> 7 & 1;
   isLargeDetect = pointInfo >> 6 & 1;
   touches = pointInfo & 0xF;
+  if (touches > 5) touches = 0;
   // Serial.print("bufferStatus: ");Serial.println(bufferStatus);
   // Serial.print("largeDetect: ");Serial.println(isLargeDetect);
   // Serial.print("proximityValid: ");Serial.println(proximityValid);
@@ -124,33 +125,52 @@ void TAMC_GT911::writeByteData(uint16_t reg, uint8_t val) {
   Wire.endTransmission();
 }
 uint8_t TAMC_GT911::readByteData(uint16_t reg) {
-  uint8_t x;
   Wire.beginTransmission(addr);
   Wire.write(highByte(reg));
   Wire.write(lowByte(reg));
   Wire.endTransmission();
-  Wire.requestFrom(addr, (uint8_t)1);
-  x = Wire.read();
-  return x;
+  uint8_t got = Wire.requestFrom(addr, (uint8_t)1);
+  if (got == 0) return 0;
+  return Wire.read();
 }
 void TAMC_GT911::writeBlockData(uint16_t reg, uint8_t *val, uint8_t size) {
-  Wire.beginTransmission(addr);
-  Wire.write(highByte(reg));
-  Wire.write(lowByte(reg));
-  // Wire.write(val, size);
-  for (uint8_t i=0; i<size; i++) {
-    Wire.write(val[i]);
+  const uint8_t maxPayload = 126; // I2C_BUFFER_LENGTH 128 minus 2 register bytes
+  uint8_t offset = 0;
+  while (offset < size) {
+    uint8_t chunk = size - offset;
+    if (chunk > maxPayload) chunk = maxPayload;
+    Wire.beginTransmission(addr);
+    Wire.write(highByte(reg + offset));
+    Wire.write(lowByte(reg + offset));
+    for (uint8_t i = 0; i < chunk; i++) {
+      Wire.write(val[offset + i]);
+    }
+    Wire.endTransmission();
+    offset += chunk;
   }
-  Wire.endTransmission();
 }
 void TAMC_GT911::readBlockData(uint8_t *buf, uint16_t reg, uint8_t size) {
-  Wire.beginTransmission(addr);
-  Wire.write(highByte(reg));
-  Wire.write(lowByte(reg));
-  Wire.endTransmission();
-  Wire.requestFrom(addr, size);
-  for (uint8_t i=0; i<size; i++) {
-    buf[i] = Wire.read();
+  const uint8_t maxChunk = 32;
+  uint8_t offset = 0;
+  while (offset < size) {
+    uint8_t chunk = size - offset;
+    if (chunk > maxChunk) chunk = maxChunk;
+    Wire.beginTransmission(addr);
+    Wire.write(highByte(reg + offset));
+    Wire.write(lowByte(reg + offset));
+    Wire.endTransmission();
+    uint8_t got = Wire.requestFrom(addr, chunk);
+    uint8_t i = 0;
+    for (; i < got; i++) {
+      buf[offset + i] = Wire.read();
+    }
+    if (got < chunk) {
+      for (uint8_t j = offset + i; j < size; j++) {
+        buf[j] = 0;
+      }
+      return;
+    }
+    offset += chunk;
   }
 }
 TP_Point::TP_Point(void) {
